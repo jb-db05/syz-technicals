@@ -67,6 +67,45 @@ def cmd_price_template(a) -> int:
     return 0
 
 
+def cmd_deck_charts(a) -> int:
+    from .charts.deck_chart import deck_chart, load_trendlines
+    prices = load_prices(a.prices)
+    uni, problems = load_universe(a.universe)
+    for p in problems:
+        print(f"universe: {p}")
+    asof = a.asof or (prices.prices.date.max().date() if len(prices.prices) else None)
+    scores = score_universe(prices, uni, asof).set_index("ticker")
+    tls = load_trendlines(a.trendlines)
+    out_dir = Path(a.out) / str(asof)
+    done, skipped = 0, []
+    for i, u in enumerate(uni.itertuples(index=False), start=1):
+        t = u.ticker
+        if t not in prices.reports or prices.reports[t].bars == 0:
+            skipped.append(f"{t}: no prices"); continue
+        s = prices.series(t)
+        s = s[s.index <= pd.Timestamp(asof)]
+        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": u.support, "resistance": u.resistance,
+               "support_origin": getattr(u, "support_origin", None), "resistance_origin": getattr(u, "resistance_origin", None)}
+        badge, kind = (u.badge, "published") if isinstance(u.badge, str) and u.badge else (None, "mechanical")
+        if badge is None:
+            v = scores.loc[t, "verdict"]
+            badge = v if v in ("Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish_LM", "Bearish") else None
+        bench = getattr(u, "benchmark", None)
+        b = prices.series(bench) if isinstance(bench, str) and bench in prices.reports else None
+        bname = uni.set_index("ticker")["name"].get(bench, bench) if b is not None else None
+        group = (u.group or "Other").replace(" – ", "_").replace(" & ", "_").replace(" ", "_")
+        f = out_dir / group / f"{i:03d}_{t.replace(' ', '_').replace('/', '-')}.png"
+        try:
+            deck_chart(s, row, f, badge=badge, badge_kind=kind, trendlines=tls.get(t), benchmark=b, benchmark_name=bname)
+            done += 1
+        except Exception as e:                      # one bad series must not stop the run
+            skipped.append(f"{t}: {e}")
+    print(f"deck charts: {done} written to {out_dir}")
+    for s in skipped:
+        print(f"  skipped – {s}")
+    return 0
+
+
 def cmd_trend(a) -> int:
     prices = load_prices(a.prices)
     uni, problems = load_universe(a.universe)
@@ -125,6 +164,13 @@ def main(argv=None) -> int:
     s.add_argument("--start", default="2019-01-01")
     s.add_argument("--end", required=True)
     s.set_defaults(func=cmd_price_template)
+    s = sub.add_parser("deck-charts", help="16:9 publication charts for every instrument in the universe")
+    s.add_argument("--prices", default="data/prices")
+    s.add_argument("--universe", default="data/universe.csv")
+    s.add_argument("--trendlines", default="data/trendlines.csv")
+    s.add_argument("--asof")
+    s.add_argument("--out", default="output/deck")
+    s.set_defaults(func=cmd_deck_charts)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")

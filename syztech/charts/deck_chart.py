@@ -25,6 +25,7 @@ from .syz_style import (AMBER, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SO
                         VERDICT_GLYPH, register_fonts)
 
 BARS_5Y = 5 * 252
+MA50_BLUE = "#2F6FDE"     # agreed 8 Nov 2026 (outside the Syz palette)
 BADGE_TEXT = {"Bullish": "BULLISH", "Neutral+": "NEUTRAL – POSITIVE TILT", "Neutral": "NEUTRAL",
               "Neutral-": "NEUTRAL – NEGATIVE TILT", "Bearish_LM": "BEARISH – LOSING MOMENTUM", "Bearish": "BEARISH"}
 
@@ -75,14 +76,14 @@ def _draw_tags(ax, tags, min_gap_pt=19):
 
 def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | None, badge_kind: str = "published",
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
-               benchmark_name: str | None = None, ma50_colour: str = AMBER, show_52w: bool = False) -> Path:
+               benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = True) -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
     dec = int(row.get("decimals") or 1)
     ma50, ma200 = sma(close, 50), sma(close, 200)
     n = len(close)
-    start = max(0, n - BARS_5Y)
+    start = int(close.index.searchsorted(close.index[-1] - pd.DateOffset(years=5)))   # 5 calendar years
     idx = close.index[start:]
     x = np.arange(n - start)
     sl = slice(start, n)
@@ -104,6 +105,9 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     # drawn horizontal levels, value printed on the axis
     for key, colour in (("support", BLUEBERRY), ("resistance", BLUEBERRY)):
         v = row.get(key)
+        origin = row.get(f"{key}_origin")
+        if show_52w and isinstance(origin, str) and origin.startswith("52w"):
+            continue                              # already shown by the 52-week range
         if v is not None and not pd.isna(v):
             ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
             _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)
@@ -171,7 +175,12 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         rx.set_xticklabels([str(idx[i].year) for i in yr])
 
     # title block
-    fig.text(0.05, 0.925, row["name"], fontsize=24, fontweight="bold", color=NAVY)
+    title = fig.text(0.05, 0.925, row["name"], fontsize=24, fontweight="bold", color=NAVY)
+    rend = fig.canvas.get_renderer()
+    size = 24
+    while size > 13 and title.get_window_extent(rend).x1 > 0.68 * fig.bbox.width:   # keep clear of the badge
+        size -= 1
+        title.set_fontsize(size)
     fig.text(0.05, 0.875, f"{row['ticker']}  |  daily close, log scale, 5 years", fontsize=11, color=BLUEBERRY)
     fig.add_artist(plt.Line2D([0.05, 0.12], [0.862, 0.862], color=ORANGE, lw=3, transform=fig.transFigure))
 
@@ -183,7 +192,8 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
                                     fc=col, ec="none", transform=bx.transAxes))
         bx.text(0.5, 0.60, f"{VERDICT_GLYPH.get(badge, '')}  {BADGE_TEXT.get(badge, badge)}", ha="center", va="center",
                 color="white", fontsize=13, fontweight="bold", transform=bx.transAxes)
-        bx.text(0.5, 0.25, "Syz Research view" if badge_kind == "published" else "Rules-based reading (no published view)",
+        sub = {"published": "Syz Research view", "mechanical": "Rules-based reading (no published view)"}.get(badge_kind, badge_kind)
+        bx.text(0.5, 0.25, sub,
                 ha="center", va="center", color="white", fontsize=8.5, transform=bx.transAxes)
 
     _draw_tags(ax, tags)
@@ -193,4 +203,18 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, facecolor="white")
     plt.close(fig)
+    return out
+
+
+def load_trendlines(path) -> dict[str, list[Trendline]]:
+    """data/trendlines.csv: ticker,start_date,start_price,end_date,end_price[,label]. Missing file → none."""
+    p = Path(path)
+    if not p.exists():
+        return {}
+    df = pd.read_csv(p)
+    out: dict[str, list[Trendline]] = {}
+    for r in df.itertuples(index=False):
+        out.setdefault(r.ticker, []).append(Trendline((str(r.start_date), float(r.start_price)),
+                                                      (str(r.end_date), float(r.end_price)),
+                                                      getattr(r, "label", "Trendline") or "Trendline"))
     return out
