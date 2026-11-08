@@ -1,6 +1,8 @@
 """Indicator arithmetic against hand-computed values on a 30-bar series (small windows)."""
 import math
 
+import numpy as np
+
 import pandas as pd
 import pytest
 
@@ -77,3 +79,16 @@ def test_death_cross_requires_falling_slope():
     slow = pd.Series([2, 2, 2, 2, 2.0])
     assert last_cross(fast, slow, pd.Series(["falling"] * 5), 5).kind == "death"
     assert last_cross(fast, slow, pd.Series(["flat"] * 5), 5).kind == "cross_unqualified"
+
+
+def test_relative_strength_trend():
+    from syztech.indicators.rs import rs_summary, rs_trend
+    idx = pd.bdate_range("2025-01-01", periods=300)
+    bench = pd.Series(100.0, index=idx)
+    up = pd.Series(np.linspace(100, 130, 300), index=idx)
+    down = pd.Series(np.linspace(100, 70, 300), index=idx)
+    assert rs_summary(up, bench)["rs_trend"] == "outperforming"
+    assert rs_summary(down, bench)["rs_trend"] == "underperforming"
+    assert rs_summary(up, bench)["rs_chg63"] > 0
+    assert rs_trend("above", "falling") == "mixed"
+    assert rs_summary(up.iloc[:100], bench)["rs_trend"] is None      # not enough common history
