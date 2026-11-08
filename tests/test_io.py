@@ -107,3 +107,12 @@ def test_bloomberg_error_is_reported(tmp_path):
             xw, sheet_name="BAD Index", header=False, index=False)
     rep = load_prices(tmp_path).reports["BAD Index"]
     assert rep.bars == 0 and "Bloomberg error: #N/A Invalid Security" in rep.issues
+
+
+def test_tab_and_formula_ticker_must_match(tmp_path):
+    with pd.ExcelWriter(tmp_path / "p.xlsx") as xw:
+        pd.DataFrame([["Date", "PX_LAST", "Ticker", "M7EUMC Index"], ["2026-01-05", 1.0, None, None]]).to_excel(
+            xw, sheet_name="MXEUMMC Index", header=False, index=False)
+    res = load_prices(tmp_path)
+    assert "MXEUMMC Index" not in res.reports and "M7EUMC Index" in res.reports   # keyed on the data's real ticker
+    assert any("formula pulls 'M7EUMC Index'" in n for n in res.file_notes)

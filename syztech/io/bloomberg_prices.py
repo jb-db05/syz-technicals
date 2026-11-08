@@ -115,7 +115,7 @@ def _clean(ticker: str, source: str, dates: pd.Series, values: pd.Series, name: 
 
 
 def _read_sheet(raw: pd.DataFrame, sheet: str, source: str):
-    """Yield (ticker, dates, values, name) for one sheet; or raise ValueError with the reason."""
+    """Yield (ticker, dates, values, name, note) for one sheet; or raise ValueError with the reason."""
     h = _find_header(raw)
     if h is None:
         raise ValueError("no 'Date' header in the first rows")
@@ -125,7 +125,16 @@ def _read_sheet(raw: pd.DataFrame, sheet: str, source: str):
     body = raw.iloc[h + 1:].reset_index(drop=True)
     price_cols = [i for i, c in enumerate(low) if c in PRICE_HEADERS]
     if price_cols:                                         # one sheet per ticker
-        yield sheet.strip(), body.iloc[:, date_cols[0]], body.iloc[:, price_cols[0]], None
+        # template sheets carry the BDH ticker next to a 'Ticker' header; it must match the tab name
+        if "ticker" in low:
+            k = low.index("ticker")
+            formula_ticker = header[k + 1] if k + 1 < len(header) else ""
+            if formula_ticker and formula_ticker != sheet.strip():
+                # the data comes from the formula's ticker: key the series on it and say so
+                yield formula_ticker, body.iloc[:, date_cols[0]], body.iloc[:, price_cols[0]], \
+                    None, f"tab named '{sheet.strip()}' but the formula pulls '{formula_ticker}' – loaded as {formula_ticker}"
+                return
+        yield sheet.strip(), body.iloc[:, date_cols[0]], body.iloc[:, price_cols[0]], None, None
         return
     if len(date_cols) > 1:
         raise ValueError(f"{len(date_cols)} 'Date' columns – paired-column layout is not a supported shape")
@@ -141,7 +150,7 @@ def _read_sheet(raw: pd.DataFrame, sheet: str, source: str):
             v = body.iat[r, i]
             if isinstance(v, str) and v.strip():
                 name = v.strip()
-        yield t, body.iloc[:, dc], body.iloc[:, i], name
+        yield t, body.iloc[:, dc], body.iloc[:, i], name, None
 
 
 def load_prices(path: str | Path) -> LoadResult:
@@ -164,7 +173,9 @@ def load_prices(path: str | Path) -> LoadResult:
                 continue
             source = f"{f.name} › {sheet}"
             try:
-                for ticker, dates, values, name in _read_sheet(raw, sheet, source):
+                for ticker, dates, values, name, note in _read_sheet(raw, sheet, source):
+                    if note:
+                        notes.append(f"{source}: {note}")
                     if ticker in reports:
                         notes.append(f"{source}: {ticker} already loaded from {reports[ticker].source} – second copy ignored")
                         continue
