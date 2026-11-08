@@ -1,0 +1,18 @@
+# Bloomberg exports and published documents stay local
+data/**
+!data/
+!data/prices/
+!data/breadth/
+!data/editions/
+!data/**/.gitkeep
+!data/schema_examples/
+!data/schema_examples/**
+
+output/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.venv/

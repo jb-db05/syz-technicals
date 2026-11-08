@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "syztech"
+version = "0.1.0"
+description = "Syz Research – quantitative layer of the technical analysis (trend engine, verdict ledger, regime score)"
+requires-python = ">=3.11"
+dependencies = ["pandas", "numpy", "openpyxl", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+syztech = "syztech.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["syztech*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
