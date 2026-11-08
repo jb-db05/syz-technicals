@@ -124,3 +124,13 @@ def test_template_includes_benchmark_only_tickers():
                       "benchmark": ["MXWO Index", None, "SPX Index"]})
     w = with_benchmarks(u)
     assert list(w.ticker) == ["2330 TT Equity", "SPX Index", "AAPL US Equity", "MXWO Index"]
+
+
+def test_deck_chart_renders(tmp_path):
+    from syztech.charts.deck_chart import Trendline, deck_chart
+    s, kw = fx.cac40_declining_ma_death_cross_range_intact()
+    row = {"ticker": "CAC Index", "name": "CAC 40", "decimals": 1, "support": kw["support"], "resistance": 50.0}
+    out = deck_chart(s, row, tmp_path / "c.png", badge="Neutral",
+                     trendlines=[Trendline((str(s.index[50].date()), 25.0), (str(s.index[300].date()), 35.0))],
+                     benchmark=s * 0 + 100.0, benchmark_name="Flat")
+    assert out.exists() and out.stat().st_size > 20_000
