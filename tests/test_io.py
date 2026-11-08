@@ -78,3 +78,24 @@ def test_universe_draft_and_end_to_end(tmp_path):
         assert (tmp_path / "output").exists()
     finally:
         os.chdir(cwd)
+
+
+def test_price_template_round_trip(tmp_path):
+    """The template's ticker sheets are read as shape-2 exports once Bloomberg has filled them."""
+    from datetime import date
+    from openpyxl import load_workbook
+    from syztech.io.template import build_template
+    uni = draft(["SPX Index", "EURUSD Curncy"])
+    out = build_template(uni, tmp_path / "t.xlsx", date(2019, 1, 1), date(2026, 11, 6))
+    wb = load_workbook(out)
+    assert wb.sheetnames == ["Instructions", "Settings", "SPX Index", "EURUSD Curncy"]
+    assert wb["SPX Index"]["A2"].value.startswith('=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3')
+    assert '"Fill=B"' in wb["SPX Index"]["A2"].value and '"Dates=S"' in wb["SPX Index"]["A2"].value
+    # simulate Bloomberg having filled one sheet (values replace the formula)
+    ws = wb["SPX Index"]
+    for i, d in enumerate(pd.bdate_range("2026-01-05", periods=5), start=2):
+        ws.cell(i, 1, d.to_pydatetime()); ws.cell(i, 2, 6000.0 + i)
+    wb.save(out)
+    res = load_prices(tmp_path)
+    assert res.series("SPX Index").tolist() == [6002.0, 6003.0, 6004.0, 6005.0, 6006.0]
+    assert not any("Instructions" in n or "Settings" in n for n in res.file_notes)

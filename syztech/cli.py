@@ -54,6 +54,17 @@ def cmd_universe_draft(a) -> int:
     return 0
 
 
+def cmd_price_template(a) -> int:
+    from datetime import date
+    from .io.template import build_template
+    uni, problems = load_universe(a.universe)
+    for p in problems:
+        print(f"universe: {p}")
+    out = build_template(uni, a.out, date.fromisoformat(a.start), date.fromisoformat(a.end))
+    print(f"written: {out} ({len(uni)} ticker sheets, {a.start} to {a.end})")
+    return 0
+
+
 def cmd_trend(a) -> int:
     prices = load_prices(a.prices)
     uni, problems = load_universe(a.universe)
@@ -94,6 +105,12 @@ def main(argv=None) -> int:
     s.add_argument("--out", default="data/universe.csv")
     s.add_argument("--force", action="store_true")
     s.set_defaults(func=cmd_universe_draft)
+    s = sub.add_parser("price-template", help="Excel template with one BDH sheet per universe ticker")
+    s.add_argument("--universe", default="data/universe.csv")
+    s.add_argument("--out", default="data/schema_examples/bloomberg_prices_template.xlsx")
+    s.add_argument("--start", default="2019-01-01")
+    s.add_argument("--end", required=True)
+    s.set_defaults(func=cmd_price_template)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")

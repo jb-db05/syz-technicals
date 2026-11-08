@@ -19,6 +19,8 @@ PRICE_HEADERS = {"px_last", "last price", "last_price"}
 DATE_HEADERS = {"date", "dates"}
 # Sheets that must never be read as prices (§2.1 known defects)
 FORBIDDEN_SHEETS = {"momentum equities, forex, commo"}
+# Housekeeping sheets of the price template – skipped silently
+NON_PRICE_SHEETS = {"instructions", "settings", "readme"}
 HEADER_SCAN_ROWS = 20
 
 
@@ -155,7 +157,7 @@ def load_prices(path: str | Path) -> LoadResult:
             if sheet.strip().lower() in FORBIDDEN_SHEETS:
                 notes.append(f"{f.name} › {sheet}: skipped – helper sheet holds 200-day MAs, not prices")
                 continue
-            if raw.dropna(how="all").empty:
+            if sheet.strip().lower() in NON_PRICE_SHEETS or raw.dropna(how="all").empty:
                 continue
             source = f"{f.name} › {sheet}"
             try:
