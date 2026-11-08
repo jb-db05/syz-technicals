@@ -9,7 +9,7 @@ import pandas as pd
 
 from .fmt import EN_DASH
 from .io.bloomberg_prices import load_prices
-from .io.universe import COLUMNS, draft, guess_asset_class, load_universe
+from .io.universe import COLUMNS, draft, guess_asset_class, load_universe, with_benchmarks
 from .trend.rules import INSUFFICIENT
 from .trend.score import score_universe
 
@@ -60,8 +60,10 @@ def cmd_price_template(a) -> int:
     uni, problems = load_universe(a.universe)
     for p in problems:
         print(f"universe: {p}")
-    out = build_template(uni, a.out, date.fromisoformat(a.start), date.fromisoformat(a.end))
-    print(f"written: {out} ({len(uni)} ticker sheets, {a.start} to {a.end})")
+    sheets = with_benchmarks(uni)
+    out = build_template(sheets, a.out, date.fromisoformat(a.start), date.fromisoformat(a.end))
+    extra = len(sheets) - len(uni)
+    print(f"written: {out} ({len(sheets)} ticker sheets incl. {extra} benchmark-only, {a.start} to {a.end})")
     return 0
 
 

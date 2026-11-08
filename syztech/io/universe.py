@@ -79,3 +79,11 @@ def load_universe(path: str | Path) -> tuple[pd.DataFrame, list[str]]:
     if df.ticker.duplicated().any():
         problems.append(f"duplicate tickers: {', '.join(df.ticker[df.ticker.duplicated()])}")
     return df, problems
+
+
+def with_benchmarks(universe: pd.DataFrame) -> pd.DataFrame:
+    """Universe plus one row per benchmark ticker that is not itself an instrument (for the price template)."""
+    have = set(universe.ticker)
+    extra = sorted({b for b in universe.get("benchmark", pd.Series(dtype=object)).dropna() if isinstance(b, str) and b and b not in have})
+    rows = [{"ticker": b, "name": "benchmark", "asset_class": "index", "group": "Benchmarks"} for b in extra]
+    return pd.concat([universe, pd.DataFrame(rows, columns=universe.columns)], ignore_index=True) if rows else universe

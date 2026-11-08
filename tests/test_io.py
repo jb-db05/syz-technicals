@@ -116,3 +116,11 @@ def test_tab_and_formula_ticker_must_match(tmp_path):
     res = load_prices(tmp_path)
     assert "MXEUMMC Index" not in res.reports and "M7EUMC Index" in res.reports   # keyed on the data's real ticker
     assert any("formula pulls 'M7EUMC Index'" in n for n in res.file_notes)
+
+
+def test_template_includes_benchmark_only_tickers():
+    from syztech.io.universe import with_benchmarks
+    u = pd.DataFrame({"ticker": ["2330 TT Equity", "SPX Index", "AAPL US Equity"], "name": ["TSMC", "S&P 500", "Apple"],
+                      "benchmark": ["MXWO Index", None, "SPX Index"]})
+    w = with_benchmarks(u)
+    assert list(w.ticker) == ["2330 TT Equity", "SPX Index", "AAPL US Equity", "MXWO Index"]
