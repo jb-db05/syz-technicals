@@ -149,7 +149,7 @@ Decisions confirmed by Florian (8 Nov 2026):
 - **Rule order.** `support_broken` and `resistance_broken` are mutually exclusive states, so Bearish_LM is tested before Bearish, and falling + `resistance_broken` (Neutral) before falling + intact (Neutral-). This is the order above.
 - **Flat 200-day branch.** `flat + support_broken + MA50 < MA200` → **Bearish**. No minimum break size: a close below the trigger is a break (EUR/CHF, 25 Oct 2026, would mechanically have been Bearish; an analyst hold at Neutral- is a discretionary override, recorded in `override_reason`).
 - **Drawn level and band on the same side.** When a drawn support exists, a `MIN100` break does not by itself set `support_broken` (the drawn level has priority), but it resets an older `resistance_broken` state to intact. Symmetrically, with a drawn resistance a `MAX100` break resets an older `support_broken` state without setting `resistance_broken`.
-- **Drawn levels are dated.** A close beyond a drawn level counts only from `levels_asof` onward; a blank `levels_asof` means the whole history.
+- **Drawn levels are dated.** A close beyond a drawn level counts from `levels_asof` minus `levels_lookback` (default 100 trading days, one band window) onward; a blank `levels_asof` means the whole history. *The 100-day lookback was added on 8 Nov 2026 after the first real run (KOSPI broke 5,275 in the week before the level was dated 8 Nov) – pending Florian's confirmation.*
 - **MA50 slope** in the Bearish_LM rule: `MA50[t] / MA50[t−20] − 1 > 0`, same 20-bar window as `slope200`, no flat band.
 
 ### 3.4 Exceptions report
@@ -162,6 +162,8 @@ For each instrument compare `mechanical_verdict` with `badge` from the universe 
 - `conflict` – opposite sides or two steps apart
 - `trigger_hit` – a drawn level was crossed since `badge_asof` (the verdict must change under the doctrine)
 - `levels_stale` – `levels_asof` older than 28 days
+
+Reading of the ladder (pending confirmation): Bearish (incl. Bearish_LM) | Neutral- | Neutral | Neutral+ | Bullish. Same side → `tilt_only`; one rung apart across sides → `one_step` (Bullish vs Neutral+, Neutral- vs Bearish); two rungs or more → `conflict` (Bullish vs Neutral). Each instrument is listed once, in the first section that applies in the order above.
 
 Output a Markdown report ordered: `trigger_hit`, `conflict`, `one_step`, `tilt_only`, `levels_stale`, then `agree` as a count. Each row: ticker, name, last close (correct decimals), MA200 and its slope, last band event with date and level, drawn support / resistance, mechanical verdict, badge, classification, one-line reason built from the rule that fired (e.g. "200d rising, support 7,500.0 intact → Bullish; badge Neutral-"). No prose beyond that line – the interpretation is written by the analyst.
 

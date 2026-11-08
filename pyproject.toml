@@ -18,5 +18,8 @@ syztech = "syztech.cli:main"
 [tool.setuptools.packages.find]
 include = ["syztech*"]
 
+[tool.setuptools.package-data]
+"syztech.charts" = ["fonts/*.ttf", "fonts/OFL.txt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

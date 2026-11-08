@@ -31,6 +31,7 @@ class TrendParams:
     bb_window: int = 100
     bb_k: float = 2.0
     min_history: int = 320           # 200 (MA) + 100 (band) + 20 (slope)
+    levels_lookback: int = 100       # drawn-level breaks count from this many bars before levels_asof
 
 
 DEFAULT_PARAMS = TrendParams()
@@ -82,7 +83,7 @@ def structure_state(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     (§3.3 note: "stays broken until ... a MAX100 break or a close above the drawn
     resistance resets the structure").
 
-    Drawn-level breaks are counted from `levels_start` (bar of `levels_asof`) onward.
+    Drawn-level breaks are counted from `levels_start` (levels_asof minus `levels_lookback` bars) onward.
     """
     c = close.to_numpy(dtype=float)
     n = len(c)
@@ -222,7 +223,7 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
                            missing=f"price history: {len(close)} bars < {params.min_history} required")
     levels_start = 0
     if levels_asof is not None and not pd.isna(levels_asof) and isinstance(close.index, pd.DatetimeIndex):
-        levels_start = int(close.index.searchsorted(pd.Timestamp(levels_asof)))
+        levels_start = max(0, int(close.index.searchsorted(pd.Timestamp(levels_asof))) - params.levels_lookback)
     snap = snapshot(close, params, support, resistance, levels_start)
     for rule, cond, verdict in _rules(snap):
         if cond:

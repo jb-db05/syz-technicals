@@ -80,7 +80,19 @@ def cmd_trend(a) -> int:
     for v, c in counts.items():
         print(f"  {v:18} {c}")
     print(f"written: {path}")
-    print("exceptions report (§3.4): not built yet – next session.")
+    from .trend.exceptions import classify_frame, render_markdown
+    closes = {t: prices.series(t)[lambda s: s.index <= pd.Timestamp(asof)] for t in df.ticker if t in prices.reports}
+    ex = classify_frame(df, closes, asof)
+    ex.to_csv(path, index=False)
+    md = OUT / f"exceptions_{asof}.md"
+    md.write_text(render_markdown(ex, asof), encoding="utf-8")
+    print("Exceptions:", ", ".join(f"{k} {v}" for k, v in ex.section.value_counts().items()))
+    print(f"written: {md}")
+    if a.charts:
+        from .charts.trend_chart import trend_chart
+        for _, r in ex[ex.section.isin(["conflict", "trigger_hit"])].iterrows():
+            f = trend_chart(closes[r.ticker], r, OUT / "charts" / f"{asof}_{r.ticker.replace(' ', '_')}.png")
+            print(f"chart: {f}")
     bad = df[df.verdict == INSUFFICIENT]
     for _, r in bad.iterrows():
         print(f"  insufficient_data – {r.ticker}: {r.missing}")

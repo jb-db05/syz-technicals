@@ -181,8 +181,15 @@ def test_flat_band_is_a_parameter():
 
 
 def test_levels_asof_limits_drawn_breaks():
-    """A drawn support only counts from levels_asof: an older dip below it is not a break."""
+    """A drawn level counts from levels_asof minus 100 bars: an old dip below it is not a break,
+    a break in the 100 bars before levels_asof is (KOSPI, 8 Nov 2026: level dated after the break)."""
     from tests.fixtures.builders import Path
-    s = Path(60).to(110, 300).to(95, 30).to(104, 40).series()   # dip to 95 below support 100, never reset
+    p = Path(60).to(110, 300).to(95, 30).to(104, 40)           # dip below support 100 at bars ~300-352
+    s = p.series()
     assert evaluate(s, support=100.0, levels_asof=s.index[0]).verdict == NEUTRAL_POS
-    assert evaluate(s, support=100.0, levels_asof=s.index[-10]).verdict == BULLISH
+    assert evaluate(s, support=100.0, levels_asof=s.index[-1]).verdict == NEUTRAL_POS   # dip within 100 bars
+    longer = p.oscillate(104, 0.01, 40, 160).series()          # 160 more bars inside the range
+    assert evaluate(longer, support=100.0, levels_asof=longer.index[-1]).verdict == BULLISH
+    # a level dated after the data still registers a break in the preceding 100 bars
+    after = s.index[-1] + pd.Timedelta(days=2)
+    assert evaluate(s, support=100.0, levels_asof=after).snapshot.structure.support_broken
