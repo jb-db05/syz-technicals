@@ -82,7 +82,7 @@ Known Bloomberg export defects to handle: sheets where price/MA columns are roun
 | badge_asof | date | edition date of that badge |
 | standing_position | str | optional editorial prior (e.g. "Bullish"); a prior, never an override |
 
-Optional columns `support_origin` / `resistance_origin` record where each level came from: `text` (named in the commentary), `chart` (value tag of a horizontal line on the published chart), `52w low` / `52w high` (fallback, 8 Nov 2026: when neither text nor chart gives the level, the lowest / highest close of the 52 weeks before the data date, excluding the last bar). Priority: text, then chart (closest line on that side), then 52-week. A level named as a broken support in the text stays the support even when price is below it.
+Optional columns `support_origin` / `resistance_origin` record where each level came from: `text` (named in the commentary), `chart` (value tag of a horizontal line on the published chart), `52w low` / `52w high` (fallback, 8 Nov 2026: when neither text nor chart gives the level, the lowest / highest close of the 52 weeks before the data date, excluding the last bar). Priority: text, then chart (closest line on that side), then 52-week. A level named as a broken support in the text stays the support even when price is below it. A horizontal chart line above price that price closed above within the last 100 trading days is a broken support and is entered as the support (Florian, 8 Nov 2026 – Asian indices); the resistance is then the next line above, else the 52-week high.
 
 `Neutral+` / `Neutral-` = Neutral with explicitly stated positive / negative tilt. `Bearish_LM` = "Bearish, but losing momentum".
 
