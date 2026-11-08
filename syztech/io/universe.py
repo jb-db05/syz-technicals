@@ -7,6 +7,8 @@ import pandas as pd
 
 COLUMNS = ["ticker", "name", "asset_class", "group", "benchmark", "decimals", "support", "resistance",
            "levels_asof", "badge", "badge_asof", "standing_position", "override_reason"]
+# Optional: where each level came from (text / chart / 52w low|high) – shown in the exceptions report
+OPTIONAL_COLUMNS = ["support_origin", "resistance_origin"]
 ASSET_CLASSES = {"equity", "index", "sector", "fx", "rate", "commodity", "crypto"}
 BADGES = {"Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish", "Bearish_LM"}
 CRYPTO_PREFIXES = ("XBT", "XET", "ETH", "BTC", "SOL", "XRP")

@@ -20,7 +20,8 @@ def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
         t = u.ticker
         base = {"ticker": t, "name": u.get("name"), "asset_class": u.get("asset_class"), "group": u.get("group"),
                 "decimals": u.get("decimals"), "badge": u.get("badge"), "badge_asof": u.get("badge_asof"),
-                "levels_asof": u.get("levels_asof")}
+                "levels_asof": u.get("levels_asof"),
+                "support_origin": u.get("support_origin"), "resistance_origin": u.get("resistance_origin")}
         if t not in prices.reports:
             rows.append({**base, "verdict": INSUFFICIENT, "rule": "no_price_series",
                          "missing": "no price series for this ticker in data/prices"})

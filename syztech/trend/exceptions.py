@@ -162,7 +162,10 @@ def _row(r) -> str:
         return f"| {r.ticker} | {r['name']} | {EN_DASH} | {EN_DASH} | {EN_DASH} | {EN_DASH} | {EN_DASH} | {r.badge if isinstance(r.badge, str) else EN_DASH} | {r.section} | {r.reason} |"
     ma = f"{num(r.ma200, dec)} {r.slope200} ({r.slope200_pct * 100:+.2f}%)"
     band = EN_DASH if r.last_band == "none" else f"{r.last_band} {_d(r.last_band_date)} @ {num(r.last_band_level, dec)}"
-    lv = f"{num(r.support, dec)} / {num(r.resistance, dec)}"
+    def _o(k):
+        o = r.get(k)
+        return f" ({o.split(' (')[0]})" if isinstance(o, str) and o else ""
+    lv = f"{num(r.support, dec)}{_o('support_origin')} / {num(r.resistance, dec)}{_o('resistance_origin')}"
     tags = [r.comparison] + (["trigger_hit"] if isinstance(r.trigger_hit, str) else []) + (["levels_stale"] if r.levels_stale is True else [])
     why = r.reason + (f"; {r.trigger_hit}" if isinstance(r.trigger_hit, str) else "")
     return (f"| {r.ticker} | {r['name']} | {num(r.close, dec)} | {ma} | {band} | {lv} | **{r.verdict}** | "
