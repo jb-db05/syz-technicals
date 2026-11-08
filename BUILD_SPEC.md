@@ -120,15 +120,14 @@ HH/HL structure is read on the 100-day band events, not on minor intermediate sw
 insufficient_data            if history < 320 bars
 
 # Rising 200-day
-Bullish                      if slope200 == rising and not support_broken
+Bullish                      if slope200 == rising and not support_broken      # also covers rising + resistance_broken (golden cross / hooked-up MA + resistance break → straight to Bullish, may skip a step)
 Neutral+                     if slope200 == rising and support_broken        # broken higher-low → Neutral with positive tilt
 
 # Falling 200-day
-Bearish                      if slope200 == falling and support_broken and not resistance_broken
 Bearish_LM                   if slope200 == falling and support_broken and price_vs_200 == above and MA50 slope > 0   # "losing momentum"
-Neutral-                     if slope200 == falling and not support_broken  # declining MA does not override an intact range
+Bearish                      if slope200 == falling and support_broken
 Neutral                      if slope200 == falling and resistance_broken   # upgrade from Bearish needs the resistance break
-Bullish                      if slope200 == rising  and resistance_broken   # golden cross / hooked-up MA + resistance break → straight to Bullish (may skip a step)
+Neutral-                     if slope200 == falling and not support_broken  # declining MA does not override an intact range
 
 # Flat 200-day
 Bearish                      if slope200 == flat and support_broken and MA50 < MA200
@@ -145,7 +144,13 @@ Notes that the implementation must respect:
 - `standing_position` is a tie-break prior only: if the mechanical verdict is Neutral (no tilt) and a standing position exists, report the standing position in a separate column `prior`; never change the mechanical verdict.
 - Score mapping: Bullish +2, Neutral+ +1, Neutral 0, Neutral- −1, Bearish_LM −1, Bearish −2.
 
-Open decision for Florian (do not resolve in code without his answer; implement the rule above as the default and flag it in `README.md`): the flat-200-day branch, in particular whether `flat + support_broken + MA50 < MA200` should be Bearish or stay Neutral-. EUR/CHF on 25 Oct 2026 (flat MA, lost 0.9271 by ~35 pips, lower high) was held at Neutral-; the same cross went Bearish a week later when the break extended.
+Decisions confirmed by Florian (8 Nov 2026):
+
+- **Rule order.** `support_broken` and `resistance_broken` are mutually exclusive states, so Bearish_LM is tested before Bearish, and falling + `resistance_broken` (Neutral) before falling + intact (Neutral-). This is the order above.
+- **Flat 200-day branch.** `flat + support_broken + MA50 < MA200` → **Bearish**. No minimum break size: a close below the trigger is a break (EUR/CHF, 25 Oct 2026, would mechanically have been Bearish; an analyst hold at Neutral- is a discretionary override, recorded in `override_reason`).
+- **Drawn level and band on the same side.** When a drawn support exists, a `MIN100` break does not by itself set `support_broken` (the drawn level has priority), but it resets an older `resistance_broken` state to intact. Symmetrically, with a drawn resistance a `MAX100` break resets an older `support_broken` state without setting `resistance_broken`.
+- **Drawn levels are dated.** A close beyond a drawn level counts only from `levels_asof` onward; a blank `levels_asof` means the whole history.
+- **MA50 slope** in the Bearish_LM rule: `MA50[t] / MA50[t−20] − 1 > 0`, same 20-bar window as `slope200`, no flat band.
 
 ### 3.4 Exceptions report
 
@@ -185,7 +190,7 @@ Each fixture builds a 400-bar close series by concatenating segments (trend, ran
 | `silver_close_below_trigger` | MA200 rolled over, death cross, close one tick below drawn support | Bearish |
 | `gold_close_above_floor` | same date construction, close above drawn support | Neutral- |
 | `cac40_declining_ma_death_cross_range_intact` | MA200 falling, death cross, price 6% above drawn support | Neutral- |
-| `eurchf_flat_ma_small_support_loss` | flat MA200, close ~0.4% below drawn support, MA50 < MA200 | per §3.3 flat branch (documents the open decision) |
+| `eurchf_flat_ma_small_support_loss` | flat MA200, close ~0.4% below drawn support, MA50 < MA200 | Bearish (§3.3 flat branch, confirmed) |
 | `slope_reads_right_edge` | MA200 falling for 150 bars then rising for 25 | slope200 == rising |
 | `insufficient_history` | 250 bars | insufficient_data |
 
@@ -265,6 +270,6 @@ Every command prints a one-screen summary and writes to `output/`. Exit non-zero
 - `syztech inspect` runs on the real Bloomberg export without manual edits.
 - All §3.6 tests pass.
 - `syztech trend` on the Focus List + Cross-Asset universe produces `trend_scores` and `exceptions`; the exceptions report has been reviewed by Florian once and every `conflict` is either a doctrine clarification (then added to §3 and to a test) or an accepted discretionary override (then recorded in the universe file column `override_reason`).
-- `README.md` documents the run, the open decision in §3.3, and the `flat_band` / `cross_lookback` parameters.
+- `README.md` documents the run, the §3.3 decisions, and the `flat_band` / `cross_lookback` parameters.
 
 Phase 2 (ledger) and Phase 3 (regime) start only after Phase 1 is done.

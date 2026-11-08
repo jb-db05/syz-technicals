@@ -131,8 +131,8 @@ def test_cac40_declining_ma_death_cross_range_intact():
 
 
 def test_eurchf_flat_ma_small_support_loss():
-    """OPEN DECISION (§3.3 flat branch). Default: flat + support broken + MA50 < MA200 → Bearish.
-    EUR/CHF on 25 Oct 2026 was held at Neutral- by the analyst. Change this test with the rule."""
+    """§3.3 flat branch (confirmed 8 Nov 2026): flat + support broken + MA50 < MA200 → Bearish,
+    with no minimum break size. A hold at Neutral- is a discretionary override."""
     s, r, _ = run(fx.eurchf_flat_ma_small_support_loss)
     snap = r.snapshot
     assert snap.slope200 == "flat"

@@ -175,14 +175,9 @@ def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
 # ---------------------------------------------------------------------------
 # Verdict rules (§3.3) – first match wins.
 #
-# Evaluation order differs from the literal listing in §3.3 in two places, because as
-# listed two rules can never fire (support_broken and resistance_broken are mutually
-# exclusive states):
-#   * falling_losing_momentum (Bearish_LM) is tested before falling_support_broken (Bearish);
-#   * falling_resistance_broken (Neutral) is tested before falling_range_intact (Neutral-).
-# This is the order the §3.6 tests (usdbrl_*) require. Flagged in README for Florian.
-# The listed "Bullish if rising and resistance_broken" rule is covered by
-# rising_support_intact (a resistance break implies the support state is not broken).
+# Order confirmed by Florian (BUILD_SPEC §3.3, 8 Nov 2026): Bearish_LM before Bearish,
+# falling + resistance broken (Neutral) before falling + intact (Neutral-).
+# Rising + resistance broken is covered by rising_support_intact.
 # ---------------------------------------------------------------------------
 
 
@@ -199,7 +194,7 @@ def _rules(s: Snapshot):
         ("falling_support_broken", dn and sb and not rb, BEARISH),
         ("falling_resistance_broken", dn and rb, NEUTRAL),
         ("falling_range_intact", dn and not sb, NEUTRAL_NEG),
-        # Flat branch – OPEN DECISION (§3.3): flat + support broken + MA50 < MA200 is Bearish by default.
+        # Flat branch (confirmed): flat + support broken + MA50 < MA200 → Bearish, no minimum break size.
         ("flat_support_broken_ma50_below", fl and sb and s.ma50 < s.ma200, BEARISH),
         ("flat_negative", fl and (sb or s.cross == DEATH or s.price_vs_200 == "below"), NEUTRAL_NEG),
         ("flat_positive", fl and (rb or s.cross == GOLDEN or s.price_vs_200 == "above"), NEUTRAL_POS),

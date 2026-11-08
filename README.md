@@ -29,10 +29,10 @@ Bloomberg exports only, placed in `data/` (git-ignored). Prices: wide sheet (`Da
 | `band_window` | 100 | MAX100 / MIN100, prior bars only. |
 | `min_history` | 320 | bars needed for a verdict. |
 
-## Open decision and implementation choices to confirm
+## Doctrine decisions (confirmed 8 Nov 2026 – full text in BUILD_SPEC §3.3)
 
-1. **Flat 200-day branch (§3.3, open).** Default implemented: flat + support broken + MA50 < MA200 → **Bearish**. EUR/CHF on 25 Oct 2026 was held at Neutral-. Test `test_eurchf_flat_ma_small_support_loss` documents it.
-2. **Rule order (§3.3).** As listed, two rules can never fire, because a broken support and a broken resistance cannot both be the current state. The engine tests *Bearish, losing momentum* before *Bearish* and *falling MA + resistance broken → Neutral* before *falling MA + intact → Neutral-*, which is what the USD/BRL tests in §3.6 require.
-3. **Drawn level and band on the same side.** When a drawn support exists, a MIN100 break does not by itself set "support broken" (the drawn level has priority) but it cancels an older "resistance broken" state; symmetrically for MAX100 with a drawn resistance.
-4. **Drawn levels are dated.** A close beyond a drawn level only counts from `levels_asof` onward; blank `levels_asof` means the whole history.
-5. **"MA50 slope > 0"** in the Bearish_LM rule uses the same 20-bar window as the 200-day slope, with no flat band.
+1. **Flat 200-day branch:** flat + support broken + MA50 < MA200 → Bearish, no minimum break size. A Neutral- hold (EUR/CHF, 25 Oct 2026) is a discretionary override, recorded in `override_reason`.
+2. **Rule order:** Bearish_LM before Bearish; falling MA + resistance broken (Neutral) before falling MA + intact (Neutral-).
+3. **Drawn level vs band, same side:** the drawn level decides the break; a band break on that side only resets the opposite state.
+4. **Drawn levels are dated:** closes beyond a level count from `levels_asof` onward.
+5. **MA50 slope (Bearish_LM):** 20-bar change > 0, no flat band.
