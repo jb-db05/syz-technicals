@@ -99,3 +99,11 @@ def test_price_template_round_trip(tmp_path):
     res = load_prices(tmp_path)
     assert res.series("SPX Index").tolist() == [6002.0, 6003.0, 6004.0, 6005.0, 6006.0]
     assert not any("Instructions" in n or "Settings" in n for n in res.file_notes)
+
+
+def test_bloomberg_error_is_reported(tmp_path):
+    with pd.ExcelWriter(tmp_path / "p.xlsx") as xw:
+        pd.DataFrame([["Date", "PX_LAST"], ["#N/A Invalid Security", None]]).to_excel(
+            xw, sheet_name="BAD Index", header=False, index=False)
+    rep = load_prices(tmp_path).reports["BAD Index"]
+    assert rep.bars == 0 and "Bloomberg error: #N/A Invalid Security" in rep.issues

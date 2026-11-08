@@ -71,6 +71,8 @@ def _find_header(raw: pd.DataFrame) -> int | None:
 
 def _clean(ticker: str, source: str, dates: pd.Series, values: pd.Series, name: str | None) -> tuple[pd.DataFrame, SeriesReport]:
     rep = SeriesReport(ticker=ticker, source=source, name=name)
+    errors = {str(v).strip() for v in pd.concat([dates, values]) if isinstance(v, str) and v.strip().startswith("#N/A")}
+    errors.discard("#N/A N/A")
     d = pd.to_datetime(dates, errors="coerce")
     keep = d.notna()
     d, values = d[keep], values[keep]
@@ -98,6 +100,7 @@ def _clean(ticker: str, source: str, dates: pd.Series, values: pd.Series, name: 
         runs = (df.close != df.close.shift()).cumsum()
         rep.longest_flat_run = int(df.groupby(runs).size().max())
     # human-readable issues
+    for e in sorted(errors): rep.issues.append(f"Bloomberg error: {e}")
     if rep.non_numeric: rep.issues.append(f"{rep.non_numeric} non-numeric cells (dropped)")
     if rep.duplicate_dates: rep.issues.append(f"{rep.duplicate_dates} duplicate dates (kept last)")
     if rep.unsorted: rep.issues.append("dates not in ascending order (sorted)")
