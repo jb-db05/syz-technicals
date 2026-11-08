@@ -50,7 +50,9 @@ def trend_chart(close: pd.Series, row: pd.Series, out: str | Path) -> Path:
         v = row.get(key)
         if v is not None and pd.notna(v):
             ax.axhline(v, color=BLUEBERRY, lw=1.1, ls=(0, (5, 3)))
-            ax.text(x[-1] + 4, v, f"{lab} {num(v, dec)}", color=BLUEBERRY, va="center", fontsize=8)
+            ax.annotate(f"{lab} {num(v, dec)}", (x[-1] - 8, v), xytext=(0, 3), textcoords="offset points",
+                        ha="right", va="bottom", color=BLUEBERRY, fontsize=8, fontweight="bold",
+                        bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="none", alpha=0.9), zorder=5)
 
     ax.set_yscale("log")
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: num(v, dec)))
@@ -79,10 +81,13 @@ def trend_chart(close: pd.Series, row: pd.Series, out: str | Path) -> Path:
     bx = fig.add_axes([0.70, 0.865, 0.25, 0.10]); bx.axis("off")
     bx.add_patch(FancyBboxPatch((0.02, 0.08), 0.96, 0.84, boxstyle="round,pad=0.0,rounding_size=0.18",
                                 fc=col, ec="none", transform=bx.transAxes))
-    bx.text(0.5, 0.62, f"{VERDICT_GLYPH.get(v, '')} {VERDICT_LABEL.get(v, v)}", ha="center", va="center",
+    lt = row.get("lt_view")
+    label = VERDICT_LABEL.get(v, v) + (" – SHORT TERM" if isinstance(lt, str) and lt else "")
+    bx.text(0.5, 0.62, f"{VERDICT_GLYPH.get(v, '')} {label}", ha="center", va="center",
             color="white", fontsize=10.5, fontweight="bold", transform=bx.transAxes)
     badge = row.get("badge")
-    bx.text(0.5, 0.27, f"Mechanical  |  published: {badge if isinstance(badge, str) else '–'}", ha="center",
+    sub = f"LT {lt.split(' – ')[0].lower()}  |  " if isinstance(lt, str) and lt else ""
+    bx.text(0.5, 0.27, f"{sub}Mechanical  |  published: {badge if isinstance(badge, str) else '–'}", ha="center",
             va="center", color="white", fontsize=7.5, transform=bx.transAxes)
 
     fig.text(0.06, 0.03, SOURCE_LINE, fontsize=7.5, color=BLUEBERRY)

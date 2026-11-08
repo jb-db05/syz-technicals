@@ -121,6 +121,7 @@ insufficient_data            if history < 320 bars
 
 # Rising 200-day
 Bullish                      if slope200 == rising and not support_broken      # also covers rising + resistance_broken (golden cross / hooked-up MA + resistance break → straight to Bullish, may skip a step)
+Bearish (ST), LT Neutral     if slope200 == rising and support_broken and MA50 < MA200   # death cross complete with a still-rising 200d (KOSPI, 8 Nov 2026)
 Neutral+                     if slope200 == rising and support_broken        # broken higher-low → Neutral with positive tilt
 
 # Falling 200-day
@@ -130,7 +131,7 @@ Neutral                      if slope200 == falling and resistance_broken   # up
 Neutral-                     if slope200 == falling and not support_broken  # declining MA does not override an intact range
 
 # Flat 200-day
-Bearish                      if slope200 == flat and support_broken and MA50 < MA200
+Bearish                      if slope200 == flat and support_broken and (MA50 < MA200 or MA50 slope < 0)   # 50d below or rolling over (EUR/CHF, 8 Nov 2026)
 Neutral-                     if slope200 == flat and (support_broken or cross == death or price_vs_200 == below)
 Neutral+                     if slope200 == flat and (resistance_broken or cross == golden or price_vs_200 == above)
 Neutral                      otherwise
@@ -150,7 +151,11 @@ Decisions confirmed by Florian (8 Nov 2026):
 - **Flat 200-day branch.** `flat + support_broken + MA50 < MA200` → **Bearish**. No minimum break size: a close below the trigger is a break (EUR/CHF, 25 Oct 2026, would mechanically have been Bearish; an analyst hold at Neutral- is a discretionary override, recorded in `override_reason`).
 - **Drawn level and band on the same side.** When a drawn support exists, a `MIN100` break does not by itself set `support_broken` (the drawn level has priority), but it resets an older `resistance_broken` state to intact. Symmetrically, with a drawn resistance a `MAX100` break resets an older `support_broken` state without setting `resistance_broken`.
 - **Drawn levels are dated.** A close beyond a drawn level counts from `levels_asof` minus `levels_lookback` (default 100 trading days, one band window) onward; a blank `levels_asof` means the whole history. The 100-day lookback was added after the first real run (KOSPI broke 5,275 in the week before the level was dated 8 Nov 2026); confirmed 8 Nov 2026.
-- **MA50 slope** in the Bearish_LM rule: `MA50[t] / MA50[t−20] − 1 > 0`, same 20-bar window as `slope200`, no flat band.
+- **A broken support stands until the resistance breaks** (8 Nov 2026). A close back above a broken support does not repair the structure; only a resistance break (drawn, or MAX100 when none is drawn) resets it (GBP/USD, aluminium, gold).
+- **Rising 200d + support broken + MA50 < MA200 → Bearish short term, with long term Neutral stated** (8 Nov 2026). The verdict is Bearish (score −2) and the column `lt_view` reads "Neutral – 200d rising"; the report and chart carry both.
+- **Flat 200d + support broken + MA50 below or rolling over (20-bar MA50 slope < 0) → Bearish** (8 Nov 2026, EUR/CHF).
+- **A downgrade may skip a step** (8 Nov 2026), as an upgrade may: Bullish → Bearish / Bearish_LM directly when the rules say so (BGCI).
+- **MA50 slope** in the Bearish_LM and flat rules: `MA50[t] / MA50[t−20] − 1 > 0`, same 20-bar window as `slope200`, no flat band.
 
 ### 3.4 Exceptions report
 

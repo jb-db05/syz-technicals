@@ -131,14 +131,13 @@ def test_cac40_declining_ma_death_cross_range_intact():
 
 
 def test_eurchf_flat_ma_small_support_loss():
-    """§3.3 flat branch (confirmed 8 Nov 2026): flat + support broken + MA50 < MA200 → Bearish,
-    with no minimum break size. A hold at Neutral- is a discretionary override."""
+    """§3.3 flat branch: flat + support broken + MA50 < MA200 → Bearish, with no minimum break size."""
     s, r, _ = run(fx.eurchf_flat_ma_small_support_loss)
     snap = r.snapshot
     assert snap.slope200 == "flat"
     assert snap.ma50 < snap.ma200
     assert 1 - snap.close / 0.9271 == pytest.approx(0.004, abs=1e-6)
-    assert (r.verdict, r.rule) == (BEARISH, "flat_support_broken_ma50_below")
+    assert (r.verdict, r.rule) == (BEARISH, "flat_support_broken_ma50_weak")
 
 
 def test_slope_reads_right_edge():
@@ -193,3 +192,41 @@ def test_levels_asof_limits_drawn_breaks():
     # a level dated after the data still registers a break in the preceding 100 bars
     after = s.index[-1] + pd.Timedelta(days=2)
     assert evaluate(s, support=100.0, levels_asof=after).snapshot.structure.support_broken
+
+
+def test_eurchf_flat_ma50_rolling_over():
+    """§3.3 (8 Nov 2026): flat 200d + support broken + MA50 still above but rolling over → Bearish."""
+    s, r, _ = run(fx.eurchf_flat_ma50_rolling_over)
+    n = r.snapshot
+    assert n.slope200 == "flat" and n.ma50 > n.ma200 and n.ma50_slope_ratio < 0
+    assert n.structure.support_broken
+    assert (r.verdict, r.rule) == (BEARISH, "flat_support_broken_ma50_weak")
+
+
+def test_kospi_rising_ma_death_cross_support_break():
+    """§3.3 (8 Nov 2026): rising 200d + support broken + MA50 < MA200 → Bearish short term, LT Neutral."""
+    s, r, _ = run(fx.kospi_rising_ma_death_cross_support_break)
+    n = r.snapshot
+    assert n.slope200 == "rising" and n.ma50 < n.ma200
+    assert n.cross == "cross_unqualified" and n.cross_direction == "death"   # 200d not falling on the cross bar
+    assert s.iloc[-2] > 141.72 > s.iloc[-1]
+    assert (r.verdict, r.rule, r.score) == (BEARISH, "rising_support_broken_death_cross", -2)
+    assert r.lt_view == "Neutral – 200d rising"
+
+
+def test_rising_ma_support_broken_ma50_above_stays_neutral_pos():
+    """Without the completed cross the broken higher low stays Neutral+ (no lt_view)."""
+    s, r, _ = run(fx.alphabet_rising_ma_lower_highs)
+    r2 = evaluate(s, support=float(s.iloc[-1]) + 0.5)
+    assert r2.snapshot.ma50 > r2.snapshot.ma200
+    assert (r2.verdict, r2.rule, r2.lt_view) == (NEUTRAL_POS, "rising_support_broken", None)
+
+
+def test_reclaimed_support_stays_broken_until_resistance_breaks():
+    """§3.3 (8 Nov 2026): a close back above a broken support does not repair the structure."""
+    s, kw = fx.gbpusd_support_reclaimed()
+    assert s.min() < 1.32 < s.iloc[-1] < 1.38
+    st = structure_state(s, support=1.32, resistance=1.38)
+    assert st.support_broken
+    recovered = pd.concat([s, pd.Series([1.385], index=[s.index[-1] + pd.offsets.BDay()])])
+    assert structure_state(recovered, support=1.32, resistance=1.38).resistance_broken

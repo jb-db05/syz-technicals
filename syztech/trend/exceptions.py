@@ -102,10 +102,18 @@ def reason(r: pd.Series) -> str:
     if rule == "falling_losing_momentum":
         s += ", price above 200d, 50d rising"
     if rule.startswith("flat_"):
-        s += f", 50d {'below' if r.ma50 < r.ma200 else 'above'} 200d, price {r.price_vs_200} 200d"
+        s += f", 50d {'below' if r.ma50 < r.ma200 else 'above'} 200d"
+        if r.ma50 >= r.ma200 and r.get("ma50_slope_pct", 0) < 0:
+            s += " and rolling over"
+        s += f", price {r.price_vs_200} 200d"
         if r.get("cross") in ("golden", "death"):
             s += f", {r.cross} cross {_d(r.get('cross_date'))}"
+    if rule == "rising_support_broken_death_cross":
+        s += ", 50d below 200d"
     s += f" → {v}"
+    lt = r.get("lt_view")
+    if isinstance(lt, str) and lt:
+        s += f" (short term); long term {lt}"
     badge = r.get("badge")
     s += f"; badge {badge}" if isinstance(badge, str) and badge else "; no badge"
     return s

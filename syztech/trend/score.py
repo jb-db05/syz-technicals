@@ -31,7 +31,7 @@ def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
         sup, res = _opt(u.get("support")), _opt(u.get("resistance"))
         r = evaluate(s, params, sup, res, u.get("levels_asof"))
         row = {**base, "last_date": s.index[-1].date() if len(s) else None, "bars": len(s),
-               "verdict": r.verdict, "rule": r.rule, "score": r.score, "missing": r.missing,
+               "verdict": r.verdict, "rule": r.rule, "score": r.score, "lt_view": r.lt_view, "missing": r.missing,
                "support": sup, "resistance": res}
         if r.snapshot is not None:
             n, st = r.snapshot, r.snapshot.structure

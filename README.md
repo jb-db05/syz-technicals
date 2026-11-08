@@ -33,9 +33,12 @@ Bloomberg exports only, placed in `data/` (git-ignored). Prices: wide sheet (`Da
 
 ## Doctrine decisions (confirmed 8 Nov 2026 – full text in BUILD_SPEC §3.3)
 
-1. **Flat 200-day branch:** flat + support broken + MA50 < MA200 → Bearish, no minimum break size. A Neutral- hold (EUR/CHF, 25 Oct 2026) is a discretionary override, recorded in `override_reason`.
+1. **Flat 200-day branch:** flat + support broken + MA50 below or rolling over → Bearish, no minimum break size. A Neutral- hold (EUR/CHF, 25 Oct 2026) is a discretionary override, recorded in `override_reason`.
 2. **Rule order:** Bearish_LM before Bearish; falling MA + resistance broken (Neutral) before falling MA + intact (Neutral-).
 3. **Drawn level vs band, same side:** the drawn level decides the break; a band break on that side only resets the opposite state.
 4. **Drawn levels are dated:** closes beyond a level count from 100 bars before `levels_asof` onward (confirmed).
 5. **MA50 slope (Bearish_LM):** 20-bar change > 0, no flat band.
 6. **Exceptions grading:** Bearish (incl. Bearish_LM) | Neutral- | Neutral | Neutral+ | Bullish. Same side → tilt_only; one rung across sides → one_step; two rungs or more → conflict.
+7. **A broken support stands until the resistance breaks;** a close back above it does not repair the structure.
+8. **Rising 200-day + support broken + MA50 < MA200 → Bearish short term,** with "long term Neutral – 200d rising" in the `lt_view` column, report and chart.
+9. **A downgrade may skip a step,** as an upgrade may.

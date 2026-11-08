@@ -182,6 +182,9 @@ def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
 # ---------------------------------------------------------------------------
 
 
+LT_VIEW = {"rising_support_broken_death_cross": "Neutral – 200d rising"}
+
+
 def _rules(s: Snapshot):
     st = s.structure
     sb, rb = st.support_broken, st.resistance_broken
@@ -190,13 +193,15 @@ def _rules(s: Snapshot):
     fl = s.slope200 == FLAT
     return [
         ("rising_support_intact", up and not sb, BULLISH),
+        # Short-term Bearish, long-term Neutral stated alongside (lt_view) – KOSPI, 8 Nov 2026
+        ("rising_support_broken_death_cross", up and sb and s.ma50 < s.ma200, BEARISH),
         ("rising_support_broken", up and sb, NEUTRAL_POS),
         ("falling_losing_momentum", dn and sb and s.price_vs_200 == "above" and s.ma50_slope_ratio > 0, BEARISH_LM),
         ("falling_support_broken", dn and sb and not rb, BEARISH),
         ("falling_resistance_broken", dn and rb, NEUTRAL),
         ("falling_range_intact", dn and not sb, NEUTRAL_NEG),
-        # Flat branch (confirmed): flat + support broken + MA50 < MA200 → Bearish, no minimum break size.
-        ("flat_support_broken_ma50_below", fl and sb and s.ma50 < s.ma200, BEARISH),
+        # Flat branch (confirmed): support broken + MA50 below or rolling over → Bearish, no minimum break size.
+        ("flat_support_broken_ma50_weak", fl and sb and (s.ma50 < s.ma200 or s.ma50_slope_ratio < 0), BEARISH),
         ("flat_negative", fl and (sb or s.cross == DEATH or s.price_vs_200 == "below"), NEUTRAL_NEG),
         ("flat_positive", fl and (rb or s.cross == GOLDEN or s.price_vs_200 == "above"), NEUTRAL_POS),
         ("flat_neutral", True, NEUTRAL),
@@ -210,6 +215,7 @@ class TrendResult:
     score: int | None
     snapshot: Snapshot | None = None
     missing: str | None = None
+    lt_view: str | None = None       # long-term view stated alongside a short-term verdict
     extras: dict = field(default_factory=dict)
 
 
@@ -227,5 +233,6 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     snap = snapshot(close, params, support, resistance, levels_start)
     for rule, cond, verdict in _rules(snap):
         if cond:
-            return TrendResult(verdict, rule, SCORE.get(verdict), snap)
+            lt = LT_VIEW.get(rule)
+            return TrendResult(verdict, rule, SCORE.get(verdict), snap, lt_view=lt)
     raise AssertionError("unreachable: flat_neutral always matches")

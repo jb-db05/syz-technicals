@@ -113,3 +113,22 @@ def slope_reads_right_edge():
 
 def insufficient_history():
     return Path(100).to(120, 249).series("TEST"), {}
+
+
+def kospi_rising_ma_death_cross_support_break():
+    # 200d still rising (+0.24% over 20 bars), death cross complete (unqualified), drawn support lost on the last close
+    s = Path(100).to(200, 300).to(180, 20).hold(60).to(140, 19).series("KOSPI Index")
+    return s, dict(support=141.72)
+
+
+def eurchf_flat_ma50_rolling_over():
+    # flat 200d, MA50 still above MA200 but falling, close 0.4% below drawn support
+    p = Path(0.94).oscillate(0.94, 0.004, 60, 300).to(0.955, 60).to(0.930, 30).hold(8)
+    support = round(p.values[-1] * 1.004, 4)
+    return p.append(support * (1 - 0.004)).series("EURCHF Curncy"), dict(support=support)
+
+
+def gbpusd_support_reclaimed():
+    # flat range; drawn support broken, then price closes back above it without a resistance break
+    s = (Path(1.34).oscillate(1.34, 0.01, 50, 330).to(1.315, 15).to(1.335, 25).series("GBPUSD Curncy"))
+    return s, dict(support=1.32, resistance=1.38)
