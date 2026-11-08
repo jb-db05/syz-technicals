@@ -19,6 +19,7 @@ from matplotlib.patches import FancyBboxPatch
 from matplotlib.ticker import FuncFormatter, MaxNLocator, NullLocator
 
 from ..fmt import num
+from ..indicators.bands import max_prior, min_prior
 from ..indicators.ma import sma
 from ..indicators.rs import relative_strength
 from .syz_style import (AMBER, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SOURCE_LINE, VERDICT_COLOUR,
@@ -76,7 +77,8 @@ def _draw_tags(ax, tags, min_gap_pt=19):
 
 def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | None, badge_kind: str = "published",
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
-               benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = True) -> Path:
+               benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = False,
+               show_band100: bool = True) -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
@@ -106,11 +108,27 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     for key, colour in (("support", BLUEBERRY), ("resistance", BLUEBERRY)):
         v = row.get(key)
         origin = row.get(f"{key}_origin")
-        if show_52w and isinstance(origin, str) and origin.startswith("52w"):
+        is52 = isinstance(origin, str) and origin.startswith("52w")
+        if show_52w and is52:
             continue                              # already shown by the 52-week range
         if v is not None and not pd.isna(v):
-            ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
-            _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)
+            if is52:                              # fallback level: grey, labelled, so it is never mistaken for a drawn line
+                ax.axhline(v, color="#8A93A6", lw=1.0, ls=(0, (2, 3)), zorder=1)
+                _axis_tag(tags, v, f"52w {'low' if key == 'support' else 'high'} {num(v, dec)}", "#E4E7EE", fg=NAVY)
+            else:
+                ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
+                _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)
+
+    # 100-day high / low band (prior 100 closes, as in the engine), today's values tagged
+    if show_band100:
+        hi100, lo100 = max_prior(close, 100), min_prior(close, 100)
+        ax.fill_between(x, lo100.iloc[sl], hi100.iloc[sl], color=BLUEBERRY, alpha=0.08, lw=0, zorder=0,
+                        step=None, label="100-day high / low band")
+        ax.plot(x, hi100.iloc[sl], color=BLUEBERRY, lw=0.6, alpha=0.45, zorder=0)
+        ax.plot(x, lo100.iloc[sl], color=BLUEBERRY, lw=0.6, alpha=0.45, zorder=0)
+        for v, lab in ((hi100.iloc[-1], "100d high"), (lo100.iloc[-1], "100d low")):
+            if pd.notna(v):
+                _axis_tag(tags, v, f"{lab} {num(v, dec)}", "#E4E7EE", fg=NAVY)
 
     # 52-week range: band over the last 52 weeks, high and low tagged
     if show_52w:
@@ -123,7 +141,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
             ax.plot([xa, x[-1]], [v, v], color="#8A93A6", lw=1.0, ls=(0, (1.5, 2.5)), zorder=1)
             _axis_tag(tags, v, f"{lab} {num(v, dec)}", "#E4E7EE", fg=NAVY)
 
-    # scale fixed from price, averages, levels and 52-week range – trendlines never stretch it
+    # scale fixed from price, averages, levels and bands – trendlines never stretch it
     window = close.iloc[sl]
     use_log = bool((window > 0).all())
     ax.set_yscale("log" if use_log else "linear")
