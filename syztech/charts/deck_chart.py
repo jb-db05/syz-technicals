@@ -75,7 +75,7 @@ def _draw_tags(ax, tags, min_gap_pt=19):
 
 def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | None, badge_kind: str = "published",
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
-               benchmark_name: str | None = None) -> Path:
+               benchmark_name: str | None = None, ma50_colour: str = AMBER, show_52w: bool = False) -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
@@ -98,7 +98,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
 
     # price and averages
     ax.plot(x, close.iloc[sl], color=NAVY, lw=1.2, label="Close", zorder=3)
-    ax.plot(x, ma50.iloc[sl], color=AMBER, lw=1.2, label="50-day MA", zorder=2)
+    ax.plot(x, ma50.iloc[sl], color=ma50_colour, lw=1.3, label="50-day MA", zorder=2)
     ax.plot(x, ma200.iloc[sl], color=ORANGE, lw=2.0, label="200-day MA", zorder=2)
 
     # drawn horizontal levels, value printed on the axis
@@ -107,6 +107,17 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         if v is not None and not pd.isna(v):
             ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
             _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)
+
+    # 52-week range: band over the last 52 weeks, high and low tagged
+    if show_52w:
+        w0 = int(close.index.searchsorted(close.index[-1] - pd.Timedelta(weeks=52)))
+        win = close.iloc[w0:]
+        hi52, lo52 = float(win.max()), float(win.min())
+        xa = max(w0 - start, 0)
+        ax.fill_between([xa, x[-1]], lo52, hi52, color=GREY, alpha=0.16, lw=0, zorder=0, label="52-week range")
+        for v, lab in ((hi52, "52w high"), (lo52, "52w low")):
+            ax.plot([xa, x[-1]], [v, v], color="#8A93A6", lw=1.0, ls=(0, (1.5, 2.5)), zorder=1)
+            _axis_tag(tags, v, f"{lab} {num(v, dec)}", "#E4E7EE", fg=NAVY)
 
     # trendlines: straight on the log chart, extended to the right edge
     for tl in trendlines or []:
@@ -136,7 +147,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     yr = [i for i in range(1, len(idx)) if idx[i].year != idx[i - 1].year]
     ax.set_xticks(yr)
     ax.set_xticklabels([str(idx[i].year) for i in yr])
-    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), frameon=False, fontsize=9, ncol=3, labelcolor=NAVY,
+    ax.legend(loc="lower left", bbox_to_anchor=(0, 1.0), frameon=False, fontsize=9, ncol=4, labelcolor=NAVY,
               borderaxespad=0.2)
 
     if has_rs:
