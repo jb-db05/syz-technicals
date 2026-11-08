@@ -123,22 +123,31 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
             ax.plot([xa, x[-1]], [v, v], color="#8A93A6", lw=1.0, ls=(0, (1.5, 2.5)), zorder=1)
             _axis_tag(tags, v, f"{lab} {num(v, dec)}", "#E4E7EE", fg=NAVY)
 
-    # trendlines: straight on the log chart, extended to the right edge
+    # scale fixed from price, averages, levels and 52-week range – trendlines never stretch it
+    window = close.iloc[sl]
+    use_log = bool((window > 0).all())
+    ax.set_yscale("log" if use_log else "linear")
+    ax.relim(); ax.autoscale_view()
+    ylo, yhi = ax.get_ylim()
+
+    # trendlines: straight on the chart's scale, extended to the right edge, clipped to the price range
     for tl in trendlines or []:
         p0, p1 = _pos(close.index, tl.start[0]) - start, _pos(close.index, tl.end[0]) - start
-        y0, y1 = np.log(tl.start[1]), np.log(tl.end[1])
-        xs = np.array([max(p0, 0), x[-1]])
-        ys = np.exp(y0 + (y1 - y0) * (xs - p0) / (p1 - p0))
-        ax.plot(xs, ys, color=BLUEBERRY, lw=1.2, ls=(0, (6, 4)), zorder=1)
-        _axis_tag(tags, ys[-1], num(ys[-1], dec), "#79D6FF", fg=NAVY)
+        f, g = (np.log, np.exp) if use_log else (lambda v: v, lambda v: v)
+        y0, y1 = f(tl.start[1]), f(tl.end[1])
+        xs = np.linspace(max(p0, 0), x[-1], 200)
+        ys = g(y0 + (y1 - y0) * (xs - p0) / (p1 - p0))
+        ax.plot(xs, ys, color=BLUEBERRY, lw=1.2, ls=(0, (6, 4)), zorder=1, clip_on=True)
+        if ylo <= ys[-1] <= yhi:
+            _axis_tag(tags, ys[-1], num(ys[-1], dec), "#79D6FF", fg=NAVY)
+    ax.set_ylim(ylo, yhi)
 
     # last price, 200-day tags
     _axis_tag(tags, close.iloc[-1], num(close.iloc[-1], dec), NAVY)
     _axis_tag(tags, ma200.iloc[-1], num(ma200.iloc[-1], dec), ORANGE)
 
-    ax.set_yscale("log")
     lo, hi = ax.get_ylim()
-    ticks = [v for v in MaxNLocator(nbins=6, steps=[1, 2, 2.5, 5, 10]).tick_values(lo, hi) if lo <= v <= hi and v > 0]
+    ticks = [v for v in MaxNLocator(nbins=6, steps=[1, 2, 2.5, 5, 10]).tick_values(lo, hi) if lo <= v <= hi and (v > 0 or not use_log)]
     ax.set_yticks(ticks)
     ax.set_ylim(lo, hi)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: num(v, dec if hi < 1000 else 0)))
@@ -181,7 +190,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     while size > 13 and title.get_window_extent(rend).x1 > 0.68 * fig.bbox.width:   # keep clear of the badge
         size -= 1
         title.set_fontsize(size)
-    fig.text(0.05, 0.875, f"{row['ticker']}  |  daily close, log scale, 5 years", fontsize=11, color=BLUEBERRY)
+    fig.text(0.05, 0.875, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years", fontsize=11, color=BLUEBERRY)
     fig.add_artist(plt.Line2D([0.05, 0.12], [0.862, 0.862], color=ORANGE, lw=3, transform=fig.transFigure))
 
     # badge top-right

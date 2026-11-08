@@ -178,6 +178,10 @@ Output a Markdown report ordered: `trigger_hit`, `conflict`, `one_step`, `tilt_o
 
 `output/trend_scores_<date>.csv` (all columns above plus score) and `output/exceptions_<date>.md`. Optional `--charts` writes one PNG per `conflict`/`trigger_hit` instrument: close, MA50, MA200, MAX100/MIN100 bands, drawn levels, verdict badge top-right, Syz style, 5 years, log scale, trading-day axis.
 
+### 3.5b Publication charts (`syztech deck-charts`, agreed 8 Nov 2026)
+
+One 16:9 chart per instrument, Syz style: close, MA50 (blue #2F6FDE), MA200 (orange), 52-week range band with high/low tagged, drawn levels and trendlines with their current value tagged on the axis, last price and MA200 tagged, published verdict as the badge (rules-based reading, labelled as such, where nothing is published), relative-strength panel for single stocks. 5 calendar years; log scale, linear when the window holds values ≤ 0 (negative yields). Trendlines are inputs in `data/trendlines.csv` (two anchor points each, snapped to the actual swing high/low close); they are drawn only and do not enter the verdict. The y-scale is set by price, averages and levels, so a distant trendline never stretches it.
+
 ### 3.6 Required tests (synthetic fixtures; names are the historical corrections)
 
 Each fixture builds a 400-bar close series by concatenating segments (trend, range, break) so that the stated conditions hold at the last bar. Assert the verdict and the rule id that fired.
