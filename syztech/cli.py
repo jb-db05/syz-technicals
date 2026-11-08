@@ -106,6 +106,42 @@ def cmd_deck_charts(a) -> int:
     return 0
 
 
+def cmd_weekly_doc(a) -> int:
+    import json
+    from PIL import Image
+    from .charts.deck_chart import load_trendlines
+    from .report.weekly import build, instrument_table
+    prices = load_prices(a.prices)
+    uni, _ = load_universe(a.universe)
+    asof = a.asof or (prices.prices.date.max().date() if len(prices.prices) else None)
+    scores = score_universe(prices, uni, asof)
+    tls = load_trendlines(a.trendlines)
+    df = instrument_table(scores, uni, prices, tls)
+    chart_dir = Path(a.charts) / str(asof)
+    if not chart_dir.exists():
+        print(f"no charts in {chart_dir} – run syztech deck-charts first")
+        return 1
+    small = OUT / "doc_charts" / str(asof)
+    small.mkdir(parents=True, exist_ok=True)
+    charts = {}
+    files = {f.stem.split("_", 1)[1]: f for f in chart_dir.glob("*/*.png")}
+    for t in uni.ticker:
+        f = files.get(t.replace(" ", "_").replace("/", "-"))
+        if f is None:
+            continue
+        jp = small / (f.stem + ".jpg")
+        if not jp.exists():
+            with Image.open(f) as im:
+                im.convert("RGB").resize((1600, int(1600 * im.height / im.width)), Image.LANCZOS).save(jp, quality=85)
+        charts[t] = jp
+    commentary = json.loads(Path(a.commentary).read_text(encoding="utf-8"))
+    d = pd.Timestamp(asof)
+    out = Path(a.out or OUT / f"Syz_Technicals_{commentary['edition'].replace(' ', '_')}.pptx")
+    build(df, commentary, charts, out, Path(a.template), f"{d.day} {d:%B %Y}")
+    print(f"written: {out} ({len(charts)} charts in the appendix)")
+    return 0
+
+
 def cmd_trend(a) -> int:
     prices = load_prices(a.prices)
     uni, problems = load_universe(a.universe)
@@ -171,6 +207,16 @@ def main(argv=None) -> int:
     s.add_argument("--asof")
     s.add_argument("--out", default="output/deck")
     s.set_defaults(func=cmd_deck_charts)
+    s = sub.add_parser("weekly-doc", help="weekly technical document (PowerPoint)")
+    s.add_argument("--prices", default="data/prices")
+    s.add_argument("--universe", default="data/universe.csv")
+    s.add_argument("--trendlines", default="data/trendlines.csv")
+    s.add_argument("--charts", default="output/deck")
+    s.add_argument("--commentary", required=True)
+    s.add_argument("--template", default=str(Path(__file__).parent / "report" / "assets" / "template_syz_a4.pptx"))
+    s.add_argument("--asof")
+    s.add_argument("--out")
+    s.set_defaults(func=cmd_weekly_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")

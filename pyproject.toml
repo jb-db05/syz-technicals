@@ -20,6 +20,7 @@ include = ["syztech*"]
 
 [tool.setuptools.package-data]
 "syztech.charts" = ["fonts/*.ttf", "fonts/OFL.txt"]
+"syztech.report" = ["assets/*.pptx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
