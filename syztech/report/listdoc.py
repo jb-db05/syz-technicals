@@ -16,7 +16,7 @@ from pptx.util import Inches, Pt
 
 from ..fmt import EN_DASH, num
 from .weekly import (AMBER, BLUEB, GREY, L_BLANK, L_COVER, L_DISCLAIMER, L_FINAL, MINT, MULB, NAVY, ORANGE, SKY, VGLYPH,
-                     VLABEL, W, X0, Deck, box, chart_image, pct, rgb, source, table, text, triggers, verdict_style)
+                     VLABEL, W, X0, Deck, box, chart_image, full_page_chart, pct, rgb, source, table, text, triggers, verdict_style)
 
 RS_ORDER = {"outperforming": 0, "mixed": 1, "underperforming": 2}
 V_ORDER = {"Bullish": 0, "Neutral+": 1, "Neutral": 2, "Neutral-": 3, "Bearish_LM": 4, "Bearish": 5}
@@ -163,15 +163,10 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
         text(s, X0 + 2.2, y, 8.0, 0.85, body, size=11.5, anchor=MSO_ANCHOR.MIDDLE)
     source(s, asof)
 
-    # one chart per stock, factual title
+    # one full-page chart per stock, in dashboard order
     for r in df.itertuples():
-        if r.ticker not in charts:
-            continue
-        rs = {"outperforming": f"outperforming the {benchmark_name}", "underperforming": f"lagging the {benchmark_name}",
-              "mixed": f"mixed against the {benchmark_name}"}.get(r.rs_trend, "")
-        t = f"{r.name}: {VLABEL.get(r.verdict, r.verdict)} – {pct(r.vs200)} against a {r.slope200} 200-day" + (f", {rs}" if rs else "")
-        s = deck.titled(t, "")
-        chart_image(s, charts[r.ticker], X0 + 0.35, 2.15, W - 0.7)
+        if r.ticker in charts:
+            full_page_chart(deck, charts[r.ticker])
     deck.slide(L_DISCLAIMER)
     deck.slide(L_FINAL)
     deck.save(out)

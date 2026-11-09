@@ -102,7 +102,8 @@ def cmd_deck_charts(a) -> int:
         group = (u.group or "Other").replace(" – ", "_").replace(" & ", "_").replace(" ", "_")
         f = out_dir / group / f"{i:03d}_{t.replace(' ', '_').replace('/', '-')}.png"
         try:
-            deck_chart(s, row, f, badge=badge, badge_kind=kind, trendlines=tls.get(t), benchmark=b, benchmark_name=bname)
+            deck_chart(s, row, f, badge=badge, badge_kind=kind, trendlines=tls.get(t), benchmark=b, benchmark_name=bname,
+                       page=a.page)
             done += 1
         except Exception as e:                      # one bad series must not stop the run
             skipped.append(f"{t}: {e}")
@@ -138,7 +139,7 @@ def cmd_weekly_doc(a) -> int:
         jp = small / (f.stem + ".jpg")
         if not jp.exists():
             with Image.open(f) as im:
-                im.convert("RGB").resize((1600, int(1600 * im.height / im.width)), Image.LANCZOS).save(jp, quality=85)
+                im.convert("RGB").resize((1800, int(1800 * im.height / im.width)), Image.LANCZOS).save(jp, quality=88)
         charts[t] = jp
     commentary = json.loads(Path(a.commentary).read_text(encoding="utf-8"))
     d = pd.Timestamp(asof)
@@ -159,7 +160,7 @@ def _jpg_charts(uni, chart_dir: Path, small: Path) -> dict:
             continue
         jp = small / (f.stem + ".jpg")
         with Image.open(f) as im:
-            im.convert("RGB").resize((1600, int(1600 * im.height / im.width)), Image.LANCZOS).save(jp, quality=85)
+            im.convert("RGB").resize((1800, int(1800 * im.height / im.width)), Image.LANCZOS).save(jp, quality=88)
         out[t] = jp
     return out
 
@@ -247,6 +248,7 @@ def main(argv=None) -> int:
     s.add_argument("--trendlines", default="data/trendlines.csv")
     s.add_argument("--asof")
     s.add_argument("--out", default="output/deck")
+    s.add_argument("--page", choices=["16x9", "a4"], default="16x9", help="a4: full-page charts for the A4 documents")
     s.set_defaults(func=cmd_deck_charts)
     s = sub.add_parser("weekly-doc", help="weekly technical document (PowerPoint)")
     s.add_argument("--prices", default="data/prices")

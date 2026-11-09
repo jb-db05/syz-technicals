@@ -26,7 +26,8 @@ from .syz_style import (AMBER, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SO
                         VERDICT_GLYPH, register_fonts)
 
 BARS_5Y = 5 * 252
-MA50_BLUE = "#2F6FDE"     # agreed 8 Nov 2026 (outside the Syz palette)
+MA50_BLUE = "#2F6FDE"
+PAGES = {"16x9": (13.333, 7.5), "a4": (10.45, 7.30)}   # a4: fills an A4 landscape slide, logo and page number kept clear     # agreed 8 Nov 2026 (outside the Syz palette)
 BADGE_TEXT = {"Bullish": "BULLISH", "Neutral+": "NEUTRAL – POSITIVE TILT", "Neutral": "NEUTRAL",
               "Neutral-": "NEUTRAL – NEGATIVE TILT", "Bearish_LM": "BEARISH – LOSING MOMENTUM", "Bearish": "BEARISH"}
 
@@ -78,7 +79,7 @@ def _draw_tags(ax, tags, min_gap_pt=19):
 def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | None, badge_kind: str = "published",
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
                benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = False,
-               show_band100: bool = True) -> Path:
+               show_band100: bool = True, page: str = "16x9") -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
@@ -91,13 +92,16 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     sl = slice(start, n)
     tags: list[dict] = []
 
-    fig = plt.figure(figsize=(13.333, 7.5), dpi=150, facecolor="white")
+    FW, FH = PAGES[page]
+    fig = plt.figure(figsize=(FW, FH), dpi=170 if page == "a4" else 150, facecolor="white")
+    fr = lambda x, y, w, h: [x / FW, y / FH, w / FW, h / FH]          # inches → figure fractions
     has_rs = benchmark is not None
-    top = 0.80
-    main_h = 0.50 if has_rs else 0.66
-    ax = fig.add_axes([0.05, top - main_h, 0.84, main_h])
+    LEFT, RIGHT_GAP, TOP_GAP = 0.62, 1.55, 1.30                         # room for y labels, value tags, title block
+    plot_w = FW - LEFT - RIGHT_GAP
+    main_bottom = 2.30 if has_rs else 0.50
+    ax = fig.add_axes(fr(LEFT, main_bottom, plot_w, FH - TOP_GAP - main_bottom))
     if has_rs:
-        rx = fig.add_axes([0.05, 0.10, 0.84, 0.15], sharex=ax)
+        rx = fig.add_axes(fr(LEFT, 0.50, plot_w, 1.40), sharex=ax)
 
     # price and averages
     ax.plot(x, close.iloc[sl], color=NAVY, lw=1.2, label="Close", zorder=3)
@@ -202,19 +206,20 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         rx.set_xticklabels([str(idx[i].year) for i in yr])
 
     # title block
-    title = fig.text(0.05, 0.925, row["name"], fontsize=24, fontweight="bold", color=NAVY)
+    title = fig.text(LEFT / FW, (FH - 0.50) / FH, row["name"], fontsize=22, fontweight="bold", color=NAVY)
     rend = fig.canvas.get_renderer()
-    size = 24
-    while size > 13 and title.get_window_extent(rend).x1 > 0.68 * fig.bbox.width:   # keep clear of the badge
+    size = 22
+    while size > 13 and title.get_window_extent(rend).x1 > (FW - 3.0) / FW * fig.bbox.width:   # keep clear of the badge
         size -= 1
         title.set_fontsize(size)
-    fig.text(0.05, 0.875, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years", fontsize=11, color=BLUEBERRY)
-    fig.add_artist(plt.Line2D([0.05, 0.12], [0.862, 0.862], color=ORANGE, lw=3, transform=fig.transFigure))
+    fig.text(LEFT / FW, (FH - 0.80) / FH, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years",
+             fontsize=10.5, color=BLUEBERRY)
+    fig.add_artist(plt.Line2D([LEFT / FW, (LEFT + 0.9) / FW], [(FH - 0.90) / FH] * 2, color=ORANGE, lw=3, transform=fig.transFigure))
 
     # badge top-right
     if badge:
         col = VERDICT_COLOUR.get(badge, BLUEBERRY)
-        bx = fig.add_axes([0.70, 0.86, 0.25, 0.09]); bx.axis("off")
+        bx = fig.add_axes(fr(FW - 2.95, FH - 0.95, 2.85, 0.80)); bx.axis("off")
         bx.add_patch(FancyBboxPatch((0.02, 0.06), 0.96, 0.88, boxstyle="round,pad=0,rounding_size=0.2",
                                     fc=col, ec="none", transform=bx.transAxes))
         bx.text(0.5, 0.60, f"{VERDICT_GLYPH.get(badge, '')}  {BADGE_TEXT.get(badge, badge)}", ha="center", va="center",
@@ -224,8 +229,9 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
                 ha="center", va="center", color="white", fontsize=8.5, transform=bx.transAxes)
 
     _draw_tags(ax, tags)
-    fig.text(0.05, 0.025, SOURCE_LINE, fontsize=9, color=BLUEBERRY)
-    fig.text(0.89, 0.025, f"Data to {close.index[-1]:%d %b %Y}".replace(" 0", " "), fontsize=9, color=BLUEBERRY, ha="right")
+    fig.text(LEFT / FW, 0.10 / FH, SOURCE_LINE, fontsize=9, color=BLUEBERRY)
+    fig.text((LEFT + plot_w) / FW, 0.10 / FH, f"Data to {close.index[-1]:%d %b %Y}".replace(" 0", " "), fontsize=9,
+             color=BLUEBERRY, ha="right")
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, facecolor="white")

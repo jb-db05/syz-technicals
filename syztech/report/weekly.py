@@ -223,6 +223,13 @@ def verdict_style(v):
     return {"fill": VCOL.get(v, BLUEB), "color": "FFFFFF", "bold": True, "align": PP_ALIGN.CENTER}
 
 
+def full_page_chart(deck, path: Path):
+    """A chart page: the chart fills the page, no slide title (logo and page number kept clear)."""
+    s = deck.slide(L_BLANK)
+    chart_image(s, path, 0.35, 0.45, 10.45)
+    return s
+
+
 def chart_image(slide, path: Path, x, y, w):
     with Image.open(path) as im:
         ratio = im.height / im.width
@@ -355,18 +362,9 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
         styles[(i, 2)] = {"align": PP_ALIGN.CENTER, "color": GREY}
     table(s, X0, 2.55, W, ["Instrument", "From", "", "To", "Why"], rows, [2.4, 1.1, 0.35, 1.1, 5.33], row_h=0.38, size=9.5, styles=styles)
     source(s, asof)
-    for pair in (("KOSPI Index", "AUDUSD Curncy"), ("NKY Index", "TWSE Index")):
-        s = deck.titled("Changes this week: " + " and ".join(names.get(t, t) for t in pair), "")
-        why = {t_: (a_, b_, w_) for t_, a_, b_, w_ in c["changes"]}
-        for k, t in enumerate(pair):
-            if t in charts:
-                chart_image(s, charts[t], X0 + k * 5.2, 2.75, 5.05)
-            if t in why:
-                a_, b_, w_ = why[t]
-                text(s, X0 + k * 5.2, 5.75, 5.05, 1.2,
-                     [[(f"{VGLYPH[a_]} {a_}  →  {VGLYPH[b_]} {b_}", {"bold": True, "color": VCOL[b_], "size": 12})], w_],
-                     size=11)
-        source(s, asof)
+    for t_, *_ in c["changes"]:
+        if t_ in charts:
+            full_page_chart(deck, charts[t_])
 
     # asset-class sections
     sec = c["sections"]
@@ -385,7 +383,7 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
         cfg = sec[key]
         dashboard_slide(deck, d, cfg["title"], sub, asof)
         if cfg.get("hero") and cfg["hero"] in charts:
-            s = hero_slide(deck, charts[cfg["hero"]], cfg["hero_title"], asof)
+            full_page_chart(deck, charts[cfg["hero"]])
 
     # Focus List
     st = fl[fl.group == "Focus List – Stocks"]
@@ -453,8 +451,7 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
         if ph.placeholder_format.idx == 0:
             ph.text = "Appendix – all charts"
     for t, path in charts.items():
-        s = deck.slide(L_BLANK)
-        chart_image(s, path, 0.45, 0.6, 10.8)
+        full_page_chart(deck, path)
 
     deck.slide(L_DISCLAIMER)
     deck.slide(L_FINAL)
