@@ -134,3 +134,14 @@ def test_deck_chart_renders(tmp_path):
                      trendlines=[Trendline((str(s.index[50].date()), 25.0), (str(s.index[300].date()), 35.0))],
                      benchmark=s * 0 + 100.0, benchmark_name="Flat")
     assert out.exists() and out.stat().st_size > 20_000
+
+
+def test_several_exports_load_together(tmp_path):
+    a, b = tmp_path / "a", tmp_path / "b"
+    a.mkdir(); b.mkdir()
+    d = pd.bdate_range("2026-01-05", periods=3)
+    pd.DataFrame({"Date": d, "X Index": [1.0, 2.0, 3.0]}).to_excel(a / "p.xlsx", index=False)
+    pd.DataFrame({"Date": d, "Y Index": [4.0, 5.0, 6.0], "X Index": [9.0, 9.0, 9.0]}).to_excel(b / "p.xlsx", index=False)
+    res = load_prices(f"{a},{b}")
+    assert set(res.tickers) == {"X Index", "Y Index"}
+    assert res.series("X Index").tolist() == [1.0, 2.0, 3.0]          # first export wins on duplicates

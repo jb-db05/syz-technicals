@@ -82,6 +82,7 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
             dist_r=close / r.resistance - 1 if pd.notna(r.resistance) else np.nan,
             trendline=tl_today, dist_tl=close / tl_today - 1 if tl_today else np.nan,
             hi52=float(w.max()), lo52=float(w.min()),
+            hi100=float(s.iloc[-101:-1].max()), lo100=float(s.iloc[-101:-1].min()),
             chg1w=close / float(wk.iloc[-1]) - 1 if len(wk) else np.nan,
             chg3m=close / float(m3.iloc[-1]) - 1 if len(m3) else np.nan,
             published=pub, mechanical=r.verdict, lt_view=r.get("lt_view"),

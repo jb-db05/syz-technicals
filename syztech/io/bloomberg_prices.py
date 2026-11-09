@@ -154,6 +154,18 @@ def _read_sheet(raw: pd.DataFrame, sheet: str, source: str):
 
 
 def load_prices(path: str | Path) -> LoadResult:
+    """One export folder/file, or several separated by commas (first one wins on duplicate tickers)."""
+    if isinstance(path, str) and "," in path:
+        parts = [load_prices(p.strip()) for p in path.split(",") if p.strip()]
+        reports, notes, frames = {}, [], []
+        for r in parts:
+            notes += r.file_notes
+            for t, rep in r.reports.items():
+                if t not in reports:
+                    reports[t] = rep
+                    frames.append(r.prices[r.prices.ticker == t])
+        prices = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["date", "ticker", "close"])
+        return LoadResult(prices, reports, notes)
     path = Path(path)
     files = sorted(p for p in ([path] if path.is_file() else path.glob("*.xls*")) if not p.name.startswith("~$"))
     frames, reports, notes = [], {}, []

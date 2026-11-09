@@ -92,7 +92,13 @@ def cmd_deck_charts(a) -> int:
             badge = v if v in ("Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish_LM", "Bearish") else None
         bench = getattr(u, "benchmark", None)
         b = prices.series(bench) if isinstance(bench, str) and bench in prices.reports else None
-        bname = uni.set_index("ticker")["name"].get(bench, bench) if b is not None else None
+        if b is not None:
+            names = uni.set_index("ticker")["name"]
+            if bench not in names.index and Path("data/universe.csv").exists():
+                names = pd.read_csv("data/universe.csv").set_index("ticker")["name"]
+            bname = {"SPI Swiss Performance Index": "SPI", "Stoxx Europe 600": "Stoxx 600"}.get(names.get(bench, bench), names.get(bench, bench))
+        else:
+            bname = None
         group = (u.group or "Other").replace(" – ", "_").replace(" & ", "_").replace(" ", "_")
         f = out_dir / group / f"{i:03d}_{t.replace(' ', '_').replace('/', '-')}.png"
         try:
@@ -139,6 +145,41 @@ def cmd_weekly_doc(a) -> int:
     out = Path(a.out or OUT / f"Syz_Technicals_{commentary['edition'].replace(' ', '_')}.pptx")
     build(df, commentary, charts, out, Path(a.template), f"{d.day} {d:%B %Y}")
     print(f"written: {out} ({len(charts)} charts in the appendix)")
+    return 0
+
+
+def _jpg_charts(uni, chart_dir: Path, small: Path) -> dict:
+    from PIL import Image
+    small.mkdir(parents=True, exist_ok=True)
+    files = {f.stem.split("_", 1)[1]: f for f in chart_dir.glob("*/*.png")}
+    out = {}
+    for t in uni.ticker:
+        f = files.get(t.replace(" ", "_").replace("/", "-"))
+        if f is None:
+            continue
+        jp = small / (f.stem + ".jpg")
+        with Image.open(f) as im:
+            im.convert("RGB").resize((1600, int(1600 * im.height / im.width)), Image.LANCZOS).save(jp, quality=85)
+        out[t] = jp
+    return out
+
+
+def cmd_list_doc(a) -> int:
+    from .charts.deck_chart import load_trendlines
+    from .report.listdoc import build_list_doc
+    from .report.weekly import instrument_table
+    prices = load_prices(a.prices)
+    uni, _ = load_universe(a.universe)
+    asof = a.asof or (prices.prices.date.max().date() if len(prices.prices) else None)
+    scores = score_universe(prices, uni, asof)
+    df = instrument_table(scores, uni, prices, load_trendlines(a.trendlines))
+    excluded = [n for t, n in zip(uni.ticker, uni.name) if t not in set(df.ticker)]
+    charts = _jpg_charts(uni, Path(a.charts) / str(asof), OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}")
+    d = pd.Timestamp(asof)
+    out = Path(a.out)
+    build_list_doc(df, charts, out, Path(a.template), title=a.title, edition=a.edition, asof=f"{d.day} {d:%B %Y}",
+                   benchmark_name=a.benchmark_name, excluded=excluded, draft=not a.final)
+    print(f"written: {out} ({len(df)} stocks, {len(charts)} charts; excluded: {', '.join(excluded) or 'none'})")
     return 0
 
 
@@ -217,6 +258,19 @@ def main(argv=None) -> int:
     s.add_argument("--asof")
     s.add_argument("--out")
     s.set_defaults(func=cmd_weekly_doc)
+    s = sub.add_parser("list-doc", help="dashboard + all charts for a list of stocks (PowerPoint)")
+    s.add_argument("--prices", default="data/prices")
+    s.add_argument("--universe", required=True)
+    s.add_argument("--trendlines", default="data/trendlines.csv")
+    s.add_argument("--charts", required=True, help="folder written by deck-charts --out")
+    s.add_argument("--title", required=True)
+    s.add_argument("--edition", required=True)
+    s.add_argument("--benchmark-name", default="SPI")
+    s.add_argument("--template", default=str(Path(__file__).parent / "report" / "assets" / "template_syz_a4.pptx"))
+    s.add_argument("--asof")
+    s.add_argument("--out", required=True)
+    s.add_argument("--final", action="store_true", help="drop the draft mark on the cover")
+    s.set_defaults(func=cmd_list_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")
