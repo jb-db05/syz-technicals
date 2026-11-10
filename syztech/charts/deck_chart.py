@@ -27,7 +27,7 @@ from .syz_style import (AMBER, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SO
 
 BARS_5Y = 5 * 252
 MA50_BLUE = "#2F6FDE"
-PAGES = {"16x9": (13.333, 7.5), "a4": (10.45, 7.30)}   # a4: fills an A4 landscape slide, logo and page number kept clear     # agreed 8 Nov 2026 (outside the Syz palette)
+PAGES = {"16x9": (13.333, 7.5), "a4": (10.65, 7.45)}   # a4: fills an A4 landscape slide, logo and page number kept clear     # agreed 8 Nov 2026 (outside the Syz palette)
 BADGE_TEXT = {"Bullish": "BULLISH", "Neutral+": "NEUTRAL – POSITIVE TILT", "Neutral": "NEUTRAL",
               "Neutral-": "NEUTRAL – NEGATIVE TILT", "Bearish_LM": "BEARISH – LOSING MOMENTUM", "Bearish": "BEARISH"}
 
@@ -96,7 +96,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     fig = plt.figure(figsize=(FW, FH), dpi=170 if page == "a4" else 150, facecolor="white")
     fr = lambda x, y, w, h: [x / FW, y / FH, w / FW, h / FH]          # inches → figure fractions
     has_rs = benchmark is not None
-    LEFT, RIGHT_GAP, TOP_GAP = 0.62, 1.55, 1.30                         # room for y labels, value tags, title block
+    LEFT, RIGHT_GAP, TOP_GAP = (0.55, 1.40, 1.12) if page == "a4" else (0.62, 1.55, 1.30)   # y labels, value tags, title block
     plot_w = FW - LEFT - RIGHT_GAP
     main_bottom = 2.30 if has_rs else 0.50
     ax = fig.add_axes(fr(LEFT, main_bottom, plot_w, FH - TOP_GAP - main_bottom))
@@ -206,27 +206,29 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         rx.set_xticklabels([str(idx[i].year) for i in yr])
 
     # title block
-    title = fig.text(LEFT / FW, (FH - 0.50) / FH, row["name"], fontsize=22, fontweight="bold", color=NAVY)
+    TY = (0.40, 0.66, 0.74) if page == "a4" else (0.50, 0.80, 0.90)          # title, subtitle, accent line (inches from top)
+    title = fig.text(LEFT / FW, (FH - TY[0]) / FH, row["name"], fontsize=22, fontweight="bold", color=NAVY)
     rend = fig.canvas.get_renderer()
     size = 22
-    while size > 13 and title.get_window_extent(rend).x1 > (FW - 3.0) / FW * fig.bbox.width:   # keep clear of the badge
+    while size > 13 and title.get_window_extent(rend).x1 > (FW - 2.3) / FW * fig.bbox.width:   # keep clear of the badge
         size -= 1
         title.set_fontsize(size)
-    fig.text(LEFT / FW, (FH - 0.80) / FH, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years",
+    fig.text(LEFT / FW, (FH - TY[1]) / FH, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years",
              fontsize=10.5, color=BLUEBERRY)
-    fig.add_artist(plt.Line2D([LEFT / FW, (LEFT + 0.9) / FW], [(FH - 0.90) / FH] * 2, color=ORANGE, lw=3, transform=fig.transFigure))
+    fig.add_artist(plt.Line2D([LEFT / FW, (LEFT + 0.9) / FW], [(FH - TY[2]) / FH] * 2, color=ORANGE, lw=3, transform=fig.transFigure))
 
     # badge top-right
     if badge:
         col = VERDICT_COLOUR.get(badge, BLUEBERRY)
-        bx = fig.add_axes(fr(FW - 2.95, FH - 0.95, 2.85, 0.80)); bx.axis("off")
+        bw, bh, f1, f2 = (2.05, 0.58, 11, 7) if page == "a4" else (2.85, 0.80, 13, 8.5)       # smaller badge on A4 pages
+        bx = fig.add_axes(fr(FW - bw - 0.05, FH - bh - 0.12, bw, bh)); bx.axis("off")
         bx.add_patch(FancyBboxPatch((0.02, 0.06), 0.96, 0.88, boxstyle="round,pad=0,rounding_size=0.2",
                                     fc=col, ec="none", transform=bx.transAxes))
         bx.text(0.5, 0.60, f"{VERDICT_GLYPH.get(badge, '')}  {BADGE_TEXT.get(badge, badge)}", ha="center", va="center",
-                color="white", fontsize=13, fontweight="bold", transform=bx.transAxes)
+                color="white", fontsize=f1, fontweight="bold", transform=bx.transAxes)
         sub = {"published": "Syz Research view", "mechanical": "Rules-based reading (no published view)"}.get(badge_kind, badge_kind)
         bx.text(0.5, 0.25, sub,
-                ha="center", va="center", color="white", fontsize=8.5, transform=bx.transAxes)
+                ha="center", va="center", color="white", fontsize=f2, transform=bx.transAxes)
 
     _draw_tags(ax, tags)
     fig.text(LEFT / FW, 0.10 / FH, SOURCE_LINE, fontsize=9, color=BLUEBERRY)

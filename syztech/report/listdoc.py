@@ -27,7 +27,8 @@ def _bucket(v):
 
 
 def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *, title: str, edition: str, asof: str,
-                   benchmark_name: str, excluded: list[str], draft: bool = True) -> Path:
+                   benchmark_name: str, excluded: list[str], draft: bool = True,
+                   screen_date: str | None = None) -> Path:
     deck = Deck(template)
     df = df.copy()
     df["vo"] = df.verdict.map(V_ORDER).fillna(9)
@@ -92,21 +93,43 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
         text(s, 9.0, y + 0.08, 1.95, 0.9, lab, size=11, anchor=MSO_ANCHOR.MIDDLE)
     source(s, asof, f"Relative strength = price ÷ {benchmark_name}, both in CHF.")
 
-    # dashboard
-    s = deck.titled("Dashboard: trend, levels and relative strength for every stock",
-                    "Sorted by verdict, then relative strength. Levels: 52-week low / high (no drawn levels yet)")
+    # dashboard: technical + fundamental screen + liquidity (fundamentals are shown, never used in the verdict)
+    s = deck.titled("Dashboard: trend, relative strength, fundamental screen and liquidity", "")
+    groups = [("Technical", 1, 4, NAVY), ("Fundamental", 5, 5, ORANGE), ("Liquidity", 6, 8, BLUEB)]
+    col_w = [2.6, 0.85, 0.8, 1.3, 1.15, 1.0, 0.85, 0.85, 0.88]
+    xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
+    for lab, a_, b_, col in groups:
+        box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, col, radius=0.25)
+        text(s, xs[a_], 2.2, xs[b_ + 1] - xs[a_], 0.24, lab, size=9, color="FFFFFF", bold=True,
+             align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
     rows, st = [], {}
     for i, r in enumerate(df.itertuples()):
-        rows.append([r.name, num(r.close, r.decimals), r.slope200 or EN_DASH, pct(r.vs200), pct(r.dist_s), pct(r.dist_r),
-                     pct(r.chg1w), pct(r.chg3m), pct(r.rs_chg63) if pd.notna(r.rs_chg63) else EN_DASH,
-                     r.rs_trend if isinstance(r.rs_trend, str) else EN_DASH, f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}"])
-        st[(i, 10)] = verdict_style(r.verdict)
+        fund = getattr(r, "fundamental_screen", None)
+        fund_txt = {"+": "+", "-": "\u2212"}.get(fund, "n/a")
+        top = getattr(r, "top75_spi", None)
+        top_txt = "Yes" if top == "Yes" else ("No" if top == "No" else "n/a")
+        w_ = getattr(r, "weight_spi", None)
+        adv = getattr(r, "avg_daily_value_chf", None)
+        rows.append([r.name, num(r.close, r.decimals), r.slope200 or EN_DASH,
+                     r.rs_trend if isinstance(r.rs_trend, str) else EN_DASH,
+                     f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}",
+                     fund_txt, top_txt,
+                     f"{w_ * 100:.2f}%" if isinstance(w_, (int, float)) and not math.isnan(w_) else "n/a",
+                     f"{adv / 1e6:,.1f}" if isinstance(adv, (int, float)) and not math.isnan(adv) else "n/a"])
         st[(i, 2)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
-        st[(i, 9)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, BLUEB), "bold": True, "align": PP_ALIGN.LEFT}
-    table(s, X0, 2.5, W, ["Stock", "Last", "200-day", "vs 200d", "to 52w low", "to 52w high", "1 week", "3 months", "RS 3m",
-                          "Relative strength", "Trend"], rows,
-          [2.15, 0.8, 0.65, 0.72, 0.8, 0.82, 0.68, 0.75, 0.68, 1.15, 1.08], row_h=min(0.2, 5.0 / (n + 1)), size=7.5, styles=st)
-    source(s, asof, f"Relative strength against the {benchmark_name}." + (f" Not shown (no prices in the export): {', '.join(excluded)}." if excluded else ""))
+        st[(i, 3)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, BLUEB), "bold": True,
+                      "align": PP_ALIGN.LEFT}
+        st[(i, 4)] = verdict_style(r.verdict)
+        st[(i, 5)] = {"color": {"+": MINT, "-": MULB}.get(fund, GREY), "bold": fund in ("+", "-"), "align": PP_ALIGN.CENTER}
+        st[(i, 6)] = {"align": PP_ALIGN.CENTER, "color": NAVY if top_txt == "Yes" else GREY}
+        st[(i, 7)] = {"align": PP_ALIGN.RIGHT}
+        st[(i, 8)] = {"align": PP_ALIGN.RIGHT}
+    table(s, X0, 2.5, W, ["Stock", "Last", "200-day", "Relative strength", "Trend", "Screen", "Top 75 / SPI",
+                          "SPI weight", "Avg daily value (CHF m)"], rows, col_w,
+          row_h=min(0.19, 5.0 / (n + 1)), size=7.5, styles=st)
+    source(s, asof, f"Sorted by trend verdict, then relative strength against the {benchmark_name}. Fundamental screen and liquidity: Syz SPI screen"
+           f"{(' (' + screen_date + ')') if screen_date else ''}; shown for information, not part of the trend verdict."
+           + (f" Not shown (no prices): {', '.join(excluded)}." if excluded else ""))
 
     # trend × RS grid
     s = deck.titled(f"{len(bull_lag)} stocks are in an uptrend but lag the {benchmark_name}",

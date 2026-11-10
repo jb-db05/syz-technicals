@@ -9,7 +9,7 @@ This document is the specification Claude Code builds against and the specificat
 
 ## 0. Principles (apply to every module)
 
-1. **Pure technical analysis.** Inputs are price, volume, breadth and market-derived series only. No fundamentals, no macro series, no news.
+1. **Pure technical analysis.** Inputs are price, volume, breadth and market-derived series only. No fundamentals, no macro series, no news. *Exception (10 Nov 2026, Florian): the stock-list document may show the Syz fundamental screen and liquidity data (Top 75 / SPI, SPI weight, average daily value) as display-only columns; they never enter a rule or a verdict.*
 2. **Bloomberg is authoritative.** All data arrives as Bloomberg exports (Excel) placed in `data/`. No external data fetching in the production path. A secondary feed may be added later behind a flag; it never overrides Bloomberg levels in anything that is published.
 3. **Nothing invented.** If an input is missing for an instrument, the engine returns `insufficient_data` for that instrument and says which input is missing. It never fills, extrapolates or guesses.
 4. **Deterministic and tested.** Every rule in §3 has at least one unit test. Tests are synthetic price series constructed to reproduce the documented corrections (§3.6). `pytest` must pass before any commit.

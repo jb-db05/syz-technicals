@@ -226,7 +226,7 @@ def verdict_style(v):
 def full_page_chart(deck, path: Path):
     """A chart page: the chart fills the page, no slide title (logo and page number kept clear)."""
     s = deck.slide(L_BLANK)
-    chart_image(s, path, 0.35, 0.45, 10.45)
+    chart_image(s, path, 0.30, 0.30, 10.65)       # clear of the Syz logo (x > 11.0) and page number
     return s
 
 
