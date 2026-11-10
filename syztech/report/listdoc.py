@@ -26,15 +26,15 @@ def screen_dashboard(deck, df, title, benchmark_name, asof, footnote, industry=F
     """Technical columns + fundamental screen + liquidity, with group labels above the header."""
     s = deck.titled(title, "")
     if industry:
-        hdr = ["Stock", "Industry", "Last", "200-day", "Relative strength", "Trend", "Screen", "Top 75 / SPI", "SPI weight",
+        hdr = ["Stock", "Industry", "Last", "200-day", "RS Mom", "RS 3m", "Trend", "Screen", "Top 75 / SPI", "SPI weight",
                "Avg daily value (CHF m)"]
-        col_w = [1.55, 1.92, 0.75, 0.7, 1.15, 1.05, 1.0, 0.75, 0.7, 0.71]
-        g = [("Technical", 2, 5, NAVY), ("Fundamental", 6, 6, ORANGE), ("Liquidity", 7, 9, BLUEB)]
+        col_w = [1.5, 1.8, 0.72, 0.68, 0.72, 0.72, 1.0, 0.85, 0.7, 0.65, 0.94]
+        g = [("Technical", 2, 6, NAVY), ("Fundamental", 7, 7, ORANGE), ("Liquidity", 8, 10, BLUEB)]
     else:
-        hdr = ["Stock", "Last", "200-day", "Relative strength", "Trend", "Screen", "Top 75 / SPI", "SPI weight",
+        hdr = ["Stock", "Last", "200-day", "RS Mom", "RS 3m", "Trend", "Screen", "Top 75 / SPI", "SPI weight",
                "Avg daily value (CHF m)"]
-        col_w = [2.6, 0.85, 0.8, 1.3, 1.15, 1.0, 0.85, 0.85, 0.88]
-        g = [("Technical", 1, 4, NAVY), ("Fundamental", 5, 5, ORANGE), ("Liquidity", 6, 8, BLUEB)]
+        col_w = [2.45, 0.8, 0.75, 0.75, 0.75, 1.1, 0.9, 0.85, 0.85, 1.08]
+        g = [("Technical", 1, 5, NAVY), ("Fundamental", 6, 6, ORANGE), ("Liquidity", 7, 9, BLUEB)]
     k = 1 if industry else 0
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
     for lab, a_, b_, col in g:
@@ -50,7 +50,9 @@ def screen_dashboard(deck, df, title, benchmark_name, asof, footnote, industry=F
         adv = getattr(r, "avg_daily_value_chf", None)
         has_adv = isinstance(adv, (int, float)) and not math.isnan(adv)
         row = [r.name] + ([getattr(r, "industry", "") or ""] if industry else []) + [
-            num(r.close, r.decimals), r.slope200 or EN_DASH, r.rs_trend if isinstance(r.rs_trend, str) else EN_DASH,
+            num(r.close, r.decimals), r.slope200 or EN_DASH,
+            {"outperforming": "+", "underperforming": "\u2212"}.get(r.rs_trend, EN_DASH),
+            pct(r.rs_chg63) if pd.notna(r.rs_chg63) else EN_DASH,
             f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}",
             {"+": "+", "-": "\u2212"}.get(fund, "n/a"), top_txt,
             f"{w_ * 100:.{1 if industry else 2}f}%" if isinstance(w_, (int, float)) and not math.isnan(w_) else "n/a",
@@ -58,13 +60,14 @@ def screen_dashboard(deck, df, title, benchmark_name, asof, footnote, industry=F
         rows.append(row)
         st[(i, 2 + k)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
         st[(i, 3 + k)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, BLUEB), "bold": True,
-                          "align": PP_ALIGN.LEFT}
-        st[(i, 4 + k)] = verdict_style(r.verdict)
-        st[(i, 5 + k)] = {"color": {"+": MINT, "-": MULB}.get(fund, GREY), "bold": fund in ("+", "-"), "align": PP_ALIGN.CENTER}
-        st[(i, 6 + k)] = {"align": PP_ALIGN.CENTER, "color": NAVY if top_txt == "Yes" else GREY}
-        st[(i, 7 + k)] = {"align": PP_ALIGN.RIGHT}
+                          "align": PP_ALIGN.CENTER}
+        st[(i, 4 + k)] = {"color": MINT if (pd.notna(r.rs_chg63) and r.rs_chg63 >= 0) else MULB, "align": PP_ALIGN.RIGHT}
+        st[(i, 5 + k)] = verdict_style(r.verdict)
+        st[(i, 6 + k)] = {"color": {"+": MINT, "-": MULB}.get(fund, GREY), "bold": fund in ("+", "-"), "align": PP_ALIGN.CENTER}
+        st[(i, 7 + k)] = {"align": PP_ALIGN.CENTER, "color": NAVY if top_txt == "Yes" else GREY}
+        st[(i, 8 + k)] = {"align": PP_ALIGN.RIGHT}
         low = low_liquidity is not None and has_adv and adv < low_liquidity
-        st[(i, 8 + k)] = {"align": PP_ALIGN.RIGHT, "color": MULB if low else NAVY, "bold": low}
+        st[(i, 9 + k)] = {"align": PP_ALIGN.RIGHT, "color": MULB if low else NAVY, "bold": low}
         if industry:
             st[(i, 1)] = {"align": PP_ALIGN.LEFT, "color": BLUEB}
     n = len(rows)
@@ -110,7 +113,7 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
         text(s, 0.73, 4.75, 4.8, 0.3, "DRAFT – FOR INTERNAL REVIEW", size=10, color=ORANGE, bold=True)
 
     # summary: relative-strength ranking (native bar chart) + key numbers
-    s = deck.titled(f"{int(counts.get('Bullish', 0))} of {n} stocks in an uptrend – {out_n} outperform the {benchmark_name}, {under_n} lag it",
+    s = deck.titled(f"{int(counts.get('Bullish', 0))} of {n} stocks in an uptrend – RS Mom positive for {out_n}, negative for {under_n}",
                     f"Relative strength against the {benchmark_name} over 3 months, %")
     rk = df.dropna(subset=["rs_chg63"]).sort_values("rs_chg63")
     cd = CategoryChartData()
@@ -135,14 +138,14 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
     ch.category_axis.tick_labels.font.size = Pt(7.5)
     ch.value_axis.visible = False
     ch.value_axis.has_major_gridlines = False
-    stats = [(str(int(counts.get("Bullish", 0))), "Bullish trend", MINT), (str(out_n), f"outperform the {benchmark_name}", MINT),
-             (str(len(bull_lag)), "Bullish but lagging", ORANGE), (str(int(counts.get("Bearish", 0)) + int(counts.get("Neutral", 0))), "not Bullish", MULB)]
+    stats = [(str(int(counts.get("Bullish", 0))), "Bullish trend", MINT), (str(out_n), f"RS Mom + against the {benchmark_name}", MINT),
+             (str(len(bull_lag)), "Bullish, RS Mom \u2212", ORANGE), (str(int(counts.get("Bearish", 0)) + int(counts.get("Neutral", 0))), "not Bullish", MULB)]
     for k, (big, lab, col) in enumerate(stats):
         y = 2.55 + k * 1.22
         box(s, 7.65, y, 3.36, 1.05, "F6F7F9")
         text(s, 7.85, y + 0.08, 1.2, 0.9, big, size=30, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
         text(s, 9.0, y + 0.08, 1.95, 0.9, lab, size=11, anchor=MSO_ANCHOR.MIDDLE)
-    source(s, asof, f"Relative strength = price ÷ {benchmark_name}, both in CHF.")
+    source(s, asof, f"Bars: 3-month change of relative strength (price ÷ {benchmark_name}, both in CHF). RS Mom: direction of its 200-day average over 20 days.")
 
     screen_dashboard(deck, df, "Dashboard: trend, relative strength, fundamental screen and liquidity", benchmark_name, asof,
                      f"Sorted by trend verdict, then relative strength against the {benchmark_name}. Fundamental screen and liquidity: "
@@ -163,9 +166,9 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
                          "against the SPI includes the currency.", industry=True, low_liquidity=5e6, row_h=0.32, size=9)
 
     # trend × RS grid
-    s = deck.titled(f"{len(bull_lag)} stocks are in an uptrend but lag the {benchmark_name}",
+    s = deck.titled(f"{len(bull_lag)} stocks are in an uptrend while their relative-strength trend points down",
                     f"Trend verdict against relative strength versus the {benchmark_name}")
-    cols = ["outperforming", "mixed", "underperforming"]
+    cols = ["outperforming", "underperforming"]
     rows, st = [], {}
     for i, v in enumerate(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]):
         row = [f"{VGLYPH[v]} {VLABEL[v]}"]
@@ -173,11 +176,11 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
         for j, ct in enumerate(cols, start=1):
             nm = df[(df.verdict.replace("Bearish_LM", "Bearish") == v) & (df.rs_trend == ct)].name.tolist()
             row.append(", ".join(nm) or EN_DASH)
-            st[(i, j)] = {"fill": {"outperforming": "E3F4EF", "mixed": "F6F7F9", "underperforming": "F6E8EF"}[ct], "align": PP_ALIGN.LEFT}
+            st[(i, j)] = {"fill": {"outperforming": "E3F4EF", "underperforming": "F6E8EF"}[ct], "align": PP_ALIGN.LEFT}
         rows.append(row)
-    table(s, X0, 2.5, W, ["Trend", f"Outperforming the {benchmark_name}", "Mixed", f"Underperforming the {benchmark_name}"], rows,
-          [1.45, 3.4, 2.0, 3.43], row_h=0.85, size=9, styles=st)
-    source(s, asof, "Outperforming: relative strength above its 200-day and up over 3 months; underperforming: below and down.")
+    table(s, X0, 2.5, W, ["Trend", f"RS Mom + (gaining on the {benchmark_name})", f"RS Mom − (losing to the {benchmark_name})"], rows,
+          [1.45, 4.4, 4.43], row_h=0.85, size=9, styles=st)
+    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {benchmark_name}) over the last 20 trading days.")
 
     # trigger watch: 52-week levels and the 100-day band
     cand = df.copy()
@@ -209,7 +212,7 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
     items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
              ("Structure", "A support break (here: a close below the 52-week low or the 100-day low) stands until a resistance break."),
              ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
-             ("Relative strength", f"Price against the {benchmark_name}: outperforming, mixed or underperforming. It informs, it does not change the verdict.")]
+             ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {benchmark_name} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
     for k, (lab, body) in enumerate(items):
         y = 2.65 + k * 1.1
         box(s, X0, y, 2.0, 0.85, NAVY if k % 2 else ORANGE)

@@ -14,19 +14,21 @@ def relative_strength(close: pd.Series, benchmark: pd.Series) -> pd.Series:
 OUTPERFORMING, UNDERPERFORMING, MIXED = "outperforming", "underperforming", "mixed"
 
 
-def rs_trend(vs_ma200: str, slope63: str) -> str:
-    """outperforming: RS above its 200d and rising over 63 days; underperforming: below and falling; else mixed."""
-    if vs_ma200 == "above" and slope63 == RISING:
+def rs_trend(ma200_slope20: float) -> str:
+    """RS Mom (Syz screen definition, 10 Nov 2026): direction of the 200-day average of relative strength over
+    the last 20 trading days. Rising = outperforming (+), falling = underperforming (−), unchanged = mixed."""
+    if ma200_slope20 > 0:
         return OUTPERFORMING
-    if vs_ma200 == "below" and slope63 == FALLING:
+    if ma200_slope20 < 0:
         return UNDERPERFORMING
     return MIXED
 
 
 def rs_summary(close: pd.Series, benchmark: pd.Series, ma_window: int = 200, slope_window: int = 63) -> dict:
     rs = relative_strength(close, benchmark)
-    if len(rs) <= max(ma_window, slope_window):
-        return {"rs": None, "rs_ma200": None, "rs_slope63": None, "rs_vs_ma200": None, "rs_chg63": None, "rs_trend": None}
+    if len(rs) <= max(ma_window + 20, slope_window):
+        return {"rs": None, "rs_ma200": None, "rs_slope63": None, "rs_vs_ma200": None, "rs_chg63": None,
+                "rs_ma200_slope20": None, "rs_trend": None}
     ma = sma(rs, ma_window)
     chg = rs.iloc[-1] / rs.iloc[-1 - slope_window] - 1.0
     sign = RISING if chg > 0 else FALLING if chg < 0 else FLAT
@@ -37,5 +39,6 @@ def rs_summary(close: pd.Series, benchmark: pd.Series, ma_window: int = 200, slo
         "rs_slope63": sign,
         "rs_vs_ma200": vs,
         "rs_chg63": float(chg),
-        "rs_trend": rs_trend(vs, sign),
+        "rs_ma200_slope20": float(ma.iloc[-1] / ma.iloc[-21] - 1),
+        "rs_trend": rs_trend(float(ma.iloc[-1] / ma.iloc[-21] - 1)),
     }

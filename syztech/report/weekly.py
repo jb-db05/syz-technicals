@@ -388,7 +388,7 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
     # Focus List
     st = fl[fl.group == "Focus List – Stocks"]
     s = deck.titled(sec["focus"]["title"], "Equity Focus List – 48 single stocks: rules-based trend verdict against relative strength versus the regional index")
-    cols = ["outperforming", "mixed", "underperforming"]
+    cols = ["outperforming", "underperforming"]
     vrows = ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]
     rows, styles = [], {}
     for i, v in enumerate(vrows):
@@ -398,11 +398,11 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
             names_ = st[(st.verdict.replace("Bearish_LM", "Bearish") == v) & (st.rs_trend == ct)].name.tolist()
             row.append(", ".join(n.replace(" Inc", "").replace(" SA", "").replace(" AG", "").replace(" PLC", "").replace(" Corp", "")
                                  .replace(" NV", "").replace(" Ltd", "").replace(" AB", "") for n in names_) or EN_DASH)
-            styles[(i, j)] = {"fill": {"outperforming": "E3F4EF", "mixed": "F6F7F9", "underperforming": "F6E8EF"}[ct],
+            styles[(i, j)] = {"fill": {"outperforming": "E3F4EF", "underperforming": "F6E8EF"}[ct],
                               "align": PP_ALIGN.LEFT}
         rows.append(row)
-    table(s, X0, 2.55, W, ["Trend", "Outperforming its region", "Mixed", "Underperforming its region"], rows,
-          [1.45, 3.4, 2.0, 3.43], row_h=0.8, size=8.5, styles=styles)
+    table(s, X0, 2.55, W, ["Trend", "RS Mom + (gaining on its region)", "RS Mom − (losing to its region)"], rows,
+          [1.45, 4.4, 4.43], row_h=0.8, size=8.5, styles=styles)
     source(s, asof, "Relative strength against S&P 500 (US), Stoxx 600 (Europe), MSCI World (TSMC), Ibovespa (Embraer); prices in local currency.")
     for part, d in enumerate((st.iloc[:24], st.iloc[24:]), start=1):
         s = deck.titled(f"Focus List stocks ({part}/2): trend, levels and relative strength", "Rules-based verdicts – the Focus List carries no published verdict")
@@ -436,7 +436,7 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
         ("Structure", "Whether the key support or resistance drawn on the chart has broken. A broken support stands until the resistance breaks."),
         ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. Everything in between is Neutral, with a tilt."),
         ("Levels", "Drawn supports and resistances; where none is drawn, the 52-week low and high."),
-        ("Relative strength", "For single stocks, price against the regional index: outperforming, mixed or underperforming. It informs, it does not change the verdict."),
+        ("Relative strength", "For single stocks, RS Mom: is the 200-day average of price ÷ regional index rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict."),
     ]
     for k, (lab, body) in enumerate(items):
         y = 2.6 + k * 0.95

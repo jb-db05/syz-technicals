@@ -90,5 +90,10 @@ def test_relative_strength_trend():
     assert rs_summary(up, bench)["rs_trend"] == "outperforming"
     assert rs_summary(down, bench)["rs_trend"] == "underperforming"
     assert rs_summary(up, bench)["rs_chg63"] > 0
-    assert rs_trend("above", "falling") == "mixed"
+    assert rs_trend(0.0) == "mixed" and rs_trend(0.001) == "outperforming" and rs_trend(-0.001) == "underperforming"
+    # RS Mom is slow: a long outperformer that drops hard for 3 months keeps a rising RS 200-day
+    idx2 = pd.bdate_range("2024-01-01", periods=400)
+    fade = pd.Series(np.r_[np.linspace(100, 200, 340), np.linspace(200, 170, 60)], index=idx2)
+    sm = rs_summary(fade, pd.Series(100.0, index=idx2))
+    assert sm["rs_chg63"] < 0 and sm["rs_trend"] == "outperforming"
     assert rs_summary(up.iloc[:100], bench)["rs_trend"] is None      # not enough common history
