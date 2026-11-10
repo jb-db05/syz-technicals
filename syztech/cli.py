@@ -178,11 +178,18 @@ def cmd_list_doc(a) -> int:
     if a.screen:
         scr = pd.read_csv(a.screen)
         df = df.merge(scr, on="ticker", how="left")
+    focus = None
+    if a.focus_universe:
+        fu, _ = load_universe(a.focus_universe)
+        focus = instrument_table(score_universe(prices, fu, asof), fu, prices, load_trendlines(a.trendlines))
+        if a.focus_screen:
+            focus = focus.merge(pd.read_csv(a.focus_screen), on="ticker", how="left")
     charts = _jpg_charts(uni, Path(a.charts) / str(asof), OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}")
     d = pd.Timestamp(asof)
     out = Path(a.out)
     build_list_doc(df, charts, out, Path(a.template), title=a.title, edition=a.edition, asof=f"{d.day} {d:%B %Y}",
-                   benchmark_name=a.benchmark_name, excluded=excluded, draft=not a.final, screen_date=a.screen_date)
+                   benchmark_name=a.benchmark_name, excluded=excluded, draft=not a.final, screen_date=a.screen_date,
+                   focus=focus)
     print(f"written: {out} ({len(df)} stocks, {len(charts)} charts; excluded: {', '.join(excluded) or 'none'})")
     return 0
 
@@ -277,6 +284,8 @@ def main(argv=None) -> int:
     s.add_argument("--final", action="store_true", help="drop the draft mark on the cover")
     s.add_argument("--screen", help="CSV by ticker: fundamental_screen, top75_spi, weight_spi, avg_daily_value_chf (display only)")
     s.add_argument("--screen-date", help="as-of date of the screen, shown in the footnote")
+    s.add_argument("--focus-universe", help="universe CSV of a focus list, shown on its own slide after the dashboard")
+    s.add_argument("--focus-screen", help="screen CSV for the focus list (industry, screen, liquidity)")
     s.set_defaults(func=cmd_list_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
