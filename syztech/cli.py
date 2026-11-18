@@ -194,6 +194,38 @@ def cmd_list_doc(a) -> int:
     return 0
 
 
+def cmd_sector_doc(a) -> int:
+    from .charts.deck_chart import load_trendlines
+    from .report.sectordoc import add_momentum, build_sector_doc
+    from .report.weekly import instrument_table
+    prices = load_prices(a.prices)
+    uni, _ = load_universe(a.universe)
+    asof = a.asof or (prices.prices.date.max().date() if len(prices.prices) else None)
+    scores = score_universe(prices, uni, asof)
+    df = instrument_table(scores, uni, prices, load_trendlines(a.trendlines))
+    df = df.merge(scores[["ticker", "rule"]], on="ticker", how="left")
+    df = df.merge(uni[["ticker", "industry", "bucket"]], on="ticker", how="left")
+    df = add_momentum(df, prices)
+    sec = df[df.ticker == a.sector]
+    if sec.empty:
+        print(f"sector index {a.sector} has no prices")
+        return 1
+    stocks = df[df.ticker != a.sector]
+    insufficient = stocks[~stocks.verdict.isin(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish_LM", "Bearish"])].name.tolist()
+    for t, nm in zip(uni.ticker, uni.name):        # dropped for lack of a scored close: named, never filled
+        if t not in set(df.ticker) and t in prices.reports:
+            insufficient.append(f"{nm} ({prices.reports[t].bars} bars)")
+    charts = _jpg_charts(uni, Path(a.charts) / str(asof), OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}")
+    d = pd.Timestamp(asof)
+    out = Path(a.out)
+    work = OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}"
+    build_sector_doc(stocks, sec.iloc[0], charts, out, Path(a.template), title=a.title, edition=a.edition,
+                     asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
+                     insufficient=insufficient, work=work, draft=not a.final)
+    print(f"written: {out} ({len(stocks)} stocks, {len(charts)} charts; no verdict: {', '.join(insufficient) or 'none'})")
+    return 0
+
+
 def cmd_trend(a) -> int:
     prices = load_prices(a.prices)
     uni, problems = load_universe(a.universe)
@@ -288,6 +320,21 @@ def main(argv=None) -> int:
     s.add_argument("--focus-universe", help="universe CSV of a focus list, shown on its own slide after the dashboard")
     s.add_argument("--focus-screen", help="screen CSV for the focus list (industry, screen, liquidity)")
     s.set_defaults(func=cmd_list_doc)
+    s = sub.add_parser("sector-doc", help="sector special report: sector vs market, momentum dashboards, all charts")
+    s.add_argument("--prices", required=True)
+    s.add_argument("--universe", required=True, help="universe CSV with industry and bucket columns")
+    s.add_argument("--sector", required=True, help="ticker of the sector index, e.g. 'S5INFT Index'")
+    s.add_argument("--sector-name", required=True)
+    s.add_argument("--trendlines", default="data/trendlines.csv")
+    s.add_argument("--charts", required=True)
+    s.add_argument("--title", required=True)
+    s.add_argument("--edition", required=True)
+    s.add_argument("--benchmark-name", default="S&P 500")
+    s.add_argument("--template", default=str(Path(__file__).parent / "report" / "assets" / "template_syz_a4.pptx"))
+    s.add_argument("--asof")
+    s.add_argument("--out", required=True)
+    s.add_argument("--final", action="store_true")
+    s.set_defaults(func=cmd_sector_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")

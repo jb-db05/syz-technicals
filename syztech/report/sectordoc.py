@@ -1,0 +1,385 @@
+"""Sector special report: one sector index against its market, and every constituent.
+
+Cover, sector against the market, breadth by sub-industry, momentum map, momentum dashboards
+(absolute and relative to the market) grouped by sub-sector, relative-strength ranking,
+trend × relative-strength grid, trigger watch, method, one chart per stock, legal disclaimer.
+Facts and the rule that fired only – no interpretation prose.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from pptx.chart.data import CategoryChartData
+from pptx.enum.chart import XL_CHART_TYPE, XL_LEGEND_POSITION, XL_TICK_LABEL_POSITION
+from pptx.enum.text import MSO_ANCHOR, PP_ALIGN
+from pptx.util import Inches, Pt
+
+from ..charts.syz_style import FONT, register_fonts
+from ..fmt import EN_DASH, num
+from .listdoc import RS_ORDER, V_ORDER, _bucket
+from .weekly import (AMBER, BLUEB, GREY, L_COVER, L_DISCLAIMER, L_FINAL, MINT, MULB, NAVY, ORANGE, SKY, VGLYPH, VLABEL, W, X0,
+                     Deck, box, chart_image, full_page_chart, pct, rgb, source, table, text, triggers, verdict_style)
+
+MINUS = "−"
+SHORT_IND = {"Technology Hardware, Storage & Peripherals": "Hardware, storage & periph.",
+             "Semiconductor Materials & Equipment": "Semi materials & equipment",
+             "Internet Services & Infrastructure": "Internet services & infra.",
+             "Electronic Equipment & Instruments": "Electronic equipment",
+             "Electronic Manufacturing Services": "Electronic manufacturing",
+             "IT Consulting & Other Services": "IT consulting & services"}
+BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"]
+
+
+def add_momentum(df: pd.DataFrame, prices) -> pd.DataFrame:
+    """1-month and 12-month price change, distance from the 52-week high (closes only)."""
+    df = df.copy()
+    c1, c12, fh = [], [], []
+    for r in df.itertuples():
+        s = prices.series(r.ticker).dropna()
+        s = s[s.index <= r.last_date]
+        end, close = s.index[-1], float(s.iloc[-1])
+        m1 = s[s.index <= end - pd.DateOffset(months=1)]
+        m12 = s[s.index <= end - pd.DateOffset(months=12)]
+        c1.append(close / float(m1.iloc[-1]) - 1 if len(m1) else np.nan)
+        c12.append(close / float(m12.iloc[-1]) - 1 if len(m12) else np.nan)
+        fh.append(close / r.hi52 - 1 if pd.notna(r.hi52) and r.hi52 else np.nan)
+    df["chg1m"], df["chg12m"], df["from_hi52"] = c1, c12, fh
+    return df
+
+
+def _vtxt(v):
+    return f"{VGLYPH[v]} {VLABEL[v]}" if v in VGLYPH else "n/a – history"
+
+
+def _vstyle(v):
+    return verdict_style(v) if v in VGLYPH else {"fill": "E9ECF1", "color": GREY, "align": PP_ALIGN.CENTER}
+
+
+def _rs(v):
+    return {"outperforming": "+", "underperforming": MINUS}.get(v, EN_DASH)
+
+
+def _p(x, d=1):
+    return pct(x, d) if pd.notna(x) else EN_DASH
+
+
+def _posneg(x):
+    return {"color": MINT if (pd.notna(x) and x >= 0) else (MULB if pd.notna(x) else GREY), "align": PP_ALIGN.RIGHT}
+
+
+def _sort(df):
+    df = df.copy()
+    df["vo"] = df.verdict.map(V_ORDER).fillna(9)
+    df["ro"] = df.rs_trend.map(RS_ORDER).fillna(9)
+    return df.sort_values(["vo", "ro", "rs_chg63"], ascending=[True, True, False])
+
+
+def momentum_dashboard(deck, df, title, bench, asof, footnote):
+    s = deck.titled(title, "")
+    hdr = ["Stock", "Sub-industry", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", "RS Mom", "RS 3m", "Trend"]
+    col_w = [1.7, 1.95, 0.68, 0.62, 0.62, 0.58, 0.58, 0.62, 0.72, 0.55, 0.62, 1.04]
+    xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
+    for lab, a_, b_, col in (("Absolute momentum", 2, 8, NAVY), (f"vs {bench}", 9, 10, ORANGE), ("Verdict", 11, 11, BLUEB)):
+        box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, col, radius=0.25)
+        text(s, xs[a_], 2.2, xs[b_ + 1] - xs[a_], 0.24, lab, size=9, color="FFFFFF", bold=True,
+             align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    rows, st = [], {}
+    for i, r in enumerate(df.itertuples()):
+        rows.append([r.name, SHORT_IND.get(r.industry, r.industry or ""), num(r.close, r.decimals), r.slope200 or EN_DASH,
+                     _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m), _p(r.from_hi52), _rs(r.rs_trend), _p(r.rs_chg63),
+                     _vtxt(r.verdict)])
+        st[(i, 1)] = {"color": BLUEB, "align": PP_ALIGN.LEFT}
+        st[(i, 3)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
+        for j, v in ((4, r.vs200), (5, r.chg1m), (6, r.chg3m), (7, r.chg12m), (10, r.rs_chg63)):
+            st[(i, j)] = _posneg(v)
+        st[(i, 8)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
+        st[(i, 9)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
+                      "align": PP_ALIGN.CENTER}
+        st[(i, 11)] = _vstyle(r.verdict)
+    n = len(rows)
+    rh = min(0.30, 5.0 / (n + 1))
+    table(s, X0, 2.5, W, hdr, rows, col_w, row_h=rh, size=8 if rh >= 0.24 else 7.5, styles=st)
+    source(s, asof, footnote)
+    return s
+
+
+def momentum_map(df, out: Path, bench: str):
+    """Scatter: price vs 200-day (x) against 3-month change in relative strength (y), coloured by verdict."""
+    register_fonts()
+    plt.rcParams["font.family"] = FONT
+    d = df.dropna(subset=["vs200", "rs_chg63"])
+    fig, ax = plt.subplots(figsize=(10.28, 5.0), dpi=200)
+    col = {"Bullish": "#3BAF90", "Bearish": "#AC5D85", "Bearish_LM": "#AC5D85"}
+    ax.axhline(0, color="#B8BFCC", lw=0.8)
+    ax.axvline(0, color="#B8BFCC", lw=0.8)
+    xs, ys = d.vs200 * 100, d.rs_chg63 * 100
+    ax.scatter(xs, ys, s=34, c=[col.get(v, "#4B5F80") for v in d.verdict], edgecolors="white", linewidths=0.6, zorder=3)
+    for x, y, t in zip(xs, ys, d.ticker):
+        ax.annotate(t.split()[0], (x, y), xytext=(3, 3), textcoords="offset points", fontsize=6.2, color="#202945")
+    xl, yl = ax.get_xlim(), ax.get_ylim()
+    kw = dict(fontsize=8, fontweight="bold", alpha=0.85)
+    ax.text(xl[1], yl[1], "Above 200-day, gaining on " + bench, ha="right", va="top", color="#3BAF90", **kw)
+    ax.text(xl[0], yl[0], "Below 200-day, losing to " + bench, ha="left", va="bottom", color="#AC5D85", **kw)
+    ax.text(xl[1], yl[0], "Above 200-day, losing to " + bench, ha="right", va="bottom", color="#4B5F80", **kw)
+    ax.text(xl[0], yl[1], "Below 200-day, gaining on " + bench, ha="left", va="top", color="#4B5F80", **kw)
+    ax.set_xlabel("Price vs 200-day moving average, %", fontsize=8.5, color="#202945")
+    ax.set_ylabel(f"Relative strength vs {bench}, 3-month change, %", fontsize=8.5, color="#202945")
+    ax.tick_params(labelsize=7.5, colors="#4B5F80")
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    for sp in ("left", "bottom"):
+        ax.spines[sp].set_color("#B8BFCC")
+    fig.tight_layout()
+    fig.savefig(out)
+    plt.close(fig)
+    return out
+
+
+def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Path, template: Path, *, title: str, edition: str,
+                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True) -> Path:
+    deck = Deck(template)
+    df = _sort(df).reset_index(drop=True)
+    ok = df[df.verdict.isin(VGLYPH)]
+    n, n_ok = len(df), len(ok)
+    counts = ok.verdict.map(_bucket).value_counts()
+    nb = int(counts.get("Bullish", 0))
+    above = int((df.vs200 > 0).sum())
+    out_n = int((df.rs_trend == "outperforming").sum())
+    under_n = int((df.rs_trend == "underperforming").sum())
+    near_hi = int((df.from_hi52 >= -0.05).sum())
+    insuf_note = (f" Insufficient history for a verdict: {', '.join(insufficient)}." if insufficient else "")
+
+    # cover
+    s = deck.slide(L_COVER)
+    for ph in list(s.placeholders):
+        i = ph.placeholder_format.idx
+        if i == 0:
+            ph.text = title
+        elif i == 13:
+            ph.text = edition.upper()
+        else:
+            ph._element.getparent().remove(ph._element)
+    box(s, 5.85, 0, 5.85, 8.27, NAVY, radius=0)
+    text(s, 6.45, 2.2, 4.8, 0.4, f"{n} STOCKS – TREND VERDICTS", size=11, color=AMBER, bold=True)
+    for k, (lab, col) in enumerate((("Bullish", MINT), ("Neutral", SKY), ("Bearish", "E6A4AD"))):
+        text(s, 6.45, 2.85 + k * 1.15, 1.6, 0.9, str(int(counts.get(lab, 0))), size=48, color=col, bold=True)
+        text(s, 8.15, 3.15 + k * 1.15, 2.6, 0.5, lab, size=16, color="FFFFFF")
+    if insufficient:
+        text(s, 6.45, 6.35, 4.6, 0.3, f"{len(insufficient)} without enough history for a verdict", size=10, color=GREY)
+    text(s, 0.73, 7.45, 4.8, 0.3, "Florian Marini, CFA, CMT – Head of Research", size=10, color=BLUEB)
+    if draft:
+        text(s, 0.73, 4.75, 4.8, 0.3, "DRAFT – FOR INTERNAL REVIEW", size=10, color=ORANGE, bold=True)
+
+    # sector against the market
+    sv = sector.verdict
+    s = deck.titled(f"{sector_name}: {VLABEL.get(sv, sv)} trend, RS Mom {_rs(sector.rs_trend)} against the {bench}",
+                    f"Sector index: absolute momentum and relative strength against the {bench}")
+    tiles = [("Trend verdict", _vtxt(sv), MINT if sv == "Bullish" else MULB if str(sv).startswith("Bearish") else BLUEB),
+             ("200-day average", sector.slope200 or EN_DASH, {"rising": MINT, "falling": MULB}.get(sector.slope200, BLUEB)),
+             ("Price vs 200-day", _p(sector.vs200), MINT if sector.vs200 >= 0 else MULB),
+             ("vs 52-week high", _p(sector.from_hi52), NAVY),
+             ("1-month change", _p(sector.chg1m), MINT if sector.chg1m >= 0 else MULB),
+             ("3-month change", _p(sector.chg3m), MINT if sector.chg3m >= 0 else MULB),
+             ("12-month change", _p(sector.chg12m), MINT if sector.chg12m >= 0 else MULB),
+             (f"RS Mom vs {bench}", _rs(sector.rs_trend), {"outperforming": MINT, "underperforming": MULB}.get(sector.rs_trend, GREY)),
+             (f"RS 3m vs {bench}", _p(sector.rs_chg63), MINT if sector.rs_chg63 >= 0 else MULB)]
+    for k, (lab, val, col) in enumerate(tiles):
+        cx, cy = X0 + (k % 3) * 3.47, 2.55 + (k // 3) * 1.6
+        box(s, cx, cy, 3.3, 1.38, "F6F7F9")
+        box(s, cx, cy, 0.09, 1.38, ORANGE if k % 2 == 0 else BLUEB, radius=0)
+        text(s, cx + 0.25, cy + 0.14, 2.9, 0.3, lab, size=10, color=BLUEB)
+        text(s, cx + 0.25, cy + 0.5, 2.9, 0.7, val, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+    source(s, asof, f"Last close {num(sector.close, sector.decimals)}. 52-week low {num(sector.lo52, sector.decimals)}, "
+                    f"high {num(sector.hi52, sector.decimals)}. Rule fired: {sector.rule}. Chart on the next page.")
+    if sector.ticker in charts:
+        full_page_chart(deck, charts[sector.ticker])
+
+    # breadth: four numbers + share by sub-sector (native chart)
+    s = deck.titled(f"Breadth: {nb} of {n_ok} stocks Bullish, {above} of {n} above their 200-day, {out_n} with RS Mom +",
+                    f"Share of stocks by sub-sector, %")
+    stats = [(f"{nb}/{n_ok}", "Bullish trend verdict", MINT), (f"{above}/{n}", "above the 200-day average", NAVY),
+             (f"{out_n}/{n}", f"RS Mom + against the {bench}", ORANGE), (f"{near_hi}/{n}", "within 5% of the 52-week high", BLUEB)]
+    for k, (big, lab, col) in enumerate(stats):
+        y = 2.55 + k * 1.22
+        box(s, X0, y, 3.2, 1.05, "F6F7F9")
+        text(s, X0 + 0.18, y + 0.08, 1.5, 0.9, big, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, X0 + 1.6, y + 0.08, 1.55, 0.9, lab, size=10, anchor=MSO_ANCHOR.MIDDLE)
+    cd = CategoryChartData()
+    bk = [b for b in BUCKETS if b in set(df.bucket)]
+    g = {b: df[df.bucket == b] for b in bk}
+    cd.categories = [f"{b} ({len(g[b])})" for b in bk]
+    cd.add_series("Bullish", [round(100 * (g[b].verdict == "Bullish").mean(), 0) for b in bk])
+    cd.add_series("Above 200-day", [round(100 * (g[b].vs200 > 0).mean(), 0) for b in bk])
+    cd.add_series(f"RS Mom +", [round(100 * (g[b].rs_trend == "outperforming").mean(), 0) for b in bk])
+    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(X0 + 3.45), Inches(2.45), Inches(6.85), Inches(4.95), cd)
+    ch = gf.chart
+    ch.has_title = False
+    ch.has_legend = True
+    ch.legend.position = XL_LEGEND_POSITION.TOP
+    ch.legend.include_in_layout = False
+    ch.legend.font.size = Pt(9)
+    pl = ch.plots[0]
+    pl.gap_width = 60
+    pl.overlap = -10
+    pl.has_data_labels = True
+    pl.data_labels.font.size = Pt(8)
+    pl.data_labels.number_format = '0'
+    pl.data_labels.number_format_is_linked = False
+    for ser, c in zip(ch.series, (MINT, NAVY, ORANGE)):
+        ser.format.fill.solid()
+        ser.format.fill.fore_color.rgb = rgb(c)
+    ch.category_axis.tick_labels.font.size = Pt(8.5)
+    ch.value_axis.visible = False
+    ch.value_axis.has_major_gridlines = False
+    ch.value_axis.maximum_scale = 100
+    ch.value_axis.minimum_scale = 0
+    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
+
+    # breadth by GICS sub-industry
+    rows, st = [], {}
+    agg = []
+    for ind, x in df.groupby("industry"):
+        agg.append((ind, len(x), int((x.verdict == "Bullish").sum()), int((x.vs200 > 0).sum()),
+                    int((x.rs_trend == "outperforming").sum()), x.chg3m.median(), x.rs_chg63.median()))
+    agg.sort(key=lambda a: -(a[6] if pd.notna(a[6]) else -9))
+    agg.append((f"{sector_name} constituents", n, nb, above, out_n, df.chg3m.median(), df.rs_chg63.median()))
+    for i, (ind, k, b, a, o, c3, r3) in enumerate(agg):
+        rows.append([ind, str(k), f"{b}", f"{a}", f"{o}", _p(c3), _p(r3)])
+        st[(i, 5)] = _posneg(c3)
+        st[(i, 6)] = _posneg(r3)
+        for j, v in ((2, b), (3, a), (4, o)):
+            st[(i, j)] = {"align": PP_ALIGN.CENTER, "color": MINT if v / k > 0.5 else (MULB if v / k < 0.5 else NAVY), "bold": True}
+        st[(i, 1)] = {"align": PP_ALIGN.CENTER}
+        if i == len(agg) - 1:
+            for j in range(7):
+                st.setdefault((i, j), {})
+                st[(i, j)] = {**st[(i, j)], "fill": "FFE9D6", "bold": True}
+    best = agg[0][0]
+    s = deck.titled(f"By sub-industry: {best} leads on relative strength over 3 months",
+                    "GICS sub-industries, ranked by median 3-month change in relative strength")
+    table(s, X0, 2.5, W, ["Sub-industry", "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
+          rows, [3.6, 0.9, 0.9, 1.2, 1.1, 1.1, 1.48], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
+    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}." + insuf_note)
+
+    # momentum map
+    s = deck.titled(f"Momentum map: {int(((df.vs200 > 0) & (df.rs_chg63 > 0)).sum())} stocks above their 200-day and gaining on the {bench}",
+                    f"Absolute trend (x) against relative momentum (y); colour = trend verdict")
+    mp = momentum_map(df, work / "momentum_map.png", bench)
+    chart_image(s, mp, X0, 2.4, W)
+    source(s, asof, "Green: Bullish. Purple: Bearish. Blue: Neutral or no verdict. Labels: Bloomberg tickers.")
+
+    # dashboards by sub-sector
+    for b in bk:
+        x = _sort(g[b])
+        xb = int((x.verdict == "Bullish").sum())
+        xo = int((x.rs_trend == "outperforming").sum())
+        momentum_dashboard(deck, x, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}", bench, asof,
+                           f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
+                           f"vs 52w high in green when within 5%." + (insuf_note if set(insufficient) & set(x.name) else ""))
+
+    # relative-strength ranking: 15 leaders and 15 laggards
+    rk = df.dropna(subset=["rs_chg63"]).sort_values("rs_chg63")
+    sel = pd.concat([rk.head(15), rk.tail(15)])
+    s = deck.titled(f"Relative strength: the 15 leaders and the 15 laggards against the {bench}",
+                    f"3-month change in relative strength (price ÷ {bench}), %")
+    for k, (part, lab) in enumerate(((rk.tail(15), "Leaders"), (rk.head(15).iloc[::-1], "Laggards"))):
+        part = part.sort_values("rs_chg63")
+        cd = CategoryChartData()
+        cd.categories = list(part.name)
+        cd.add_series("RS 3m", [round(v * 100, 1) for v in part.rs_chg63])
+        gx = X0 + k * 5.2
+        text(s, gx, 2.4, 5.0, 0.3, lab, size=11, color=MINT if k == 0 else MULB, bold=True)
+        gf = s.shapes.add_chart(XL_CHART_TYPE.BAR_CLUSTERED, Inches(gx), Inches(2.7), Inches(5.0), Inches(4.75), cd)
+        ch = gf.chart
+        ch.has_legend = False
+        ch.has_title = False
+        ch.category_axis.tick_label_position = XL_TICK_LABEL_POSITION.LOW
+        ch.category_axis.tick_labels.font.size = Pt(8)
+        pl = ch.plots[0]
+        pl.gap_width = 40
+        pl.has_data_labels = True
+        pl.data_labels.font.size = Pt(7.5)
+        pl.data_labels.number_format = '+0.0;–0.0'
+        pl.data_labels.number_format_is_linked = False
+        for i, v in enumerate(part.rs_chg63):
+            pt = ch.series[0].points[i]
+            pt.format.fill.solid()
+            pt.format.fill.fore_color.rgb = rgb(MINT if v >= 0 else MULB)
+        ch.value_axis.visible = False
+        ch.value_axis.has_major_gridlines = False
+    source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.")
+
+    # trend × RS grid
+    bull_lag = ok[(ok.verdict == "Bullish") & (ok.rs_trend == "underperforming")]
+    s = deck.titled(f"{len(bull_lag)} stocks are in an uptrend while their relative-strength trend points down",
+                    f"Trend verdict against relative strength versus the {bench}")
+    rows, st = [], {}
+    cols = ["outperforming", "underperforming"]
+    for i, v in enumerate(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]):
+        row = [f"{VGLYPH[v]} {VLABEL[v]}"]
+        st[(i, 0)] = verdict_style(v)
+        for j, ct in enumerate(cols, start=1):
+            nm = ok[(ok.verdict.replace("Bearish_LM", "Bearish") == v) & (ok.rs_trend == ct)].sort_values("name").name.tolist()
+            row.append(", ".join(nm) or EN_DASH)
+            st[(i, j)] = {"fill": {"outperforming": "E3F4EF", "underperforming": "F6E8EF"}[ct], "align": PP_ALIGN.LEFT}
+        rows.append(row)
+    # row height follows the longest cell (about 95 characters per line at 8 pt in 4.4 in), 4.95 in in total
+    lines = [max(1, max(-(-len(c) // 95) for c in r[1:])) for r in rows]
+    unit = min(0.2, (4.95 - 0.3) / sum(l + 1 for l in lines))
+    gt = table(s, X0, 2.5, W, ["Trend", f"RS Mom + (gaining on the {bench})", f"RS Mom − (losing to the {bench})"], rows,
+               [1.45, 4.4, 4.43], row_h=0.3, size=8, styles=st)
+    for i, l in enumerate(lines, start=1):
+        gt.rows[i].height = Inches(unit * (l + 1))
+    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
+
+    # trigger watch
+    tw = triggers(df)
+    extra = []
+    for r in df.itertuples():
+        for lvl, lab in ((r.hi100, "100-day high"), (r.lo100, "100-day low")):
+            if pd.notna(lvl) and abs(r.close / lvl - 1) <= 0.02:
+                extra.append(dict(ticker=r.ticker, name=r.name, verdict=r.verdict, close=r.close, decimals=r.decimals,
+                                  level=lvl, kind=lab, dist=r.close / lvl - 1, asset_class=r.asset_class))
+    tw = pd.concat([tw, pd.DataFrame(extra)], ignore_index=True) if extra else tw
+    if len(tw):
+        tw = tw.sort_values("dist", key=lambda x: x.abs()).drop_duplicates("ticker")
+    s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a 52-week or 100-day high or low",
+                    "Where a breakout or a breakdown is closest")
+    rows, st = [], {}
+    for i, r in enumerate(tw.itertuples()):
+        rows.append([r.name, num(r.close, r.decimals), r.kind, num(r.level, r.decimals), pct(r.dist, 2), _vtxt(r.verdict)])
+        st[(i, 5)] = _vstyle(r.verdict)
+        st[(i, 4)] = {"color": MINT if r.dist >= 0 else MULB, "bold": True}
+    if rows:
+        table(s, X0, 2.5, W, ["Stock", "Last", "Level", "Value", "Distance", "Trend"], rows,
+              [3.6, 1.3, 1.7, 1.3, 1.0, 1.38], row_h=min(0.3, 5.0 / (len(rows) + 1)), size=9.5 if len(rows) < 18 else 8, styles=st)
+    source(s, asof, "52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.")
+
+    # method
+    s = deck.titled("How to read the verdicts", "One rule set, applied to every stock")
+    items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
+             ("Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."),
+             ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
+             ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
+             ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {bench} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
+    for k, (lab, body) in enumerate(items):
+        y = 2.55 + k * 0.98
+        box(s, X0, y, 2.2, 0.8, NAVY if k % 2 else ORANGE)
+        text(s, X0 + 0.12, y, 2.0, 0.8, lab, size=12, color="FFFFFF", bold=True, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, X0 + 2.4, y, 7.85, 0.8, body, size=11, anchor=MSO_ANCHOR.MIDDLE)
+    source(s, asof)
+
+    # charts: by sub-sector, in dashboard order
+    for b in bk:
+        for r in _sort(g[b]).itertuples():
+            if r.ticker in charts:
+                full_page_chart(deck, charts[r.ticker])
+    deck.slide(L_DISCLAIMER)
+    deck.slide(L_FINAL)
+    deck.save(out)
+    return out
