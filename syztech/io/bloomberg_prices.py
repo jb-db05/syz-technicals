@@ -20,7 +20,7 @@ DATE_HEADERS = {"date", "dates"}
 # Sheets that must never be read as prices (§2.1 known defects)
 FORBIDDEN_SHEETS = {"momentum equities, forex, commo"}
 # Housekeeping sheets of the price template – skipped silently
-NON_PRICE_SHEETS = {"instructions", "settings", "readme"}
+NON_PRICE_SHEETS = {"instructions", "settings", "readme", "reference"}
 HEADER_SCAN_ROWS = 20
 
 
@@ -198,3 +198,19 @@ def load_prices(path: str | Path) -> LoadResult:
                 notes.append(f"{source}: not read – {e}")
     prices = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["date", "ticker", "close"])
     return LoadResult(prices, reports, notes)
+
+
+def load_reference(path: str | Path) -> pd.DataFrame:
+    """The template's Reference sheet (ticker, name, GICS sub-industry), if present. Empty frame otherwise."""
+    path = Path(path)
+    files = [path] if path.is_file() else sorted(path.glob("*.xls*"))
+    for f in files:
+        try:
+            df = pd.read_excel(f, sheet_name="Reference")
+        except Exception:
+            continue
+        df.columns = ["ticker", "name", "industry"][: len(df.columns)]
+        bad = df["name"].astype(str).str.startswith("#N/A")
+        df.loc[bad, "name"] = None
+        return df
+    return pd.DataFrame(columns=["ticker", "name", "industry"])

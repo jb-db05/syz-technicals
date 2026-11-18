@@ -61,7 +61,7 @@ def cmd_price_template(a) -> int:
     for p in problems:
         print(f"universe: {p}")
     sheets = with_benchmarks(uni)
-    out = build_template(sheets, a.out, date.fromisoformat(a.start), date.fromisoformat(a.end))
+    out = build_template(sheets, a.out, date.fromisoformat(a.start), date.fromisoformat(a.end), reference=a.reference)
     extra = len(sheets) - len(uni)
     print(f"written: {out} ({len(sheets)} ticker sheets incl. {extra} benchmark-only, {a.start} to {a.end})")
     return 0
@@ -251,6 +251,7 @@ def main(argv=None) -> int:
     s.add_argument("--out", default="data/schema_examples/bloomberg_prices_template.xlsx")
     s.add_argument("--start", default="2019-01-01")
     s.add_argument("--end", required=True)
+    s.add_argument("--reference", action="store_true", help="add a Reference sheet with Bloomberg name and GICS sub-industry")
     s.set_defaults(func=cmd_price_template)
     s = sub.add_parser("deck-charts", help="16:9 publication charts for every instrument in the universe")
     s.add_argument("--prices", default="data/prices")
