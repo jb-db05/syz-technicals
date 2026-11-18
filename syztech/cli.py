@@ -78,6 +78,18 @@ def cmd_deck_charts(a) -> int:
     tls = load_trendlines(a.trendlines)
     out_dir = Path(a.out) / str(asof)
     done, skipped = 0, []
+    breadth = None
+    if a.breadth_for:                              # breadth of the other stocks in the universe, for the sector chart
+        from .indicators.breadth import breadth_history
+        bench_set = set(uni.benchmark.dropna())
+        members = [t for t in uni.ticker if t != a.breadth_for and t not in bench_set and t in prices.reports
+                   and prices.reports[t].bars > 0]
+        sec = prices.series(a.breadth_for)
+        sec = sec[sec.index <= pd.Timestamp(asof)]
+        breadth = breadth_history({t: prices.series(t)[lambda z: z.index <= pd.Timestamp(asof)] for t in members}, sec.index)
+        last = breadth.dropna().iloc[-1]
+        print(f"breadth for {a.breadth_for}: {len(members)} stocks; today {last.rising:.0f}% with a rising 200-day, "
+              f"{last.above:.0f}% above it ({int(last.n)} measurable)")
     for i, u in enumerate(uni.itertuples(index=False), start=1):
         t = u.ticker
         if t not in prices.reports or prices.reports[t].bars == 0:
@@ -103,7 +115,8 @@ def cmd_deck_charts(a) -> int:
         f = out_dir / group / f"{i:03d}_{t.replace(' ', '_').replace('/', '-')}.png"
         try:
             deck_chart(s, row, f, badge=badge, badge_kind=kind, trendlines=tls.get(t), benchmark=b, benchmark_name=bname,
-                       page=a.page)
+                       page=a.page, breadth=breadth if t == a.breadth_for else None,
+                       breadth_label=a.breadth_label)
             done += 1
         except Exception as e:                      # one bad series must not stop the run
             skipped.append(f"{t}: {e}")
@@ -298,6 +311,8 @@ def main(argv=None) -> int:
     s.add_argument("--asof")
     s.add_argument("--out", default="output/deck")
     s.add_argument("--page", choices=["16x9", "a4"], default="16x9", help="a4: full-page charts for the A4 documents")
+    s.add_argument("--breadth-for", help="ticker of a sector index: add a panel with the % of the other stocks in an uptrend")
+    s.add_argument("--breadth-label", default="constituents", help="how the stocks are named in the breadth panel title")
     s.set_defaults(func=cmd_deck_charts)
     s = sub.add_parser("weekly-doc", help="weekly technical document (PowerPoint)")
     s.add_argument("--prices", default="data/prices")

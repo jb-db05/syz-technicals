@@ -97,3 +97,18 @@ def test_relative_strength_trend():
     sm = rs_summary(fade, pd.Series(100.0, index=idx2))
     assert sm["rs_chg63"] < 0 and sm["rs_trend"] == "outperforming"
     assert rs_summary(up.iloc[:100], bench)["rs_trend"] is None      # not enough common history
+
+
+def test_breadth_history_counts_only_measurable_stocks():
+    import numpy as np
+    import pandas as pd
+    from syztech.indicators.breadth import breadth_history
+    idx = pd.bdate_range("2020-01-01", periods=400)
+    up = pd.Series(np.linspace(100, 200, 400), index=idx)           # rising 200-day, above it
+    down = pd.Series(np.linspace(200, 100, 400), index=idx)         # falling 200-day, below it
+    late = pd.Series(np.linspace(100, 200, 100), index=idx[-100:])  # too short to measure
+    b = breadth_history({"U": up, "D": down, "L": late}, idx)
+    assert b["n"].iloc[-1] == 2
+    assert b["rising"].iloc[-1] == 50.0 and b["above"].iloc[-1] == 50.0
+    assert b["rising"].iloc[:218].isna().all()                      # 200 bars for the average + 20 for the slope
+    assert b["rising"].iloc[219] == 50.0

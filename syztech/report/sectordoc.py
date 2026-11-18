@@ -210,7 +210,8 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         text(s, cx + 0.25, cy + 0.14, 2.9, 0.3, lab, size=10, color=BLUEB)
         text(s, cx + 0.25, cy + 0.5, 2.9, 0.7, val, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
     source(s, asof, f"Last close {num(sector.close, sector.decimals)}. 52-week low {num(sector.lo52, sector.decimals)}, "
-                    f"high {num(sector.hi52, sector.decimals)}. Rule fired: {sector.rule}. Chart on the next page.")
+                    f"high {num(sector.hi52, sector.decimals)}. Rule fired: {sector.rule}. Chart on the next page; its lower panel: share of "
+                    f"today's constituents with a rising 200-day average, each counted once it has 220 closes (survivorship applies).")
     if sector.ticker in charts:
         full_page_chart(deck, charts[sector.ticker])
 

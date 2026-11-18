@@ -79,7 +79,8 @@ def _draw_tags(ax, tags, min_gap_pt=19):
 def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | None, badge_kind: str = "published",
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
                benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = False,
-               show_band100: bool = True, page: str = "16x9") -> Path:
+               show_band100: bool = True, page: str = "16x9", breadth: pd.DataFrame | None = None,
+               breadth_label: str = "constituents") -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
@@ -98,10 +99,19 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     has_rs = benchmark is not None
     LEFT, RIGHT_GAP, TOP_GAP = (0.55, 1.40, 1.12) if page == "a4" else (0.62, 1.55, 1.30)   # y labels, value tags, title block
     plot_w = FW - LEFT - RIGHT_GAP
-    main_bottom = 2.30 if has_rs else 0.50
+    has_br = breadth is not None
+    if has_br:                                    # price, relative strength, breadth: three panels
+        br_bottom, panel = 0.62, 1.00
+        rs_bottom = br_bottom + panel + 0.38
+        main_bottom = (rs_bottom + panel + 0.38) if has_rs else rs_bottom
+    else:
+        rs_bottom, panel = 0.50, 1.40
+        main_bottom = 2.30 if has_rs else 0.50
     ax = fig.add_axes(fr(LEFT, main_bottom, plot_w, FH - TOP_GAP - main_bottom))
     if has_rs:
-        rx = fig.add_axes(fr(LEFT, 0.50, plot_w, 1.40), sharex=ax)
+        rx = fig.add_axes(fr(LEFT, rs_bottom, plot_w, panel), sharex=ax)
+    if has_br:
+        bxa = fig.add_axes(fr(LEFT, br_bottom, plot_w, panel), sharex=ax)
 
     # price and averages
     ax.plot(x, close.iloc[sl], color=NAVY, lw=1.2, label="Close", zorder=3)
@@ -204,6 +214,32 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         plt.setp(ax.get_xticklabels(), visible=False)
         rx.set_xticks(yr)
         rx.set_xticklabels([str(idx[i].year) for i in yr])
+
+    if has_br:
+        b = breadth.reindex(idx)
+        bxa.fill_between(x, 0, b["rising"].values, color=MINT, alpha=0.18, lw=0)
+        bxa.plot(x, b["rising"].values, color=MINT, lw=1.3, label="200-day average rising (uptrend)")
+        bxa.plot(x, b["above"].values, color=BLUEBERRY, lw=0.9, alpha=0.85, label="above the 200-day average")
+        bxa.set_ylim(0, 100)
+        bxa.set_yticks([0, 50, 100])
+        bxa.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}%"))
+        for lv in (20, 80):
+            bxa.axhline(lv, color=GREY, lw=0.7, ls=":")
+        bxa.axhline(50, color=GREY, lw=0.8)
+        for s_ in ("top", "right"):
+            bxa.spines[s_].set_visible(False)
+        last = b.dropna(subset=["rising"])
+        if len(last):
+            v = float(last["rising"].iloc[-1])
+            bxa.annotate(f"{v:.0f}%", xy=(x[-1], v), xytext=(6, 0), textcoords="offset points", va="center", fontsize=8.5,
+                         color="white", fontweight="bold", annotation_clip=False,
+                         bbox=dict(boxstyle="round,pad=0.25", fc=MINT, ec="none"))
+        bxa.text(0.0, 1.08, f"% of {breadth_label} in an uptrend (green: 200-day average rising; blue: above it)",
+                 transform=bxa.transAxes, fontsize=9, color=NAVY, fontweight="bold")
+        for a_ in ([ax, rx] if has_rs else [ax]):
+            plt.setp(a_.get_xticklabels(), visible=False)
+        bxa.set_xticks(yr)
+        bxa.set_xticklabels([str(idx[i].year) for i in yr])
 
     # title block
     TY = (0.40, 0.66, 0.74) if page == "a4" else (0.50, 0.80, 0.90)          # title, subtitle, accent line (inches from top)

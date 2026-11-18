@@ -321,7 +321,7 @@ const tiles = [["Trend verdict", pill(X.v)], ["200-day average", slope(X.s200)],
   ["vs 52-week high", pct(X.fh)], ["1-month change", `<span class="${cls(X.c1)}">${pct(X.c1)}</span>`], ["3-month change", `<span class="${cls(X.c3)}">${pct(X.c3)}</span>`],
   ["12-month change", `<span class="${cls(X.c12)}">${pct(X.c12)}</span>`], [`RS Mom vs ${B}`, rsm(X.rs)], [`RS 3m vs ${B}`, `<span class="${cls(X.rs3)}">${pct(X.rs3)}</span>`]];
 $("s-tiles").innerHTML = tiles.map(([l, v]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v num">${v}</div></div>`).join("");
-$("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. 100-day band ${num(X.lo100, X.d)} – ${num(X.hi100, X.d)}. Rule fired: ${X.rule}.`;
+$("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. 100-day band ${num(X.lo100, X.d)} – ${num(X.hi100, X.d)}. Rule fired: ${X.rule}. Chart, lower panel: share of today’s constituents with a rising 200-day average (green) and above it (blue), each counted once it has 220 closes; past members are not included.`;
 if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart">`;
 $("s-chart").onclick = () => openLB([X], 0);
 
