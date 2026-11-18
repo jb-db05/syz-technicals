@@ -162,3 +162,14 @@ def test_reference_sheet_is_not_a_price_sheet(tmp_path):
     assert not any("Reference" in n for n in res.file_notes)
     ref = load_reference(tmp_path)
     assert ref.iloc[0].tolist() == ["AAPL UW Equity", "APPLE INC", "Technology Hardware, Storage & Peripherals"]
+
+
+def test_syz_list_tags_need_ticker_and_name_to_agree():
+    import pandas as pd
+    from syztech.io.syz_lists import tag_universe
+    lists = {"Master list": {"TXN": "TEXAS INSTRS INC", "IT": "ITAU UNIBANCO"}, "Focus List": {"TXN": "TEXAS INSTRUMENTS"}}
+    u = pd.DataFrame({"ticker": ["TXN UW Equity", "IT UN Equity", "TXN LN Equity"], "name": ["Texas Instruments", "Gartner", "Texas"]})
+    tags, issues = tag_universe(u, lists)
+    assert tags["TXN UW Equity"] == "Master list; Focus List"
+    assert tags["IT UN Equity"] == "" and len(issues) == 1          # ticker collision: not tagged, reported
+    assert tags["TXN LN Equity"] == ""                               # only US listings are matched

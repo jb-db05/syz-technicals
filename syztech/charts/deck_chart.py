@@ -80,7 +80,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
                trendlines: list[Trendline] | None = None, benchmark: pd.Series | None = None,
                benchmark_name: str | None = None, ma50_colour: str = MA50_BLUE, show_52w: bool = False,
                show_band100: bool = True, page: str = "16x9", breadth: pd.DataFrame | None = None,
-               breadth_label: str = "constituents") -> Path:
+               breadth_label: str = "constituents", lists: list[str] | None = None) -> Path:
     family = register_fonts()
     plt.rcParams.update({"font.family": [family, "DejaVu Sans"], "font.size": 10, "axes.edgecolor": GREY,
                          "xtick.color": NAVY, "ytick.color": NAVY})
@@ -246,7 +246,9 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     title = fig.text(LEFT / FW, (FH - TY[0]) / FH, row["name"], fontsize=22, fontweight="bold", color=NAVY)
     rend = fig.canvas.get_renderer()
     size = 22
-    while size > 13 and title.get_window_extent(rend).x1 > (FW - 2.3) / FW * fig.bbox.width:   # keep clear of the badge
+    lists = [l for l in (lists or []) if l]
+    LW = (1.45 if page == "a4" else 1.95) if lists else 0.0              # width of the Syz list tags left of the badge
+    while size > 13 and title.get_window_extent(rend).x1 > (FW - 2.3 - LW) / FW * fig.bbox.width:   # keep clear of badge and tags
         size -= 1
         title.set_fontsize(size)
     fig.text(LEFT / FW, (FH - TY[1]) / FH, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years",
@@ -265,6 +267,20 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         sub = {"published": "Syz Research view", "mechanical": "Rules-based reading (no published view)"}.get(badge_kind, badge_kind)
         bx.text(0.5, 0.25, sub,
                 ha="center", va="center", color="white", fontsize=f2, transform=bx.transAxes)
+
+    # Syz list membership, top-right next to the badge (display only)
+    if lists:
+        bw_, bh_ = (2.05, 0.58) if page == "a4" else (2.85, 0.80)
+        n_ = len(lists)
+        ph = min(0.27 if page == "a4" else 0.36, (bh_ - 0.04 * (n_ - 1)) / n_)
+        top = FH - 0.12 - bh_ / 2 + (n_ * ph + (n_ - 1) * 0.04) / 2
+        for k, lst in enumerate(lists):
+            col = ORANGE if lst == "Master list" else NAVY
+            lx = fig.add_axes(fr(FW - bw_ - 0.05 - LW - 0.06, top - (k + 1) * ph - k * 0.04, LW, ph)); lx.axis("off")
+            lx.add_patch(FancyBboxPatch((0.02, 0.06), 0.96, 0.88, boxstyle="round,pad=0,rounding_size=0.35",
+                                        fc="white", ec=col, lw=1.4, transform=lx.transAxes))
+            lx.text(0.5, 0.5, f"\u2605  SYZ {lst.upper()}", ha="center", va="center", color=col, fontsize=8.5 if page == "a4" else 10.5,
+                    fontweight="bold", transform=lx.transAxes)
 
     _draw_tags(ax, tags)
     fig.text(LEFT / FW, 0.10 / FH, SOURCE_LINE, fontsize=9, color=BLUEBERRY)

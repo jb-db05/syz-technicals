@@ -67,6 +67,13 @@ def trigger_watch(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
     return tw
 
 
+def list_tag(v) -> str:
+    """'★ Focus', '★ Master', '★ Focus + M.' from the universe column syz_lists; '' when on no list."""
+    got = [x.strip() for x in v.split(";")] if isinstance(v, str) else []
+    f, m = "Focus List" in got, "Master list" in got
+    return "★ Focus + M." if f and m else "★ Focus" if f else "★ Master" if m else ""
+
+
 def _vtxt(v):
     return f"{VGLYPH[v]} {VLABEL[v]}" if v in VGLYPH else "n/a – history"
 
@@ -96,26 +103,33 @@ def _sort(df):
 
 def momentum_dashboard(deck, df, title, bench, asof, footnote):
     s = deck.titled(title, "")
-    hdr = ["Stock", "Sub-industry", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", "RS Mom", "RS 3m", "Trend"]
-    col_w = [1.7, 1.95, 0.68, 0.62, 0.62, 0.58, 0.58, 0.62, 0.72, 0.55, 0.62, 1.04]
+    hdr = ["Stock", "Syz list", "Sub-industry", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", "RS Mom", "RS 3m",
+           "Trend"]
+    col_w = [1.6, 0.66, 1.62, 0.64, 0.6, 0.6, 0.56, 0.56, 0.6, 0.68, 0.55, 0.6, 1.01]
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
-    for lab, a_, b_, col in (("Absolute momentum", 2, 8, NAVY), (f"vs {bench}", 9, 10, ORANGE), ("Verdict", 11, 11, BLUEB)):
+    for lab, a_, b_, col in (("Absolute momentum", 3, 9, NAVY), (f"vs {bench}", 10, 11, ORANGE), ("Verdict", 12, 12, BLUEB)):
         box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, col, radius=0.25)
         text(s, xs[a_], 2.2, xs[b_ + 1] - xs[a_], 0.24, lab, size=9, color="FFFFFF", bold=True,
              align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
     rows, st = [], {}
     for i, r in enumerate(df.itertuples()):
-        rows.append([r.name, SHORT_IND.get(r.industry, r.industry or ""), num(r.close, r.decimals), r.slope200 or EN_DASH,
+        lt = list_tag(getattr(r, "syz_lists", ""))
+        rows.append([r.name, lt or EN_DASH, SHORT_IND.get(r.industry, r.industry or ""), num(r.close, r.decimals), r.slope200 or EN_DASH,
                      _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m), _p(r.from_hi52), _rs(r.rs_trend), _p(r.rs_chg63),
                      _vtxt(r.verdict)])
-        st[(i, 1)] = {"color": BLUEB, "align": PP_ALIGN.LEFT}
-        st[(i, 3)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
-        for j, v in ((4, r.vs200), (5, r.chg1m), (6, r.chg3m), (7, r.chg12m), (10, r.rs_chg63)):
+        if lt:
+            st[(i, 1)] = {"fill": "FFE9D6" if "Master" in lt else "E4E8F0", "color": ORANGE if lt == "★ Master" else NAVY,
+                          "bold": True, "align": PP_ALIGN.CENTER}
+        else:
+            st[(i, 1)] = {"color": "D5DAE3", "align": PP_ALIGN.CENTER}
+        st[(i, 2)] = {"color": BLUEB, "align": PP_ALIGN.LEFT}
+        st[(i, 4)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
+        for j, v in ((5, r.vs200), (6, r.chg1m), (7, r.chg3m), (8, r.chg12m), (11, r.rs_chg63)):
             st[(i, j)] = _posneg(v)
-        st[(i, 8)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
-        st[(i, 9)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
-                      "align": PP_ALIGN.CENTER}
-        st[(i, 11)] = _vstyle(r.verdict)
+        st[(i, 9)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
+        st[(i, 10)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
+                       "align": PP_ALIGN.CENTER}
+        st[(i, 12)] = _vstyle(r.verdict)
     n = len(rows)
     rh = min(0.30, 5.0 / (n + 1))
     table(s, X0, 2.5, W, hdr, rows, col_w, row_h=rh, size=8 if rh >= 0.24 else 7.5, styles=st)
@@ -156,7 +170,8 @@ def momentum_map(df, out: Path, bench: str):
 
 
 def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Path, template: Path, *, title: str, edition: str,
-                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True) -> Path:
+                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True, lists_asof: str = "") -> Path:
+    lists_asof = f" ({lists_asof})" if lists_asof else ""
     deck = Deck(template)
     df = _sort(df).reset_index(drop=True)
     ok = df[df.verdict.isin(VGLYPH)]
@@ -296,7 +311,8 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         xo = int((x.rs_trend == "outperforming").sum())
         momentum_dashboard(deck, x, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}", bench, asof,
                            f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
-                           f"vs 52w high in green when within 5%." + (insuf_note if set(insufficient) & set(x.name) else ""))
+                           f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
+                           f"not part of the verdict." + (insuf_note if set(insufficient) & set(x.name) else ""))
 
     # relative-strength ranking: 15 leaders and 15 laggards
     rk = df.dropna(subset=["rs_chg63"]).sort_values("rs_chg63")

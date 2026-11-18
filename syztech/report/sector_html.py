@@ -36,11 +36,12 @@ def _row(r, charts):
                 vs200=_f(r.vs200), c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52),
                 rs=_s(r.rs_trend), rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
                 hi52=_f(r.hi52), lo52=_f(r.lo52), hi100=_f(r.hi100), lo100=_f(r.lo100),
-                img=f"charts/{_slug(r.ticker)}.jpg" if r.ticker in charts else None)
+                img=f"charts/{_slug(r.ticker)}.jpg" if r.ticker in charts else None,
+                lists=[x.strip() for x in _s(getattr(r, "syz_lists", None)).split(";") if x.strip()])
 
 
 def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out_dir: Path, *, title: str, edition: str,
-                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True) -> Path:
+                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True, lists_asof: str = "") -> Path:
     out_dir = Path(out_dir)
     (out_dir / "charts").mkdir(parents=True, exist_ok=True)
     for t, src in charts.items():
@@ -51,7 +52,7 @@ def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out
     tw = trigger_watch(stocks)
     data = dict(
         title=title, edition=edition, asof=asof, bench=bench, sector_name=sector_name, draft=draft,
-        insufficient=insufficient, vlabel=VLABEL,
+        insufficient=insufficient, vlabel=VLABEL, lists_asof=lists_asof,
         sector=_row(sector, charts),
         stocks=[_row(r, charts) for r in stocks.itertuples()],
         triggers=[dict(t=r.ticker, n=r.name, c=_f(r.close), d=int(r.decimals), kind=_s(r.kind), level=_f(r.level),

@@ -67,6 +67,13 @@ def cmd_price_template(a) -> int:
     return 0
 
 
+def _lists_of(u) -> list[str]:
+    """Syz list membership from the universe column syz_lists ('Master list; Focus List'), Focus List first."""
+    v = getattr(u, "syz_lists", None)
+    got = [x.strip() for x in v.split(";")] if isinstance(v, str) else []
+    return sorted([x for x in got if x], key=lambda x: (x != "Focus List", x))
+
+
 def cmd_deck_charts(a) -> int:
     from .charts.deck_chart import deck_chart, load_trendlines
     prices = load_prices(a.prices)
@@ -116,7 +123,7 @@ def cmd_deck_charts(a) -> int:
         try:
             deck_chart(s, row, f, badge=badge, badge_kind=kind, trendlines=tls.get(t), benchmark=b, benchmark_name=bname,
                        page=a.page, breadth=breadth if t == a.breadth_for else None,
-                       breadth_label=a.breadth_label)
+                       breadth_label=a.breadth_label, lists=_lists_of(u))
             done += 1
         except Exception as e:                      # one bad series must not stop the run
             skipped.append(f"{t}: {e}")
@@ -217,7 +224,8 @@ def cmd_sector_doc(a) -> int:
     scores = score_universe(prices, uni, asof)
     df = instrument_table(scores, uni, prices, load_trendlines(a.trendlines))
     df = df.merge(scores[["ticker", "rule"]], on="ticker", how="left")
-    df = df.merge(uni[["ticker", "industry", "bucket"]], on="ticker", how="left")
+    df = df.merge(uni[["ticker", "industry", "bucket"] + (["syz_lists"] if "syz_lists" in uni.columns else [])],
+                  on="ticker", how="left")
     df = add_momentum(df, prices)
     sec = df[df.ticker == a.sector]
     if sec.empty:
@@ -234,13 +242,13 @@ def cmd_sector_doc(a) -> int:
     work = OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}"
     build_sector_doc(stocks, sec.iloc[0], charts, out, Path(a.template), title=a.title, edition=a.edition,
                      asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
-                     insufficient=insufficient, work=work, draft=not a.final)
+                     insufficient=insufficient, work=work, draft=not a.final, lists_asof=a.lists_asof or "")
     print(f"written: {out} ({len(stocks)} stocks, {len(charts)} charts; no verdict: {', '.join(insufficient) or 'none'})")
     if a.html_out:
         from .report.sector_html import build_sector_html
         h = build_sector_html(stocks, sec.iloc[0], charts, Path(a.html_out), title=a.title, edition=a.edition,
                               asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
-                              insufficient=insufficient, draft=not a.final)
+                              insufficient=insufficient, draft=not a.final, lists_asof=a.lists_asof or "")
         print(f"written: {h} (HTML, charts alongside)")
     return 0
 
@@ -356,6 +364,7 @@ def main(argv=None) -> int:
     s.add_argument("--out", required=True)
     s.add_argument("--final", action="store_true")
     s.add_argument("--html-out", help="folder for the HTML version (index.html + charts/)")
+    s.add_argument("--lists-asof", help="date of the Syz Focus List / Master list file, shown in the footnotes")
     s.set_defaults(func=cmd_sector_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")

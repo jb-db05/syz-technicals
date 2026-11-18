@@ -104,6 +104,10 @@ tr.click:hover td { background: var(--orange-soft) }
 .p-Bullish { background: var(--mint) } .p-Bearish, .p-Bearish_LM { background: var(--mulb) }
 .p-Neutral, .p-Neutral\+, .p-Neutral- { background: var(--blueb) } .p-na { background: var(--line); color: var(--muted) }
 .rsm { font-weight: 800; font-size: 15px }
+.lt { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 800; border: 1.5px solid; white-space: nowrap; margin-right: 3px }
+.lt-m { color: var(--orange); border-color: var(--orange) } .lt-f { color: var(--ink); border-color: var(--ink) }
+.thumb .lt { font-size: 10px; padding: 0 6px }
+.thumb .lt-f { color: #202945; border-color: #202945 }
 
 /* controls */
 .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px }
@@ -226,6 +230,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
       <span id="d-chips" style="display:contents"></span>
       <select id="d-verdict" aria-label="Trend verdict"><option value="">All verdicts</option><option>Bullish</option><option value="Neutral">Neutral (all tilts)</option><option value="Bearish">Bearish</option></select>
       <select id="d-rs" aria-label="RS Mom"><option value="">RS Mom: all</option><option value="outperforming">RS Mom +</option><option value="underperforming">RS Mom −</option></select>
+      <select id="d-list" aria-label="Syz list"><option value="">Syz list: all</option><option value="any">On a Syz list</option><option value="Focus List">Focus List</option><option value="Master list">Master list</option><option value="none">On no list</option></select>
       <input type="search" id="d-q" placeholder="Search stock or ticker" aria-label="Search">
       <span class="count-line" id="d-count"></span>
     </div>
@@ -301,6 +306,7 @@ const rsm = r => r === "outperforming" ? `<span class="rsm pos">+</span>` : r ==
 const slope = s => `<span class="${s === "rising" ? "pos" : s === "falling" ? "neg" : "flat"}">${esc(s || ND)}</span>`;
 const med = a => { a = a.filter(x => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 const ok = S.filter(s => hasV(s.v));
+const ltag = l => (l || []).slice().sort((a, b) => (a !== "Focus List") - (b !== "Focus List")).map(x => `<span class="lt ${x === "Master list" ? "lt-m" : "lt-f"}">★ ${x === "Master list" ? "Master" : "Focus"}</span>`).join("");
 const byT = Object.fromEntries([X, ...S].map(s => [s.t, s]));
 const defaultSort = (a, b) => (VORD[a.v] ?? 9) - (VORD[b.v] ?? 9) || (RORD[a.rs] ?? 9) - (RORD[b.rs] ?? 9) || (b.rs3 ?? -9) - (a.rs3 ?? -9);
 const insuf = D.insufficient.length ? ` Insufficient history for a verdict: ${D.insufficient.join(", ")}.` : "";
@@ -308,7 +314,7 @@ const insuf = D.insufficient.length ? ` Insufficient history for a verdict: ${D.
 /* masthead */
 $("m-ed").textContent = `Technical special report · ${D.edition}`;
 $("m-title").textContent = D.title.replace(/ – .*$/, "");
-$("m-sub").textContent = `${S.length} stocks against the ${B} · data to ${D.asof}`;
+$("m-sub").textContent = `${S.length} stocks against the ${B} · ${S.filter(s => s.lists.length).length} on a Syz list · data to ${D.asof}`;
 $("m-draft").hidden = !D.draft;
 const cnt = k => ok.filter(s => vb(s.v) === k).length;
 $("m-counts").innerHTML = [["bull", "Bullish"], ["neu", "Neutral"], ["bear", "Bearish"]].map(([c, k]) => `<div class="count ${c}"><b>${cnt(k)}</b><span>${k}</span></div>`).join("")
@@ -389,34 +395,37 @@ $("map-svg").addEventListener("click", e => { const g = e.target.closest(".pt");
 drawMap();
 
 /* dashboard */
-const COLS = [["n", "Stock", ""], ["ish", "Sub-industry", ""], ["c", "Last", "r"], ["s200", "200-day", ""], ["vs200", "vs 200d", "r"], ["c1", "1m", "r"], ["c3", "3m", "r"],
+const COLS = [["n", "Stock", ""], ["lst", "Syz list", "c"], ["ish", "Sub-industry", ""], ["c", "Last", "r"], ["s200", "200-day", ""], ["vs200", "vs 200d", "r"], ["c1", "1m", "r"], ["c3", "3m", "r"],
   ["c12", "12m", "r"], ["fh", "vs 52w high", "r"], ["rs", "RS Mom", "c"], ["rs3", "RS 3m", "r"], ["v", "Trend", "c"]];
-let dState = {b: "", v: "", rs: "", q: "", key: null, dir: 1}, dRows = [];
+S.forEach(s => s.lst = (s.lists || []).length ? (s.lists.includes("Focus List") ? 0 : 1) : null);
+let dState = {b: "", v: "", rs: "", l: "", q: "", key: null, dir: 1}, dRows = [];
 $("d-chips").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === ""}">${esc(b || "All")} <span class="dim">${b ? S.filter(s => s.b === b).length : S.length}</span></button>`).join("");
 $("d-chips").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; dState.b = b.dataset.b; $("d-chips").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b)); drawDash(); };
 $("d-verdict").onchange = e => { dState.v = e.target.value; drawDash(); };
 $("d-rs").onchange = e => { dState.rs = e.target.value; drawDash(); };
+$("d-list").onchange = e => { dState.l = e.target.value; drawDash(); };
 $("d-q").oninput = e => { dState.q = e.target.value.trim().toLowerCase(); drawDash(); };
 function drawDash() {
   let r = S.filter(s => (!dState.b || s.b === dState.b) && (!dState.v || vb(s.v) === dState.v) && (!dState.rs || s.rs === dState.rs)
+    && (!dState.l || (dState.l === "any" ? s.lists.length > 0 : dState.l === "none" ? !s.lists.length : s.lists.includes(dState.l)))
     && (!dState.q || s.n.toLowerCase().includes(dState.q) || s.t.toLowerCase().includes(dState.q)));
   if (dState.key) { const k = dState.key, ord = k === "v" ? (s => VORD[s.v] ?? 9) : k === "rs" ? (s => RORD[s.rs] ?? 9) : (s => s[k]);
     r.sort((a, b) => { const p = ord(a), q = ord(b); if (p == null) return 1; if (q == null) return -1; return (typeof p === "string" ? p.localeCompare(q) : p - q) * dState.dir; });
   } else r.sort(defaultSort);
   dRows = r;
   const ar = k => dState.key === k ? `<span class="ar">${dState.dir > 0 ? "▲" : "▼"}</span>` : "";
-  $("d-table").innerHTML = `<thead><tr class="grp"><th colspan="2"></th><th colspan="7"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs ${esc(B)}</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>`
+  $("d-table").innerHTML = `<thead><tr class="grp"><th colspan="3"></th><th colspan="7"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs ${esc(B)}</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>`
     + `<tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${esc(l)}${ar(k)}</th>`).join("")}</tr></thead><tbody>`
-    + r.map((s, i) => `<tr class="click" data-i="${i}" tabindex="0"><td><b>${esc(s.n)}</b><span class="tk">${esc(s.t.split(" ")[0])}</span></td><td class="dim">${esc(s.ish)}</td>`
+    + r.map((s, i) => `<tr class="click" data-i="${i}" tabindex="0"><td><b>${esc(s.n)}</b><span class="tk">${esc(s.t.split(" ")[0])}</span></td><td class="c">${ltag(s.lists)}</td><td class="dim">${esc(s.ish)}</td>`
       + `<td class="r">${num(s.c, s.d)}</td><td>${slope(s.s200)}</td>` + ["vs200", "c1", "c3", "c12"].map(k => `<td class="r ${cls(s[k])}">${pct(s[k])}</td>`).join("")
       + `<td class="r ${s.fh != null && s.fh >= -0.05 ? "pos" : ""}">${pct(s.fh)}</td><td class="c">${rsm(s.rs)}</td><td class="r ${cls(s.rs3)}">${pct(s.rs3)}</td><td class="c">${pill(s.v)}</td></tr>`).join("") + "</tbody>";
   $("d-count").textContent = `${r.length} of ${S.length} stocks`;
 }
 $("d-table").addEventListener("click", e => { const th = e.target.closest("th.sort");
-  if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
+  if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs", "lst"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
   const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
 $("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
-$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days.${insuf}`;
+$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days. Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
 drawDash();
 
 /* RS leaders / laggards */
@@ -451,7 +460,7 @@ $("t-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) o
 const galOrder = [];
 $("gal").innerHTML = [["Sector index", [X]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
   const items = x.filter(s => s.img); return `<h3>${esc(b)} <span class="dim" style="font-weight:600;font-size:13px">${items.length}</span></h3><div class="thumbs">`
-    + items.map(s => { galOrder.push(s); return `<button class="thumb" data-i="${galOrder.length - 1}"><img loading="lazy" src="${s.img}" alt="${esc(s.n)} chart"><div><span>${esc(s.n)}</span>${hasV(s.v) ? `<span style="color:${s.v === "Bullish" ? "#3BAF90" : s.v.startsWith("Bearish") ? "#AC5D85" : "#4B5F80"}">${GLY[s.v]}</span>` : ""}</div></button>`; }).join("") + "</div>"; }).join("");
+    + items.map(s => { galOrder.push(s); return `<button class="thumb" data-i="${galOrder.length - 1}"><img loading="lazy" src="${s.img}" alt="${esc(s.n)} chart"><div><span>${esc(s.n)} ${ltag(s.lists)}</span>${hasV(s.v) ? `<span style="color:${s.v === "Bullish" ? "#3BAF90" : s.v.startsWith("Bearish") ? "#AC5D85" : "#4B5F80"}">${GLY[s.v]}</span>` : ""}</div></button>`; }).join("") + "</div>"; }).join("");
 $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(galOrder, +t.dataset.i); };
 
 /* method */
@@ -465,7 +474,7 @@ $("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. 
 
 /* lightbox */
 let lbList = [], lbI = 0;
-function showLB() { const s = lbList[lbI]; $("lb-t").textContent = `${s.n} · ${s.t}`; $("lb-img").src = s.img || ""; $("lb-img").alt = `${s.n} chart`;
+function showLB() { const s = lbList[lbI]; $("lb-t").innerHTML = `${esc(s.n)} · ${esc(s.t)} ${ltag(s.lists)}`; $("lb-img").src = s.img || ""; $("lb-img").alt = `${s.n} chart`;
   $("lb-f").innerHTML = `${hasV(s.v) ? esc(D.vlabel[s.v]) : "No verdict"} · vs 200d ${pct(s.vs200)} · 3m ${pct(s.c3)} · RS Mom ${s.rs === "outperforming" ? "+" : s.rs === "underperforming" ? "−" : ND} · RS 3m ${pct(s.rs3)} · ${lbI + 1} of ${lbList.length}`; }
 function openLB(list, i) { lbList = list.filter(s => s.img); if (!lbList.length) return; lbI = Math.max(0, lbList.indexOf(list[i])); showLB(); if (!$("lb").open) $("lb").showModal(); }
 function openOne(t) { const s = byT[t]; if (s) openLB(dRows.includes(s) ? dRows : [s], dRows.includes(s) ? dRows.indexOf(s) : 0); }
