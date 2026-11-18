@@ -1,0 +1,477 @@
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
+/* Layout: navy masthead band, sticky section nav, then report sections in one 1180px column; charts sit on white plates in both themes. */
+:root {
+  --bg: #FFFFFF; --surface: #F5F6F9; --ink: #202945; --muted: #5A6A88; --line: #E2E6ED;
+  --orange: #FF6C0E; --amber: #FFA400; --mint: #3BAF90; --mulb: #AC5D85; --blueb: #4B5F80; --sky: #79D6FF;
+  --navy: #202945; --on-navy: #FFFFFF; --mint-soft: #E3F4EF; --mulb-soft: #F6E8EF; --orange-soft: #FFF0E5;
+  --plate: #FFFFFF; --shadow: 0 1px 2px rgba(32,41,69,.06), 0 4px 16px rgba(32,41,69,.05);
+  --font: "Nunito Sans", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131A2C; --surface: #1B2339; --ink: #E7EBF3; --muted: #A3AFC6; --line: #2B3553;
+  --mint: #4CC4A3; --mulb: #C982A7; --blueb: #8EA2C6; --navy: #0E1424; --on-navy: #FFFFFF;
+  --mint-soft: #1C3A36; --mulb-soft: #3A2436; --orange-soft: #3A2718; --plate: #FFFFFF; --shadow: none; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131A2C; --surface: #1B2339; --ink: #E7EBF3; --muted: #A3AFC6; --line: #2B3553;
+  --mint: #4CC4A3; --mulb: #C982A7; --blueb: #8EA2C6; --navy: #0E1424; --on-navy: #FFFFFF;
+  --mint-soft: #1C3A36; --mulb-soft: #3A2436; --orange-soft: #3A2718; --plate: #FFFFFF; --shadow: none; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { text-wrap: balance; margin: 0 }
+.num, td.r, .tab { font-variant-numeric: tabular-nums }
+a { color: inherit }
+button { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
+
+/* masthead */
+.mast { background: var(--navy); color: var(--on-navy); position: relative; overflow: hidden }
+.mast::after { content: ""; position: absolute; inset: auto 0 0 0; height: 4px; background: linear-gradient(90deg, var(--orange), var(--amber)) }
+.mast .wrap { padding-block: 36px 40px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px; align-items: end }
+.mast img { width: 58px; height: auto; display: block; margin-bottom: 22px }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--amber) }
+.mast h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 800; line-height: 1.12; margin: 8px 0 10px }
+.mast .sub { color: #B9C3D8; font-size: 14px }
+.draft { display: inline-block; margin-top: 14px; font-size: 11px; font-weight: 800; letter-spacing: .1em; color: var(--orange); border: 1px solid var(--orange); border-radius: 999px; padding: 3px 10px }
+.counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.count { background: rgba(255,255,255,.06); border-radius: 14px; padding: 14px 16px }
+.count b { display: block; font-size: 40px; font-weight: 800; line-height: 1 }
+.count span { font-size: 13px; color: #C9D1E2 }
+.count.bull b { color: #5FD3B2 } .count.neu b { color: var(--sky) } .count.bear b { color: #E6A4AD }
+.counts-note { grid-column: 1 / -1; font-size: 12px; color: #9AA6BF }
+
+/* nav */
+nav.sec { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line) }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg) }
+nav.sec .wrap { display: flex; gap: 4px; overflow-x: auto; padding-block: 8px; scrollbar-width: none }
+nav.sec a { text-decoration: none; font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 12px; border-radius: 999px; white-space: nowrap }
+nav.sec a:hover { color: var(--ink); background: var(--surface) }
+
+section { padding-block: 44px 8px; scroll-margin-top: 56px }
+.sh { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px }
+.sh .k { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--orange) }
+.sh h2 { font-size: clamp(21px, 2.6vw, 27px); font-weight: 800; line-height: 1.2 }
+.sh p { margin: 0; color: var(--muted); font-size: 14px; max-width: 75ch }
+.note { color: var(--muted); font-size: 12px; margin-top: 10px; max-width: 110ch }
+
+/* sector */
+.sector { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; align-items: start }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.tile { background: var(--surface); border-radius: 12px; padding: 12px 14px; position: relative; overflow: hidden }
+.tile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--blueb) }
+.tile:nth-child(odd)::before { background: linear-gradient(var(--orange), var(--amber)) }
+.tile .l { font-size: 12px; color: var(--muted) }
+.tile .v { font-size: 22px; font-weight: 800; line-height: 1.25; margin-top: 2px }
+.plate { background: var(--plate); border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; display: block; padding: 0; cursor: zoom-in; width: 100% }
+.plate img { display: block; width: 100%; height: auto }
+.pos { color: var(--mint) } .neg { color: var(--mulb) } .flat { color: var(--blueb) } .dim { color: var(--muted) }
+
+/* breadth */
+.breadth { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 24px; align-items: stretch }
+.stats { display: grid; gap: 10px }
+.stat { background: var(--surface); border-radius: 12px; padding: 12px 16px; display: flex; gap: 14px; align-items: center }
+.stat b { font-size: 26px; font-weight: 800; min-width: 84px }
+.stat span { font-size: 13px; color: var(--muted); line-height: 1.3 }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0 }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 6px }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+svg text { fill: var(--muted); font-family: var(--font) }
+svg .ink { fill: var(--ink) }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th { background: var(--navy); color: var(--on-navy); font-weight: 700; text-align: left; padding: 8px 10px; white-space: nowrap; font-size: 12px; position: relative }
+th.r, td.r { text-align: right } th.c, td.c { text-align: center }
+td { padding: 6px 10px; border-top: 1px solid var(--line); white-space: nowrap }
+tbody tr:nth-child(even) td { background: var(--surface) }
+tr.total td { background: var(--orange-soft) !important; font-weight: 800 }
+th.sort { cursor: pointer; user-select: none }
+th.sort:hover { background: var(--blueb) }
+th .ar { opacity: .7; font-size: 10px; margin-left: 4px }
+tr.click { cursor: pointer }
+tr.click:hover td { background: var(--orange-soft) }
+.tk { color: var(--muted); font-size: 11px; margin-left: 6px }
+.grp th { background: transparent; padding: 0 2px 6px; border: 0 }
+.grp span { display: block; border-radius: 999px; color: #fff; text-align: center; font-size: 11px; padding: 3px 0; letter-spacing: .04em }
+.pill { display: inline-block; min-width: 96px; text-align: center; border-radius: 6px; padding: 2px 8px; font-weight: 700; font-size: 12px; color: #fff }
+.p-Bullish { background: var(--mint) } .p-Bearish, .p-Bearish_LM { background: var(--mulb) }
+.p-Neutral, .p-Neutral\+, .p-Neutral- { background: var(--blueb) } .p-na { background: var(--line); color: var(--muted) }
+.rsm { font-weight: 800; font-size: 15px }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted) }
+.chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: var(--on-navy) }
+:root[data-theme="dark"] .chip[aria-pressed="true"] { background: var(--orange); border-color: var(--orange) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip[aria-pressed="true"] { background: var(--orange); border-color: var(--orange) } }
+select, input[type=search] { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 5px 12px }
+input[type=search] { min-width: 0; width: 180px }
+.count-line { font-size: 13px; color: var(--muted); margin-left: auto }
+
+/* RS bars */
+.rsbars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px }
+.rsbars h3 { font-size: 15px; font-weight: 800; margin-bottom: 8px }
+.bar { display: grid; grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 58px; gap: 10px; align-items: center; font-size: 13px; padding: 3px 0; cursor: pointer; border-radius: 6px }
+.bar:hover { background: var(--surface) }
+.bar .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.bar .tr { height: 14px; background: var(--surface); border-radius: 4px; overflow: hidden }
+.bar .fl { height: 100%; border-radius: 4px }
+.bar .vv { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums }
+
+/* grid */
+.grid2 td { white-space: normal; vertical-align: top; padding: 10px }
+.grid2 td:first-child { width: 130px }
+.grid2 .cell-out { background: var(--mint-soft) !important } .grid2 .cell-under { background: var(--mulb-soft) !important }
+.nchip { display: inline-block; margin: 2px 3px 2px 0; padding: 1px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; cursor: pointer }
+.nchip:hover { border-color: var(--orange) }
+
+/* gallery */
+.gal h3 { font-size: 16px; font-weight: 800; margin: 22px 0 10px }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px }
+.thumb { background: var(--plate); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: zoom-in; padding: 0; text-align: left }
+.thumb img { display: block; width: 100%; aspect-ratio: 10.65 / 7.45; object-fit: cover; max-width: 100% }
+.thumb div { padding: 6px 10px; font-size: 12px; font-weight: 700; color: #202945; display: flex; justify-content: space-between; gap: 8px }
+
+/* method */
+.method { display: grid; gap: 10px }
+.mrow { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: center }
+.mrow b { border-radius: 10px; padding: 14px 16px; color: #fff; font-weight: 800 }
+.mrow:nth-child(odd) b { background: linear-gradient(90deg, var(--orange), var(--amber)) }
+.mrow:nth-child(even) b { background: var(--navy) }
+:root[data-theme="dark"] .mrow:nth-child(even) b { background: var(--blueb) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mrow:nth-child(even) b { background: var(--blueb) } }
+
+footer { margin-top: 48px; border-top: 1px solid var(--line); padding-block: 20px 40px }
+.src { font-size: 12px; color: var(--muted) }
+.disc { font-size: 10px; color: var(--muted); line-height: 1.45; margin-top: 18px }
+.disc h4 { font-size: 10px; letter-spacing: .1em; margin: 0 0 6px }
+.disc p { margin: 0 0 6px }
+
+/* lightbox */
+dialog { border: 0; padding: 0; border-radius: 14px; max-width: min(1200px, 96vw); width: 96vw; background: var(--bg); color: var(--ink) }
+dialog::backdrop { background: rgba(14,20,36,.72) }
+.lbh { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+.lbh .t { font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lbh button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 4px 10px; cursor: pointer }
+.lbimg { background: #fff } .lbimg img { display: block; width: 100%; height: auto }
+.lbf { padding: 8px 14px; font-size: 12px; color: var(--muted) }
+
+@media (max-width: 900px) {
+  .mast .wrap, .sector, .breadth, .rsbars { grid-template-columns: minmax(0, 1fr) }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .mrow { grid-template-columns: minmax(0, 1fr) }
+  .bar { grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 52px }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <div>
+      <img src="syz_logo.png" alt="Syz">
+      <div class="eyebrow" id="m-ed"></div>
+      <h1 id="m-title"></h1>
+      <div class="sub" id="m-sub"></div>
+      <span class="draft" id="m-draft" hidden>DRAFT – FOR INTERNAL REVIEW</span>
+    </div>
+    <div class="counts" id="m-counts"></div>
+  </div>
+</header>
+
+<nav class="sec" aria-label="Sections"><div class="wrap">
+  <a href="#sector">Sector</a><a href="#breadth">Breadth</a><a href="#map">Momentum map</a><a href="#dashboard">Dashboard</a>
+  <a href="#rs">Relative strength</a><a href="#grid">Trend × RS</a><a href="#triggers">Trigger watch</a><a href="#charts">Charts</a><a href="#method">Method</a>
+</div></nav>
+
+<main class="wrap">
+  <section id="sector">
+    <div class="sh"><span class="k">Sector against the market</span><h2 id="s-title"></h2><p id="s-sub"></p></div>
+    <div class="sector">
+      <div><div class="tiles" id="s-tiles"></div><p class="note" id="s-note"></p></div>
+      <button class="plate" id="s-chart" aria-label="Open the sector chart"></button>
+    </div>
+  </section>
+
+  <section id="breadth">
+    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p>Share of stocks by sub-sector, %</p></div>
+    <div class="breadth">
+      <div class="stats" id="b-stats"></div>
+      <div class="card">
+        <div class="legend"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Above 200-day</span><span><i style="background:var(--orange)"></i>RS Mom +</span></div>
+        <svg id="b-chart" viewBox="0 0 760 300" role="img" aria-label="Breadth by sub-sector"></svg>
+      </div>
+    </div>
+    <h3 style="margin:28px 0 4px;font-size:17px;font-weight:800" id="i-title"></h3>
+    <p class="note" style="margin:0 0 10px">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
+    <div class="tw"><table id="i-table"></table></div>
+  </section>
+
+  <section id="map">
+    <div class="sh"><span class="k">Momentum map</span><h2 id="map-title"></h2><p>Price vs 200-day average (x) against the 3-month change in relative strength (y). Colour: trend verdict. Click a dot for its chart.</p></div>
+    <div class="controls" id="map-ctl"></div>
+    <div class="card" style="position:relative"><svg id="map-svg" viewBox="0 0 1000 540" role="img" aria-label="Momentum map"></svg>
+      <div id="tip" hidden style="position:absolute;pointer-events:none;background:var(--navy);color:var(--on-navy);font-size:12px;padding:6px 9px;border-radius:8px;white-space:nowrap"></div></div>
+  </section>
+
+  <section id="dashboard">
+    <div class="sh"><span class="k">Dashboard</span><h2>Absolute momentum and relative strength, every stock</h2><p>Click a column to sort, a row to open the chart.</p></div>
+    <div class="controls">
+      <span id="d-chips" style="display:contents"></span>
+      <select id="d-verdict" aria-label="Trend verdict"><option value="">All verdicts</option><option>Bullish</option><option value="Neutral">Neutral (all tilts)</option><option value="Bearish">Bearish</option></select>
+      <select id="d-rs" aria-label="RS Mom"><option value="">RS Mom: all</option><option value="outperforming">RS Mom +</option><option value="underperforming">RS Mom −</option></select>
+      <input type="search" id="d-q" placeholder="Search stock or ticker" aria-label="Search">
+      <span class="count-line" id="d-count"></span>
+    </div>
+    <div class="tw"><table id="d-table"></table></div>
+    <p class="note" id="d-note"></p>
+  </section>
+
+  <section id="rs">
+    <div class="sh"><span class="k">Relative strength</span><h2 id="rs-title"></h2><p id="rs-sub"></p></div>
+    <div class="rsbars"><div><h3 class="pos">Leaders</h3><div id="rs-lead"></div></div><div><h3 class="neg">Laggards</h3><div id="rs-lag"></div></div></div>
+  </section>
+
+  <section id="grid">
+    <div class="sh"><span class="k">Trend × relative strength</span><h2 id="g-title"></h2><p id="g-sub"></p></div>
+    <div class="tw grid2"><table id="g-table"></table></div>
+  </section>
+
+  <section id="triggers">
+    <div class="sh"><span class="k">Trigger watch</span><h2 id="t-title"></h2><p>Where a breakout or a breakdown is closest.</p></div>
+    <div class="tw"><table id="t-table"></table></div>
+    <p class="note">52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.</p>
+  </section>
+
+  <section id="charts" class="gal">
+    <div class="sh"><span class="k">Charts</span><h2>One chart per stock, by sub-sector</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day high / low band, 52-week levels; relative strength panel.</p></div>
+    <div id="gal"></div>
+  </section>
+
+  <section id="method">
+    <div class="sh"><span class="k">Method</span><h2>How to read the verdicts</h2><p>One rule set, applied to every stock.</p></div>
+    <div class="method" id="method-rows"></div>
+  </section>
+
+  <footer>
+    <div class="src" id="f-src"></div>
+    <div class="disc">
+      <h4>LEGAL DISCLAIMER</h4>
+      <p>This communication has been sent to recipients for information purposes only and cannot be considered to constitute an advertisement, an offer or a personalised recommendation to buy or sell a financial instrument, enter into a foreign exchange transaction or make any other investment.</p>
+      <p>This communication does not constitute investment research within the meaning of regulatory rules applicable in the European Economic Area, or research under the rules of the U.S. Self-Regulatory Organizations.</p>
+      <p>This communication is made solely for professional and institutional clients as defined by the Swiss Financial Services Act, as well as qualified investors according to the Swiss Collective Investment Schemes Act. It is not intended for retail clients or non-qualified investors and consequently cannot be transmitted to any third party.</p>
+      <p>This communication is not directed to any person in any jurisdiction where, by reason of that person’s nationality, residence or otherwise, its dissemination or use is prohibited. It cannot be quoted, reproduced, disclosed, distributed or otherwise referred to, in whole or in part, to any third party without the Bank’s prior written consent.</p>
+      <p>This communication may contain information on past performances of financial products, currencies or foreign exchange markets, all kinds of economic and financial valuations and analyses, as well as opinions of the Bank or of third parties. Any market valuations, exchange rates, terms and calculation methods, yields, forecasts and opinions expressed are subject to change without notice. The information and opinions contained herein have been compiled and provided in good faith, based on information obtained from sources believed to be trustworthy. However, such information has not been independently verified. No guarantee, representation, or warranty of any kind, whether express or implied, is provided by the Bank or by relevant data vendors and other sources with respect to the accuracy, reliability, currentness or exhaustiveness of the information communicated, the methodology employed or the prices and exchange rates contained herein.</p>
+      <p>Past performance is not a reliable indicator of current or future results. Any reference to the past performance of an investment, currency or foreign exchange strategy does not guarantee its future performance. Fluctuations in exchange rates may adversely affect the value, price, income or performance of any investment or foreign exchange position.</p>
+      <p>Nothing in the present communication constitutes investment, legal, accounting or tax advice. This information is purely objective since it does not take into consideration the personal situation (including financial knowledge and experience), the investment objectives and risk profile of any recipient. Moreover, certain financial instruments or foreign exchange transactions mentioned, in particular, but not exclusively, derivatives, options, futures and other leveraged instruments, involve a high risk of loss and may not be suitable. Accordingly, recipients should consult their own advisors on such matters, including but not limited to the possible tax consequences of investing in any financial product or entering into any foreign exchange transaction mentioned herein, and make their own assessment of the suitability of such investment product or transaction.</p>
+      <p>Should a recipient make an investment or enter into a foreign exchange transaction on the basis of the present communication, the recipient alone shall bear the consequences thereof. In no event shall the Bank, its directors, employees, affiliates or agents be held responsible for damages of any kind arising out of the use of all or part of the information provided herein.</p>
+    </div>
+  </footer>
+</main>
+
+<dialog id="lb" aria-label="Chart">
+  <div class="lbh"><span class="t" id="lb-t"></span><button id="lb-p" aria-label="Previous chart">‹</button><button id="lb-n" aria-label="Next chart">›</button><button id="lb-x" aria-label="Close">Close</button></div>
+  <div class="lbimg"><img id="lb-img" alt=""></div>
+  <div class="lbf" id="lb-f"></div>
+</dialog>
+
+<script>
+const D = /*__DATA__*/null;
+const ND = "–", MINUS = "–";
+const VORD = {Bullish: 0, "Neutral+": 1, Neutral: 2, "Neutral-": 3, Bearish_LM: 4, Bearish: 5};
+const RORD = {outperforming: 0, mixed: 1, underperforming: 2};
+const GLY = {Bullish: "▲", "Neutral+": "◆", Neutral: "◆", "Neutral-": "◆", Bearish_LM: "▼", Bearish: "▼"};
+const BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"];
+const B = D.bench, S = D.stocks, X = D.sector;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const pct = (x, d = 1) => x == null ? ND : (x >= 0 ? "+" : MINUS) + Math.abs(x * 100).toFixed(d) + "%";
+const num = (x, d = 1) => x == null ? ND : x.toLocaleString("en-US", {minimumFractionDigits: d, maximumFractionDigits: d});
+const cls = x => x == null ? "dim" : x >= 0 ? "pos" : "neg";
+const hasV = v => v in VORD;
+const vb = v => !hasV(v) ? "na" : v === "Bullish" ? "Bullish" : v.startsWith("Bearish") ? "Bearish" : "Neutral";
+const pill = v => hasV(v) ? `<span class="pill p-${v}">${GLY[v]} ${esc(D.vlabel[v])}</span>` : `<span class="pill p-na">n/a – history</span>`;
+const rsm = r => r === "outperforming" ? `<span class="rsm pos">+</span>` : r === "underperforming" ? `<span class="rsm neg">−</span>` : `<span class="dim">${ND}</span>`;
+const slope = s => `<span class="${s === "rising" ? "pos" : s === "falling" ? "neg" : "flat"}">${esc(s || ND)}</span>`;
+const med = a => { a = a.filter(x => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+const ok = S.filter(s => hasV(s.v));
+const byT = Object.fromEntries([X, ...S].map(s => [s.t, s]));
+const defaultSort = (a, b) => (VORD[a.v] ?? 9) - (VORD[b.v] ?? 9) || (RORD[a.rs] ?? 9) - (RORD[b.rs] ?? 9) || (b.rs3 ?? -9) - (a.rs3 ?? -9);
+const insuf = D.insufficient.length ? ` Insufficient history for a verdict: ${D.insufficient.join(", ")}.` : "";
+
+/* masthead */
+$("m-ed").textContent = `Technical special report · ${D.edition}`;
+$("m-title").textContent = D.title.replace(/ – .*$/, "");
+$("m-sub").textContent = `${S.length} stocks against the ${B} · data to ${D.asof}`;
+$("m-draft").hidden = !D.draft;
+const cnt = k => ok.filter(s => vb(s.v) === k).length;
+$("m-counts").innerHTML = [["bull", "Bullish"], ["neu", "Neutral"], ["bear", "Bearish"]].map(([c, k]) => `<div class="count ${c}"><b>${cnt(k)}</b><span>${k}</span></div>`).join("")
+  + (D.insufficient.length ? `<div class="counts-note">${D.insufficient.length} without enough history for a verdict</div>` : "");
+
+/* sector */
+$("s-title").textContent = `${D.sector_name}: ${hasV(X.v) ? D.vlabel[X.v] : "no"} trend, RS Mom ${X.rs === "outperforming" ? "+" : X.rs === "underperforming" ? "−" : ND} against the ${B}`;
+$("s-sub").textContent = `Sector index: absolute momentum and relative strength against the ${B}.`;
+const tiles = [["Trend verdict", pill(X.v)], ["200-day average", slope(X.s200)], ["Price vs 200-day", `<span class="${cls(X.vs200)}">${pct(X.vs200)}</span>`],
+  ["vs 52-week high", pct(X.fh)], ["1-month change", `<span class="${cls(X.c1)}">${pct(X.c1)}</span>`], ["3-month change", `<span class="${cls(X.c3)}">${pct(X.c3)}</span>`],
+  ["12-month change", `<span class="${cls(X.c12)}">${pct(X.c12)}</span>`], [`RS Mom vs ${B}`, rsm(X.rs)], [`RS 3m vs ${B}`, `<span class="${cls(X.rs3)}">${pct(X.rs3)}</span>`]];
+$("s-tiles").innerHTML = tiles.map(([l, v]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v num">${v}</div></div>`).join("");
+$("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. 100-day band ${num(X.lo100, X.d)} – ${num(X.hi100, X.d)}. Rule fired: ${X.rule}.`;
+if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart">`;
+$("s-chart").onclick = () => openLB([X], 0);
+
+/* breadth */
+const above = S.filter(s => (s.vs200 ?? -1) > 0).length, outN = S.filter(s => s.rs === "outperforming").length, nearHi = S.filter(s => (s.fh ?? -1) >= -0.05).length;
+$("b-title").textContent = `${cnt("Bullish")} of ${ok.length} stocks Bullish, ${above} of ${S.length} above their 200-day, ${outN} with RS Mom +`;
+$("b-stats").innerHTML = [[`${cnt("Bullish")}/${ok.length}`, "Bullish trend verdict", "pos"], [`${above}/${S.length}`, "above the 200-day average", ""],
+  [`${outN}/${S.length}`, `RS Mom + against the ${B}`, ""], [`${nearHi}/${S.length}`, "within 5% of the 52-week high", ""]]
+  .map(([b, l, c], i) => `<div class="stat"><b class="num ${c}" style="${i === 2 ? "color:var(--orange)" : i === 1 ? "color:var(--ink)" : i === 3 ? "color:var(--blueb)" : ""}">${b}</b><span>${esc(l)}</span></div>`).join("");
+(function breadthChart() {
+  const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b); return {b, n: x.length,
+    v: [x.filter(s => s.v === "Bullish").length / x.length, x.filter(s => (s.vs200 ?? -1) > 0).length / x.length, x.filter(s => s.rs === "outperforming").length / x.length]}; });
+  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 46, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
+  let s = `<line x1="${L}" x2="${W - R}" y1="${H - Bt}" y2="${H - Bt}" stroke="var(--line)"/>`;
+  [25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
+  g.forEach((d, i) => { const cx = L + gw * i + gw / 2; d.v.forEach((v, k) => { const h = (H - Bt - T) * v, x = cx + (k - 1.5) * (bw + 4) + 2, y = H - Bt - h;
+      s += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" rx="3" fill="${cols[k]}"/><text class="ink" x="${x + bw / 2}" y="${y - 5}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(v * 100)}</text>`; });
+    s += `<text class="ink" x="${cx}" y="${H - Bt + 18}" font-size="12" font-weight="700" text-anchor="middle">${esc(d.b)}</text><text x="${cx}" y="${H - Bt + 34}" font-size="11" text-anchor="middle">${d.n} stocks</text>`; });
+  $("b-chart").innerHTML = s;
+})();
+(function industryTable() {
+  const groups = {}; S.forEach(s => (groups[s.ind || "Other"] ||= []).push(s));
+  const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, b: x.filter(s => s.v === "Bullish").length, a: x.filter(s => (s.vs200 ?? -1) > 0).length,
+    o: x.filter(s => s.rs === "outperforming").length, c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
+  $("i-title").textContent = `By sub-industry: ${rows[0].k} leads on relative strength over 3 months`;
+  rows.push({k: `${D.sector_name} constituents`, n: S.length, b: cnt("Bullish"), a: above, o: outN, c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
+  const share = (v, n) => `<td class="c ${v / n > .5 ? "pos" : v / n < .5 ? "neg" : ""}" style="font-weight:700">${v}</td>`;
+  $("i-table").innerHTML = `<thead><tr><th>Sub-industry</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
+    + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${share(r.b, r.n)}${share(r.a, r.n)}${share(r.o, r.n)}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
+})();
+
+/* momentum map */
+let mapFilter = "";
+function drawMap() {
+  const pts = S.filter(s => s.vs200 != null && s.rs3 != null);
+  $("map-title").textContent = `${pts.filter(s => s.vs200 > 0 && s.rs3 > 0).length} stocks above their 200-day and gaining on the ${B}`;
+  const W = 1000, H = 540, L = 58, R = 20, T = 24, Bm = 48;
+  const xs = pts.map(s => s.vs200 * 100), ys = pts.map(s => s.rs3 * 100);
+  const nice = (lo, hi) => { const st = (hi - lo) > 80 ? 20 : 10; return [Math.floor(lo / st) * st, Math.ceil(hi / st) * st, st]; };
+  const [x0, x1, xst] = nice(Math.min(...xs, 0), Math.max(...xs, 0)), [y0, y1, yst] = nice(Math.min(...ys, 0), Math.max(...ys, 0));
+  const sx = v => L + (v - x0) / (x1 - x0) * (W - L - R), sy = v => H - Bm - (v - y0) / (y1 - y0) * (H - T - Bm);
+  let s = "";
+  for (let v = x0; v <= x1; v += xst) s += `<line x1="${sx(v)}" x2="${sx(v)}" y1="${T}" y2="${H - Bm}" stroke="var(--line)" ${v === 0 ? "" : 'stroke-dasharray="2 4"'}/><text x="${sx(v)}" y="${H - Bm + 18}" font-size="11" text-anchor="middle">${v > 0 ? "+" : v < 0 ? MINUS : ""}${Math.abs(v)}</text>`;
+  for (let v = y0; v <= y1; v += yst) s += `<line x1="${L}" x2="${W - R}" y1="${sy(v)}" y2="${sy(v)}" stroke="var(--line)" ${v === 0 ? "" : 'stroke-dasharray="2 4"'}/><text x="${L - 8}" y="${sy(v) + 4}" font-size="11" text-anchor="end">${v > 0 ? "+" : v < 0 ? MINUS : ""}${Math.abs(v)}</text>`;
+  s += `<line x1="${sx(0)}" x2="${sx(0)}" y1="${T}" y2="${H - Bm}" stroke="var(--muted)" stroke-width="1"/><line x1="${L}" x2="${W - R}" y1="${sy(0)}" y2="${sy(0)}" stroke="var(--muted)" stroke-width="1"/>`;
+  s += `<text x="${(L + W - R) / 2}" y="${H - 8}" font-size="12" text-anchor="middle">Price vs 200-day moving average, %</text><text transform="translate(16 ${(T + H - Bm) / 2}) rotate(-90)" font-size="12" text-anchor="middle">RS vs ${esc(B)}, 3-month change, %</text>`;
+  s += `<text x="${sx(0) + 10}" y="${T + 14}" font-size="12" font-weight="800" style="fill:var(--mint)">Above 200-day, gaining on ${esc(B)}</text>`
+     + `<text x="${L + 8}" y="${H - Bm - 8}" font-size="12" font-weight="800" style="fill:var(--mulb)">Below 200-day, losing to ${esc(B)}</text>`;
+  const col = v => v === "Bullish" ? "var(--mint)" : String(v).startsWith("Bearish") ? "var(--mulb)" : "var(--blueb)";
+  pts.forEach(p => { const on = !mapFilter || p.b === mapFilter, x = sx(p.vs200 * 100), y = sy(p.rs3 * 100);
+    s += `<g class="pt" data-t="${esc(p.t)}" style="cursor:pointer;opacity:${on ? 1 : .15}"><circle cx="${x}" cy="${y}" r="6" fill="${col(p.v)}" stroke="var(--bg)" stroke-width="1.5"/>`
+      + `<text class="ink" x="${x + 8}" y="${y - 6}" font-size="10">${esc(p.t.split(" ")[0])}</text></g>`; });
+  $("map-svg").innerHTML = s;
+}
+$("map-ctl").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === mapFilter}">${esc(b || "All sub-sectors")}</button>`).join("")
+  + `<span class="legend" style="margin:0 0 0 auto"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Neutral</span><span><i style="background:var(--mulb)"></i>Bearish</span></span>`;
+$("map-ctl").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; mapFilter = b.dataset.b; $("map-ctl").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b)); drawMap(); };
+const tip = $("tip");
+$("map-svg").addEventListener("mousemove", e => { const g = e.target.closest(".pt"); if (!g) { tip.hidden = true; return; } const p = byT[g.dataset.t];
+  tip.innerHTML = `<b>${esc(p.n)}</b> · ${esc(D.vlabel[p.v] || "n/a")}<br>vs 200d ${pct(p.vs200)} · RS 3m ${pct(p.rs3)} · 3m ${pct(p.c3)}`;
+  const r = e.currentTarget.parentNode.getBoundingClientRect(); tip.hidden = false;
+  tip.style.left = Math.min(e.clientX - r.left + 12, r.width - tip.offsetWidth - 8) + "px"; tip.style.top = (e.clientY - r.top + 14) + "px"; });
+$("map-svg").addEventListener("mouseleave", () => tip.hidden = true);
+$("map-svg").addEventListener("click", e => { const g = e.target.closest(".pt"); if (g) openOne(g.dataset.t); });
+drawMap();
+
+/* dashboard */
+const COLS = [["n", "Stock", ""], ["ish", "Sub-industry", ""], ["c", "Last", "r"], ["s200", "200-day", ""], ["vs200", "vs 200d", "r"], ["c1", "1m", "r"], ["c3", "3m", "r"],
+  ["c12", "12m", "r"], ["fh", "vs 52w high", "r"], ["rs", "RS Mom", "c"], ["rs3", "RS 3m", "r"], ["v", "Trend", "c"]];
+let dState = {b: "", v: "", rs: "", q: "", key: null, dir: 1}, dRows = [];
+$("d-chips").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === ""}">${esc(b || "All")} <span class="dim">${b ? S.filter(s => s.b === b).length : S.length}</span></button>`).join("");
+$("d-chips").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; dState.b = b.dataset.b; $("d-chips").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b)); drawDash(); };
+$("d-verdict").onchange = e => { dState.v = e.target.value; drawDash(); };
+$("d-rs").onchange = e => { dState.rs = e.target.value; drawDash(); };
+$("d-q").oninput = e => { dState.q = e.target.value.trim().toLowerCase(); drawDash(); };
+function drawDash() {
+  let r = S.filter(s => (!dState.b || s.b === dState.b) && (!dState.v || vb(s.v) === dState.v) && (!dState.rs || s.rs === dState.rs)
+    && (!dState.q || s.n.toLowerCase().includes(dState.q) || s.t.toLowerCase().includes(dState.q)));
+  if (dState.key) { const k = dState.key, ord = k === "v" ? (s => VORD[s.v] ?? 9) : k === "rs" ? (s => RORD[s.rs] ?? 9) : (s => s[k]);
+    r.sort((a, b) => { const p = ord(a), q = ord(b); if (p == null) return 1; if (q == null) return -1; return (typeof p === "string" ? p.localeCompare(q) : p - q) * dState.dir; });
+  } else r.sort(defaultSort);
+  dRows = r;
+  const ar = k => dState.key === k ? `<span class="ar">${dState.dir > 0 ? "▲" : "▼"}</span>` : "";
+  $("d-table").innerHTML = `<thead><tr class="grp"><th colspan="2"></th><th colspan="7"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs ${esc(B)}</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>`
+    + `<tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${esc(l)}${ar(k)}</th>`).join("")}</tr></thead><tbody>`
+    + r.map((s, i) => `<tr class="click" data-i="${i}" tabindex="0"><td><b>${esc(s.n)}</b><span class="tk">${esc(s.t.split(" ")[0])}</span></td><td class="dim">${esc(s.ish)}</td>`
+      + `<td class="r">${num(s.c, s.d)}</td><td>${slope(s.s200)}</td>` + ["vs200", "c1", "c3", "c12"].map(k => `<td class="r ${cls(s[k])}">${pct(s[k])}</td>`).join("")
+      + `<td class="r ${s.fh != null && s.fh >= -0.05 ? "pos" : ""}">${pct(s.fh)}</td><td class="c">${rsm(s.rs)}</td><td class="r ${cls(s.rs3)}">${pct(s.rs3)}</td><td class="c">${pill(s.v)}</td></tr>`).join("") + "</tbody>";
+  $("d-count").textContent = `${r.length} of ${S.length} stocks`;
+}
+$("d-table").addEventListener("click", e => { const th = e.target.closest("th.sort");
+  if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
+  const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
+$("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
+$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days.${insuf}`;
+drawDash();
+
+/* RS leaders / laggards */
+(function rsBars() {
+  const rk = S.filter(s => s.rs3 != null).sort((a, b) => b.rs3 - a.rs3), lead = rk.slice(0, 15), lag = rk.slice(-15).reverse(), mx = Math.max(...rk.map(s => Math.abs(s.rs3)));
+  $("rs-title").textContent = `The 15 leaders and the 15 laggards against the ${B}`;
+  $("rs-sub").textContent = `3-month change in relative strength (price ÷ ${B}). Median of all constituents: ${pct(med(S.map(s => s.rs3)))}.`;
+  const bar = s => `<div class="bar" data-t="${esc(s.t)}" role="button" tabindex="0"><span class="nm">${esc(s.n)}</span><span class="tr"><span class="fl" style="display:block;width:${Math.abs(s.rs3) / mx * 100}%;background:${s.rs3 >= 0 ? "var(--mint)" : "var(--mulb)"}"></span></span><span class="vv ${cls(s.rs3)}">${pct(s.rs3)}</span></div>`;
+  $("rs-lead").innerHTML = lead.map(bar).join(""); $("rs-lag").innerHTML = lag.map(bar).join("");
+  document.querySelectorAll(".rsbars").forEach(el => el.onclick = e => { const b = e.target.closest(".bar"); if (b) openOne(b.dataset.t); });
+})();
+
+/* trend × RS grid */
+(function grid() {
+  const lag = ok.filter(s => s.v === "Bullish" && s.rs === "underperforming").length;
+  $("g-title").textContent = `${lag} stocks are in an uptrend while their relative-strength trend points down`;
+  $("g-sub").textContent = `Trend verdict against relative strength versus the ${B}. Click a name for its chart.`;
+  const chips = (v, rs) => { const x = ok.filter(s => (s.v === "Bearish_LM" ? "Bearish" : s.v) === v && s.rs === rs).sort((a, b) => a.n.localeCompare(b.n));
+    return x.length ? x.map(s => `<span class="nchip" data-t="${esc(s.t)}" role="button" tabindex="0">${esc(s.n)}</span>`).join("") : `<span class="dim">${ND}</span>`; };
+  $("g-table").innerHTML = `<thead><tr><th>Trend</th><th>RS Mom + (gaining on the ${esc(B)})</th><th>RS Mom − (losing to the ${esc(B)})</th></tr></thead><tbody>`
+    + ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"].map(v => `<tr><td>${pill(v)}</td><td class="cell-out">${chips(v, "outperforming")}</td><td class="cell-under">${chips(v, "underperforming")}</td></tr>`).join("") + "</tbody>";
+  $("g-table").onclick = e => { const c = e.target.closest(".nchip"); if (c) openOne(c.dataset.t); };
+})();
+
+/* triggers */
+$("t-title").textContent = `${D.triggers.length} stocks within 2% of a 52-week or 100-day high or low`;
+$("t-table").innerHTML = `<thead><tr><th>Stock</th><th class="r">Last</th><th>Level</th><th class="r">Value</th><th class="r">Distance</th><th class="c">Trend</th></tr></thead><tbody>`
+  + D.triggers.map(r => `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td><b>${esc(r.n)}</b></td><td class="r">${num(r.c, r.d)}</td><td>${esc(r.kind)}</td><td class="r">${num(r.level, r.d)}</td><td class="r ${cls(r.dist)}" style="font-weight:700">${pct(r.dist, 2)}</td><td class="c">${pill(r.v)}</td></tr>`).join("") + "</tbody>";
+$("t-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t); };
+
+/* gallery */
+const galOrder = [];
+$("gal").innerHTML = [["Sector index", [X]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
+  const items = x.filter(s => s.img); return `<h3>${esc(b)} <span class="dim" style="font-weight:600;font-size:13px">${items.length}</span></h3><div class="thumbs">`
+    + items.map(s => { galOrder.push(s); return `<button class="thumb" data-i="${galOrder.length - 1}"><img loading="lazy" src="${s.img}" alt="${esc(s.n)} chart"><div><span>${esc(s.n)}</span>${hasV(s.v) ? `<span style="color:${s.v === "Bullish" ? "#3BAF90" : s.v.startsWith("Bearish") ? "#AC5D85" : "#4B5F80"}">${GLY[s.v]}</span>` : ""}</div></button>`; }).join("") + "</div>"; }).join("");
+$("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(galOrder, +t.dataset.i); };
+
+/* method */
+$("method-rows").innerHTML = [["Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."],
+  ["Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."],
+  ["Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
+  ["Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."],
+  ["Relative strength", `RS Mom: is the 200-day average of price ÷ ${B} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.`]]
+  .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
+$("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: 52-week low / high (prior 52 weeks, last close excluded); no drawn charts for this list.${insuf}`;
+
+/* lightbox */
+let lbList = [], lbI = 0;
+function showLB() { const s = lbList[lbI]; $("lb-t").textContent = `${s.n} · ${s.t}`; $("lb-img").src = s.img || ""; $("lb-img").alt = `${s.n} chart`;
+  $("lb-f").innerHTML = `${hasV(s.v) ? esc(D.vlabel[s.v]) : "No verdict"} · vs 200d ${pct(s.vs200)} · 3m ${pct(s.c3)} · RS Mom ${s.rs === "outperforming" ? "+" : s.rs === "underperforming" ? "−" : ND} · RS 3m ${pct(s.rs3)} · ${lbI + 1} of ${lbList.length}`; }
+function openLB(list, i) { lbList = list.filter(s => s.img); if (!lbList.length) return; lbI = Math.max(0, lbList.indexOf(list[i])); showLB(); if (!$("lb").open) $("lb").showModal(); }
+function openOne(t) { const s = byT[t]; if (s) openLB(dRows.includes(s) ? dRows : [s], dRows.includes(s) ? dRows.indexOf(s) : 0); }
+$("lb-p").onclick = () => { lbI = (lbI - 1 + lbList.length) % lbList.length; showLB(); };
+$("lb-n").onclick = () => { lbI = (lbI + 1) % lbList.length; showLB(); };
+$("lb-x").onclick = () => $("lb").close();
+$("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").close(); });
+document.addEventListener("keydown", e => { if (!$("lb").open) return; if (e.key === "ArrowRight") $("lb-n").click(); if (e.key === "ArrowLeft") $("lb-p").click(); });
+</script>

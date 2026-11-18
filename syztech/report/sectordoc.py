@@ -52,6 +52,21 @@ def add_momentum(df: pd.DataFrame, prices) -> pd.DataFrame:
     return df
 
 
+def trigger_watch(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
+    """Nearest level within `band`: 52-week high / low (or drawn levels) and the 100-day band, one row per stock."""
+    tw = triggers(df, band)
+    extra = []
+    for r in df.itertuples():
+        for lvl, lab in ((r.hi100, "100-day high"), (r.lo100, "100-day low")):
+            if pd.notna(lvl) and abs(r.close / lvl - 1) <= band:
+                extra.append(dict(ticker=r.ticker, name=r.name, verdict=r.verdict, close=r.close, decimals=r.decimals,
+                                  level=lvl, kind=lab, dist=r.close / lvl - 1, asset_class=r.asset_class))
+    tw = pd.concat([tw, pd.DataFrame(extra)], ignore_index=True) if extra else tw
+    if len(tw):
+        tw = tw.sort_values("dist", key=lambda x: x.abs()).drop_duplicates("ticker")
+    return tw
+
+
 def _vtxt(v):
     return f"{VGLYPH[v]} {VLABEL[v]}" if v in VGLYPH else "n/a – history"
 
@@ -338,16 +353,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
 
     # trigger watch
-    tw = triggers(df)
-    extra = []
-    for r in df.itertuples():
-        for lvl, lab in ((r.hi100, "100-day high"), (r.lo100, "100-day low")):
-            if pd.notna(lvl) and abs(r.close / lvl - 1) <= 0.02:
-                extra.append(dict(ticker=r.ticker, name=r.name, verdict=r.verdict, close=r.close, decimals=r.decimals,
-                                  level=lvl, kind=lab, dist=r.close / lvl - 1, asset_class=r.asset_class))
-    tw = pd.concat([tw, pd.DataFrame(extra)], ignore_index=True) if extra else tw
-    if len(tw):
-        tw = tw.sort_values("dist", key=lambda x: x.abs()).drop_duplicates("ticker")
+    tw = trigger_watch(df)
     s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a 52-week or 100-day high or low",
                     "Where a breakout or a breakdown is closest")
     rows, st = [], {}

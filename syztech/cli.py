@@ -223,6 +223,12 @@ def cmd_sector_doc(a) -> int:
                      asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
                      insufficient=insufficient, work=work, draft=not a.final)
     print(f"written: {out} ({len(stocks)} stocks, {len(charts)} charts; no verdict: {', '.join(insufficient) or 'none'})")
+    if a.html_out:
+        from .report.sector_html import build_sector_html
+        h = build_sector_html(stocks, sec.iloc[0], charts, Path(a.html_out), title=a.title, edition=a.edition,
+                              asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
+                              insufficient=insufficient, draft=not a.final)
+        print(f"written: {h} (HTML, charts alongside)")
     return 0
 
 
@@ -334,6 +340,7 @@ def main(argv=None) -> int:
     s.add_argument("--asof")
     s.add_argument("--out", required=True)
     s.add_argument("--final", action="store_true")
+    s.add_argument("--html-out", help="folder for the HTML version (index.html + charts/)")
     s.set_defaults(func=cmd_sector_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
