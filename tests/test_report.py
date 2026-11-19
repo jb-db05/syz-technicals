@@ -39,3 +39,13 @@ def test_add_momentum_uses_closes_and_52w_high():
     assert out.chg1m == 200 / m1 - 1
     assert abs(out.from_hi52 - (200 / 250 - 1)) < 1e-12
     assert out.chg12m > 0
+
+
+def test_chart_badge_only_three_reference_visuals():
+    from syztech.charts.syz_style import BADGE_FAMILY, BADGE_H, BADGE_SPEC, BADGE_W
+    assert set(BADGE_SPEC) == {"Bullish", "Neutral", "Bearish"}
+    assert BADGE_SPEC["Bullish"] == ("#3BAF90", "▲", "BULLISH")
+    assert BADGE_SPEC["Neutral"] == ("#4B5F80", "◆", "NEUTRAL")
+    assert BADGE_SPEC["Bearish"] == ("#AC5D85", "▼", "BEARISH")
+    assert (BADGE_W, BADGE_H) == (1.18, 0.34)
+    assert BADGE_FAMILY["Neutral+"] == BADGE_FAMILY["Neutral-"] == "Neutral" and BADGE_FAMILY["Bearish_LM"] == "Bearish"

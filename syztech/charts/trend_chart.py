@@ -19,8 +19,8 @@ from matplotlib.ticker import FuncFormatter, NullLocator
 from ..fmt import num
 from ..indicators.bands import max_prior, min_prior
 from ..indicators.ma import sma
-from .syz_style import (AMBER, BLUEBERRY, GREY, NAVY, ORANGE, SOURCE_LINE, VERDICT_COLOUR, VERDICT_GLYPH,
-                        VERDICT_LABEL, register_fonts)
+from .syz_style import (AMBER, BADGE_H, BADGE_W, BLUEBERRY, GREY, NAVY, ORANGE, SOURCE_LINE, VERDICT_LABEL,
+                        draw_verdict_badge, register_fonts)
 
 YEARS_BARS = 5 * 252
 
@@ -77,18 +77,16 @@ def trend_chart(close: pd.Series, row: pd.Series, out: str | Path) -> Path:
     fig.text(0.06, 0.845, row.reason, fontsize=8.5, color=NAVY, fontweight=300)
 
     v = row.verdict
-    col = VERDICT_COLOUR.get(v, BLUEBERRY)
-    bx = fig.add_axes([0.70, 0.865, 0.25, 0.10]); bx.axis("off")
-    bx.add_patch(FancyBboxPatch((0.02, 0.08), 0.96, 0.84, boxstyle="round,pad=0.0,rounding_size=0.18",
-                                fc=col, ec="none", transform=bx.transAxes))
+    fw, fh = fig.get_size_inches()
+    draw_verdict_badge(fig, v, fw * 0.95 - BADGE_W, fh * 0.965 - BADGE_H)     # reference badge only
     lt = row.get("lt_view")
-    label = VERDICT_LABEL.get(v, v) + (" – SHORT TERM" if isinstance(lt, str) and lt else "")
-    bx.text(0.5, 0.62, f"{VERDICT_GLYPH.get(v, '')} {label}", ha="center", va="center",
-            color="white", fontsize=10.5, fontweight="bold", transform=bx.transAxes)
     badge = row.get("badge")
-    sub = f"LT {lt.split(' – ')[0].lower()}  |  " if isinstance(lt, str) and lt else ""
-    bx.text(0.5, 0.27, f"{sub}Mechanical  |  published: {badge if isinstance(badge, str) else '–'}", ha="center",
-            va="center", color="white", fontsize=7.5, transform=bx.transAxes)
+    notes = [VERDICT_LABEL.get(v, v).title() + (" – short term" if isinstance(lt, str) and lt else "")]
+    if isinstance(lt, str) and lt:
+        notes.append(f"LT {lt.split(' – ')[0].lower()}")
+    notes.append(f"Mechanical  |  published: {badge if isinstance(badge, str) else '–'}")
+    fig.text(0.95, (fh * 0.965 - BADGE_H - 0.06) / fh, "\n".join(notes), ha="right", va="top", fontsize=7.5,
+             color=BLUEBERRY, linespacing=1.3)
 
     fig.text(0.06, 0.03, SOURCE_LINE, fontsize=7.5, color=BLUEBERRY)
     fig.text(0.88, 0.03, f"Data to {close.index[-1]:%d %b %Y}", fontsize=7.5, color=BLUEBERRY, ha="right")

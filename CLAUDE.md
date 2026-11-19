@@ -17,6 +17,7 @@ Florian Marini, CFA, CMT – Head of Research, Syz Private Banking. Senior techn
 ## Style conventions (outputs, charts, text)
 - Nunito Sans everywhere; Syz colours: Mint `#3BAF90` bullish, Blueberry `#4B5F80` neutral, Mulberry `#AC5D85` bearish, orange `#FF6C0E → #FFA400`, navy `#202945`.
 - En dashes only (U+2013). Decimals: 1 for equities/commodities/crypto, 2 for FX and yields, 4 where `universe.csv` says so.
+- Chart verdict badges: only the three reference badges in `syztech/charts/assets/verdict_badges_reference.pptx` (19 Nov 2026) – ▲ BULLISH on Mint, ◆ NEUTRAL on Blueberry, ▼ BEARISH on Mulberry; rounded 1.18 × 0.34 in, white bold capitals, letter-spaced. Drawn only by `syz_style.draw_verdict_badge`. No other badge text (no tilt, no "losing momentum", no subtitle inside the badge): Neutral+/Neutral- show NEUTRAL, Bearish_LM shows BEARISH; the shade stays in tables.
 - Chart source line: `Sources : Syz Research, Bloomberg`. Never name any external research provider in any output.
 - Reports state facts and the rule that fired; no interpretation prose – the analyst writes that.
 

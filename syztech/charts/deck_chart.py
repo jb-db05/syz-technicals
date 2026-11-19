@@ -22,14 +22,13 @@ from ..fmt import num
 from ..indicators.bands import max_prior, min_prior
 from ..indicators.ma import sma
 from ..indicators.rs import relative_strength
-from .syz_style import (AMBER, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SOURCE_LINE, VERDICT_COLOUR,
-                        VERDICT_GLYPH, register_fonts)
+from .syz_style import (AMBER, BADGE_H, BADGE_W, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SOURCE_LINE,
+                        draw_verdict_badge, register_fonts)
 
 BARS_5Y = 5 * 252
 MA50_BLUE = "#2F6FDE"
 PAGES = {"16x9": (13.333, 7.5), "a4": (10.65, 7.45)}   # a4: fills an A4 landscape slide, logo and page number kept clear     # agreed 8 Nov 2026 (outside the Syz palette)
-BADGE_TEXT = {"Bullish": "BULLISH", "Neutral+": "NEUTRAL – POSITIVE TILT", "Neutral": "NEUTRAL",
-              "Neutral-": "NEUTRAL – NEGATIVE TILT", "Bearish_LM": "BEARISH – LOSING MOMENTUM", "Bearish": "BEARISH"}
+BADGE_TOP = 0.20                  # inches from the top of the page to the top of the verdict badge
 
 
 @dataclass
@@ -248,35 +247,29 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     size = 22
     lists = [l for l in (lists or []) if l]
     LW = (1.45 if page == "a4" else 1.95) if lists else 0.0              # width of the Syz list tags left of the badge
-    while size > 13 and title.get_window_extent(rend).x1 > (FW - 2.3 - LW) / FW * fig.bbox.width:   # keep clear of badge and tags
+    while size > 13 and title.get_window_extent(rend).x1 > (FW - BADGE_W - 0.35 - LW) / FW * fig.bbox.width:   # clear of badge and tags
         size -= 1
         title.set_fontsize(size)
     fig.text(LEFT / FW, (FH - TY[1]) / FH, f"{row['ticker']}  |  daily close, {'log' if use_log else 'linear'} scale, 5 years",
              fontsize=10.5, color=BLUEBERRY)
     fig.add_artist(plt.Line2D([LEFT / FW, (LEFT + 0.9) / FW], [(FH - TY[2]) / FH] * 2, color=ORANGE, lw=3, transform=fig.transFigure))
 
-    # badge top-right
+    # verdict badge top-right: the reference badge only (syz_style.draw_verdict_badge)
+    badge_drawn = False
     if badge:
-        col = VERDICT_COLOUR.get(badge, BLUEBERRY)
-        bw, bh, f1, f2 = (2.05, 0.58, 11, 7) if page == "a4" else (2.85, 0.80, 13, 8.5)       # smaller badge on A4 pages
-        bx = fig.add_axes(fr(FW - bw - 0.05, FH - bh - 0.12, bw, bh)); bx.axis("off")
-        bx.add_patch(FancyBboxPatch((0.02, 0.06), 0.96, 0.88, boxstyle="round,pad=0,rounding_size=0.2",
-                                    fc=col, ec="none", transform=bx.transAxes))
-        bx.text(0.5, 0.60, f"{VERDICT_GLYPH.get(badge, '')}  {BADGE_TEXT.get(badge, badge)}", ha="center", va="center",
-                color="white", fontsize=f1, fontweight="bold", transform=bx.transAxes)
-        sub = {"published": "Syz Research view", "mechanical": "Rules-based reading (no published view)"}.get(badge_kind, badge_kind)
-        bx.text(0.5, 0.25, sub,
-                ha="center", va="center", color="white", fontsize=f2, transform=bx.transAxes)
+        badge_drawn = draw_verdict_badge(fig, badge, FW - BADGE_W - 0.05, FH - BADGE_TOP - BADGE_H)
+        if badge_drawn and badge_kind == "mechanical":     # plain caption, not part of the badge
+            fig.text(FW - 0.05, FH - BADGE_TOP - BADGE_H - 0.05, "Rules-based reading", ha="right", va="top",
+                     fontsize=7.5, color=BLUEBERRY, transform=fig.dpi_scale_trans)
 
     # Syz list membership, top-right next to the badge (display only)
     if lists:
-        bw_, bh_ = (2.05, 0.58) if page == "a4" else (2.85, 0.80)
         n_ = len(lists)
-        ph = min(0.27 if page == "a4" else 0.36, (bh_ - 0.04 * (n_ - 1)) / n_)
-        top = FH - 0.12 - bh_ / 2 + (n_ * ph + (n_ - 1) * 0.04) / 2
+        ph, gap = 0.24, 0.04
+        top = FH - BADGE_TOP - BADGE_H / 2 + (n_ * ph + (n_ - 1) * gap) / 2
         for k, lst in enumerate(lists):
             col = ORANGE if lst == "Master list" else NAVY
-            lx = fig.add_axes(fr(FW - bw_ - 0.05 - LW - 0.06, top - (k + 1) * ph - k * 0.04, LW, ph)); lx.axis("off")
+            lx = fig.add_axes(fr(FW - BADGE_W - 0.05 - LW - 0.08, top - (k + 1) * ph - k * gap, LW, ph)); lx.axis("off")
             lx.add_patch(FancyBboxPatch((0.02, 0.06), 0.96, 0.88, boxstyle="round,pad=0,rounding_size=0.35",
                                         fc="white", ec=col, lw=1.4, transform=lx.transAxes))
             lx.text(0.5, 0.5, f"\u2605  SYZ {lst.upper()}", ha="center", va="center", color=col, fontsize=8.5 if page == "a4" else 10.5,
