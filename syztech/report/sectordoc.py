@@ -31,7 +31,22 @@ SHORT_IND = {"Technology Hardware, Storage & Peripherals": "Hardware, storage & 
              "Internet Services & Infrastructure": "Internet services & infra.",
              "Electronic Equipment & Instruments": "Electronic equipment",
              "Electronic Manufacturing Services": "Electronic manufacturing",
-             "IT Consulting & Other Services": "IT consulting & services"}
+             "IT Consulting & Other Services": "IT consulting & services",
+             # broader universes (Swiss equities, 19 Nov 2026)
+             "Electrical Components & Equipment": "Electrical components",
+             "Apparel, Accessories & Luxury Goods": "Apparel & luxury",
+             "Integrated Telecommunication Services": "Integrated telecoms",
+             "Asset Management & Custody Banks": "Asset management",
+             "Industrial Machinery & Supplies & Components": "Industrial machinery",
+             "Real Estate Operating Companies": "Real estate operating",
+             "Human Resource & Employment Services": "HR & employment services",
+             "Paper & Plastic Packaging Products & Materials": "Paper & plastic packaging",
+             "Diversified Real Estate Activities": "Diversified real estate",
+             "Trading Companies & Distributors": "Trading & distribution",
+             "Construction Machinery & Heavy Transportation Equipment": "Construction machinery",
+             "Investment Banking & Brokerage": "Investment banking",
+             "Life Sciences Tools & Services": "Life sciences tools",
+             "Interactive Media & Services": "Interactive media"}
 BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"]
 
 
@@ -170,8 +185,15 @@ def momentum_map(df, out: Path, bench: str):
 
 
 def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Path, template: Path, *, title: str, edition: str,
-                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True, lists_asof: str = "") -> Path:
+                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True, lists_asof: str = "",
+                     buckets: list[str] | None = None, group_col: str = "industry", group_label: str = "sub-industry",
+                     group_label_pl: str = "GICS sub-industries", indices: pd.DataFrame | None = None, bench_note: str = "",
+                     max_rows: int = 25, trigger_cap: int | None = None, index_heading: str = "Indices") -> Path:
+    """IT defaults reproduce the 18 Nov 2026 edition. `indices` (other index rows with RS against the benchmark) replaces
+    the sector-tile page with an index table followed by every index chart; `group_col` sets the breadth table level."""
     lists_asof = f" ({lists_asof})" if lists_asof else ""
+    bench_note = f" {bench_note}" if bench_note else ""
+    buckets = buckets or BUCKETS
     deck = Deck(template)
     df = _sort(df).reset_index(drop=True)
     ok = df[df.verdict.isin(VGLYPH)]
@@ -205,6 +227,19 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     if draft:
         text(s, 0.73, 4.75, 4.8, 0.3, "DRAFT – FOR INTERNAL REVIEW", size=10, color=ORANGE, bold=True)
 
+    if indices is not None and len(indices):
+        index_page(deck, sector, indices, charts, bench, asof, bench_note, index_heading)
+    else:
+        sector_page(deck, sector, charts, bench, asof, sector_name)
+    _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
+          work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap)
+    deck.slide(L_DISCLAIMER)
+    deck.slide(L_FINAL)
+    deck.save(out)
+    return out
+
+
+def sector_page(deck, sector, charts, bench, asof, sector_name):
     # sector against the market
     sv = sector.verdict
     s = deck.titled(f"{sector_name}: {VLABEL.get(sv, sv)} trend, RS Mom {_rs(sector.rs_trend)} against the {bench}",
@@ -230,9 +265,46 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     if sector.ticker in charts:
         full_page_chart(deck, charts[sector.ticker])
 
+
+def index_page(deck, sector, indices, charts, bench, asof, bench_note="", heading="Indices"):
+    """The market index and the other indices against it: one table, then every index chart."""
+    rows_df = pd.concat([sector.to_frame().T, indices], ignore_index=True)
+    parts = [f"{VLABEL.get(sector.verdict, sector.verdict)} trend for the {sector['name']}"]
+    parts += [f"{r.name} RS Mom {_rs(r.rs_trend)}" for r in indices.itertuples()]
+    s = deck.titled(f"{heading}: {parts[0]}; " + ", ".join(parts[1:]) + f" against the {bench}",
+                    f"Absolute momentum of each index and relative strength against the {bench}")
+    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", f"RS Mom vs {bench}", f"RS 3m vs {bench}", "Trend"]
+    col_w = [1.6, 0.95, 0.75, 0.8, 0.75, 0.75, 0.8, 0.95, 1.05, 1.0, 0.88]
+    rows, st = [], {}
+    for i, r in enumerate(rows_df.itertuples()):
+        rows.append([r.name, num(r.close, r.decimals), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
+                     _p(r.from_hi52), _rs(r.rs_trend) if i else EN_DASH, _p(r.rs_chg63) if i else EN_DASH, _vtxt(r.verdict)])
+        st[(i, 0)] = {"bold": True}
+        st[(i, 2)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
+        for j, v in ((3, r.vs200), (4, r.chg1m), (5, r.chg3m), (6, r.chg12m)):
+            st[(i, j)] = _posneg(v)
+        st[(i, 7)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
+        if i:
+            st[(i, 8)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
+                          "align": PP_ALIGN.CENTER}
+            st[(i, 9)] = _posneg(r.rs_chg63)
+        st[(i, 10)] = _vstyle(r.verdict)
+    table(s, X0, 2.6, W, hdr, rows, col_w, row_h=0.42, size=10, styles=st)
+    notes = [f"{r.name}: last close {num(r.close, r.decimals)}, 52-week low {num(r.lo52, r.decimals)}, high {num(r.hi52, r.decimals)}; "
+             f"rule fired: {r.rule}." for r in rows_df.itertuples()]
+    text(s, X0, 2.6 + 0.42 * (len(rows) + 1) + 0.3, W, 1.6, notes, size=9, color=BLUEB)
+    source(s, asof, f"The {sector['name']} chart carries a third panel: share of today's constituents with a rising 200-day average, "
+                    f"each counted once it has 220 closes (survivorship applies).{bench_note}")
+    for r in rows_df.itertuples():
+        if r.ticker in charts:
+            full_page_chart(deck, charts[r.ticker])
+
+
+def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
+          work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap):
     # breadth: four numbers + share by sub-sector (native chart)
     s = deck.titled(f"Breadth: {nb} of {n_ok} stocks Bullish, {above} of {n} above their 200-day, {out_n} with RS Mom +",
-                    f"Share of stocks by sub-sector, %")
+                    "Share of stocks by " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
     stats = [(f"{nb}/{n_ok}", "Bullish trend verdict", MINT), (f"{above}/{n}", "above the 200-day average", NAVY),
              (f"{out_n}/{n}", f"RS Mom + against the {bench}", ORANGE), (f"{near_hi}/{n}", "within 5% of the 52-week high", BLUEB)]
     for k, (big, lab, col) in enumerate(stats):
@@ -241,7 +313,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         text(s, X0 + 0.18, y + 0.08, 1.5, 0.9, big, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
         text(s, X0 + 1.6, y + 0.08, 1.55, 0.9, lab, size=10, anchor=MSO_ANCHOR.MIDDLE)
     cd = CategoryChartData()
-    bk = [b for b in BUCKETS if b in set(df.bucket)]
+    bk = [b for b in buckets if b in set(df.bucket)]
     g = {b: df[df.bucket == b] for b in bk}
     cd.categories = [f"{b} ({len(g[b])})" for b in bk]
     cd.add_series("Bullish", [round(100 * (g[b].verdict == "Bullish").mean(), 0) for b in bk])
@@ -274,7 +346,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     # breadth by GICS sub-industry
     rows, st = [], {}
     agg = []
-    for ind, x in df.groupby("industry"):
+    for ind, x in df.groupby(group_col):
         agg.append((ind, len(x), int((x.verdict == "Bullish").sum()), int((x.vs200 > 0).sum()),
                     int((x.rs_trend == "outperforming").sum()), x.chg3m.median(), x.rs_chg63.median()))
     agg.sort(key=lambda a: -(a[6] if pd.notna(a[6]) else -9))
@@ -291,11 +363,11 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
                 st.setdefault((i, j), {})
                 st[(i, j)] = {**st[(i, j)], "fill": "FFE9D6", "bold": True}
     best = agg[0][0]
-    s = deck.titled(f"By sub-industry: {best} leads on relative strength over 3 months",
-                    "GICS sub-industries, ranked by median 3-month change in relative strength")
-    table(s, X0, 2.5, W, ["Sub-industry", "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
+    s = deck.titled(f"By {group_label}: {best} leads on relative strength over 3 months",
+                    f"{group_label_pl}, ranked by median 3-month change in relative strength")
+    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
           rows, [3.6, 0.9, 0.9, 1.2, 1.1, 1.1, 1.48], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
-    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}." + insuf_note)
+    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
 
     # momentum map
     s = deck.titled(f"Momentum map: {int(((df.vs200 > 0) & (df.rs_chg63 > 0)).sum())} stocks above their 200-day and gaining on the {bench}",
@@ -309,10 +381,15 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         x = _sort(g[b])
         xb = int((x.verdict == "Bullish").sum())
         xo = int((x.rs_trend == "outperforming").sum())
-        momentum_dashboard(deck, x, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}", bench, asof,
-                           f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
-                           f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
-                           f"not part of the verdict." + (insuf_note if set(insufficient) & set(x.name) else ""))
+        pages = max(1, -(-len(x) // max_rows))
+        per = -(-len(x) // pages)
+        for p in range(pages):
+            part = x.iloc[p * per:(p + 1) * per]
+            sfx = f" ({p + 1}/{pages})" if pages > 1 else ""
+            momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}{sfx}", bench, asof,
+                               f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
+                               f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
+                               f"not part of the verdict.{bench_note}" + (insuf_note if set(insufficient) & set(part.name) else ""))
 
     # relative-strength ranking: 15 leaders and 15 laggards
     rk = df.dropna(subset=["rs_chg63"]).sort_values("rs_chg63")
@@ -344,7 +421,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
             pt.format.fill.fore_color.rgb = rgb(MINT if v >= 0 else MULB)
         ch.value_axis.visible = False
         ch.value_axis.has_major_gridlines = False
-    source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.")
+    source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.{bench_note}")
 
     # trend × RS grid
     bull_lag = ok[(ok.verdict == "Bullish") & (ok.rs_trend == "underperforming")]
@@ -371,8 +448,11 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
 
     # trigger watch
     tw = trigger_watch(df)
-    s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a 52-week or 100-day high or low",
-                    "Where a breakout or a breakdown is closest")
+    n_tw = len(tw)
+    if trigger_cap and n_tw > trigger_cap:
+        tw = tw.iloc[:trigger_cap]
+    s = deck.titled(f"Trigger watch: {n_tw} stocks within 2% of a 52-week or 100-day high or low",
+                    "Where a breakout or a breakdown is closest" + (f" – the {len(tw)} nearest shown" if len(tw) < n_tw else ""))
     rows, st = [], {}
     for i, r in enumerate(tw.itertuples()):
         rows.append([r.name, num(r.close, r.decimals), r.kind, num(r.level, r.decimals), pct(r.dist, 2), _vtxt(r.verdict)])
@@ -402,7 +482,3 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         for r in _sort(g[b]).itertuples():
             if r.ticker in charts:
                 full_page_chart(deck, charts[r.ticker])
-    deck.slide(L_DISCLAIMER)
-    deck.slide(L_FINAL)
-    deck.save(out)
-    return out

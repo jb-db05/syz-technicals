@@ -49,3 +49,12 @@ def test_chart_badge_only_three_reference_visuals():
     assert BADGE_SPEC["Bearish"] == ("#AC5D85", "▼", "BEARISH")
     assert (BADGE_W, BADGE_H) == (1.18, 0.34)
     assert BADGE_FAMILY["Neutral+"] == BADGE_FAMILY["Neutral-"] == "Neutral" and BADGE_FAMILY["Bearish_LM"] == "Bearish"
+
+
+def test_html_row_reads_the_name_column_of_a_series():
+    import pandas as pd
+    from syztech.report.sector_html import _row
+    r = pd.Series(dict(ticker="SPI Index", name="SPI", industry=None, bucket=None, close=1.0, decimals=1, slope200="rising",
+                       vs200=0.1, chg1m=0.0, chg3m=0.0, chg12m=0.0, from_hi52=0.0, rs_trend=None, rs_chg63=None,
+                       verdict="Bullish", hi52=1.0, lo52=1.0, hi100=1.0, lo100=1.0), name=7)
+    assert _row(r, {})["n"] == "SPI"

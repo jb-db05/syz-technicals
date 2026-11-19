@@ -31,7 +31,8 @@ def _slug(t: str) -> str:
 
 
 def _row(r, charts):
-    return dict(t=r.ticker, n=_s(r.name), ind=_s(getattr(r, "industry", None)), ish=SHORT_IND.get(_s(getattr(r, "industry", None)), _s(getattr(r, "industry", None))),
+    nm = r["name"] if isinstance(r, pd.Series) else r.name       # a Series' .name is its index label, not the column
+    return dict(t=r.ticker, n=_s(nm), ind=_s(getattr(r, "industry", None)), ish=SHORT_IND.get(_s(getattr(r, "industry", None)), _s(getattr(r, "industry", None))),
                 b=_s(getattr(r, "bucket", None)), c=_f(r.close), d=int(r.decimals), s200=_s(r.slope200),
                 vs200=_f(r.vs200), c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52),
                 rs=_s(r.rs_trend), rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
@@ -41,9 +42,12 @@ def _row(r, charts):
 
 
 def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out_dir: Path, *, title: str, edition: str,
-                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True, lists_asof: str = "") -> Path:
+                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True, lists_asof: str = "",
+                      buckets: list[str] | None = None, group_col: str | None = None, group_label: str | None = None,
+                      indices: pd.DataFrame | None = None, bench_note: str = "", index_heading: str = "Indices") -> Path:
     out_dir = Path(out_dir)
     (out_dir / "charts").mkdir(parents=True, exist_ok=True)
+    extra_rows = list(indices.itertuples()) if indices is not None else []
     for t, src in charts.items():
         dst = out_dir / "charts" / f"{_slug(t)}.jpg"
         with Image.open(src) as im:
@@ -58,6 +62,18 @@ def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out
         triggers=[dict(t=r.ticker, n=r.name, c=_f(r.close), d=int(r.decimals), kind=_s(r.kind), level=_f(r.level),
                        dist=_f(r.dist), v=_s(r.verdict)) for r in tw.itertuples()],
     )
+    # optional layout keys – absent for the S&P 500 IT edition, so its page is unchanged
+    if buckets:
+        data["buckets"] = buckets
+    if group_col:
+        data["group_label"] = group_label or group_col
+        for row, r in zip(data["stocks"], stocks.itertuples()):
+            row["grp"] = _s(getattr(r, group_col, None))
+    if extra_rows:
+        data["indices"] = [_row(r, charts) for r in extra_rows]
+        data["index_heading"] = index_heading
+    if bench_note:
+        data["bench_note"] = bench_note
     html = (ASSETS / "sector_report.html").read_text(encoding="utf-8")
     html = html.replace("__TITLE__", f"{sector_name} Technicals").replace(
         "/*__DATA__*/null", json.dumps(data, ensure_ascii=False, allow_nan=False))

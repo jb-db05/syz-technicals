@@ -190,21 +190,21 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 </header>
 
 <nav class="sec" aria-label="Sections"><div class="wrap">
-  <a href="#sector">Sector</a><a href="#breadth">Breadth</a><a href="#map">Momentum map</a><a href="#dashboard">Dashboard</a>
+  <a href="#sector" id="nav-sector">Sector</a><a href="#breadth">Breadth</a><a href="#map">Momentum map</a><a href="#dashboard">Dashboard</a>
   <a href="#rs">Relative strength</a><a href="#grid">Trend × RS</a><a href="#triggers">Trigger watch</a><a href="#charts">Charts</a><a href="#method">Method</a>
 </div></nav>
 
 <main class="wrap">
   <section id="sector">
-    <div class="sh"><span class="k">Sector against the market</span><h2 id="s-title"></h2><p id="s-sub"></p></div>
+    <div class="sh"><span class="k" id="s-kick">Sector against the market</span><h2 id="s-title"></h2><p id="s-sub"></p></div>
     <div class="sector">
-      <div><div class="tiles" id="s-tiles"></div><p class="note" id="s-note"></p></div>
+      <div><div class="tiles" id="s-tiles"></div><div class="tw" id="s-idx" hidden style="margin-top:14px"></div><p class="note" id="s-note"></p></div>
       <button class="plate" id="s-chart" aria-label="Open the sector chart"></button>
     </div>
   </section>
 
   <section id="breadth">
-    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p>Share of stocks by sub-sector, %</p></div>
+    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by sub-sector, %</p></div>
     <div class="breadth">
       <div class="stats" id="b-stats"></div>
       <div class="card">
@@ -213,7 +213,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
       </div>
     </div>
     <h3 style="margin:28px 0 4px;font-size:17px;font-weight:800" id="i-title"></h3>
-    <p class="note" style="margin:0 0 10px">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
+    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
     <div class="tw"><table id="i-table"></table></div>
   </section>
 
@@ -292,8 +292,9 @@ const ND = "–", MINUS = "–";
 const VORD = {Bullish: 0, "Neutral+": 1, Neutral: 2, "Neutral-": 3, Bearish_LM: 4, Bearish: 5};
 const RORD = {outperforming: 0, mixed: 1, underperforming: 2};
 const GLY = {Bullish: "▲", "Neutral+": "◆", Neutral: "◆", "Neutral-": "◆", Bearish_LM: "▼", Bearish: "▼"};
-const BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"];
-const B = D.bench, S = D.stocks, X = D.sector;
+const BUCKETS = D.buckets || ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"];
+const B = D.bench, S = D.stocks, X = D.sector, IDX = D.indices || [];
+const BNOTE = D.bench_note ? " " + D.bench_note : "";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const pct = (x, d = 1) => x == null ? ND : (x >= 0 ? "+" : MINUS) + Math.abs(x * 100).toFixed(d) + "%";
@@ -307,7 +308,7 @@ const slope = s => `<span class="${s === "rising" ? "pos" : s === "falling" ? "n
 const med = a => { a = a.filter(x => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 const ok = S.filter(s => hasV(s.v));
 const ltag = l => (l || []).slice().sort((a, b) => (a !== "Focus List") - (b !== "Focus List")).map(x => `<span class="lt ${x === "Master list" ? "lt-m" : "lt-f"}">★ ${x === "Master list" ? "Master" : "Focus"}</span>`).join("");
-const byT = Object.fromEntries([X, ...S].map(s => [s.t, s]));
+const byT = Object.fromEntries([X, ...IDX, ...S].map(s => [s.t, s]));
 const defaultSort = (a, b) => (VORD[a.v] ?? 9) - (VORD[b.v] ?? 9) || (RORD[a.rs] ?? 9) - (RORD[b.rs] ?? 9) || (b.rs3 ?? -9) - (a.rs3 ?? -9);
 const insuf = D.insufficient.length ? ` Insufficient history for a verdict: ${D.insufficient.join(", ")}.` : "";
 
@@ -321,13 +322,28 @@ $("m-counts").innerHTML = [["bull", "Bullish"], ["neu", "Neutral"], ["bear", "Be
   + (D.insufficient.length ? `<div class="counts-note">${D.insufficient.length} without enough history for a verdict</div>` : "");
 
 /* sector */
+if (IDX.length) {
+  $("s-kick").textContent = D.index_heading;
+  $("nav-sector").textContent = "Indices";
+  $("s-title").textContent = `${hasV(X.v) ? D.vlabel[X.v] : "No"} trend for the ${X.n}; ` + IDX.map(r => `${r.n} RS Mom ${r.rs === "outperforming" ? "+" : r.rs === "underperforming" ? "−" : ND}`).join(", ") + ` against the ${B}`;
+  $("s-sub").textContent = `Absolute momentum of each index and relative strength against the ${B}. Click a row for its chart.`;
+} else {
 $("s-title").textContent = `${D.sector_name}: ${hasV(X.v) ? D.vlabel[X.v] : "no"} trend, RS Mom ${X.rs === "outperforming" ? "+" : X.rs === "underperforming" ? "−" : ND} against the ${B}`;
 $("s-sub").textContent = `Sector index: absolute momentum and relative strength against the ${B}.`;
+}
 const tiles = [["Trend verdict", pill(X.v)], ["200-day average", slope(X.s200)], ["Price vs 200-day", `<span class="${cls(X.vs200)}">${pct(X.vs200)}</span>`],
   ["vs 52-week high", pct(X.fh)], ["1-month change", `<span class="${cls(X.c1)}">${pct(X.c1)}</span>`], ["3-month change", `<span class="${cls(X.c3)}">${pct(X.c3)}</span>`],
   ["12-month change", `<span class="${cls(X.c12)}">${pct(X.c12)}</span>`], [`RS Mom vs ${B}`, rsm(X.rs)], [`RS 3m vs ${B}`, `<span class="${cls(X.rs3)}">${pct(X.rs3)}</span>`]];
+if (IDX.length) tiles.splice(7, 2), tiles.splice(4, 1);       // the market index has no benchmark; 1m sits in the table
 $("s-tiles").innerHTML = tiles.map(([l, v]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v num">${v}</div></div>`).join("");
 $("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. 100-day band ${num(X.lo100, X.d)} – ${num(X.hi100, X.d)}. Rule fired: ${X.rule}. Chart, lower panel: share of today’s constituents with a rising 200-day average (green) and above it (blue), each counted once it has 220 closes; past members are not included.`;
+if (IDX.length) {
+  $("s-idx").hidden = false;
+  $("s-idx").innerHTML = `<table><thead><tr><th>Index</th><th class="r">Last</th><th class="r">vs 200d</th><th class="r">3m</th><th class="c">RS Mom</th><th class="r">RS 3m</th><th class="c">Trend</th></tr></thead><tbody>`
+    + [X, ...IDX].map((r, i) => `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td><b>${esc(r.n)}</b></td><td class="r">${num(r.c, r.d)}</td><td class="r ${cls(r.vs200)}">${pct(r.vs200)}</td><td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="c">${i ? rsm(r.rs) : ND}</td><td class="r ${i ? cls(r.rs3) : "dim"}">${i ? pct(r.rs3) : ND}</td><td class="c">${pill(r.v)}</td></tr>`).join("") + "</tbody></table>";
+  $("s-idx").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openLB([X, ...IDX], [X, ...IDX].findIndex(r => r.t === tr.dataset.t)); };
+  $("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. Rule fired: ${X.rule}. Chart, lower panel: share of today’s constituents with a rising 200-day average (green) and above it (blue), each counted once it has 220 closes; past members are not included.${BNOTE}`;
+}
 if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart">`;
 $("s-chart").onclick = () => openLB([X], 0);
 
@@ -337,25 +353,32 @@ $("b-title").textContent = `${cnt("Bullish")} of ${ok.length} stocks Bullish, ${
 $("b-stats").innerHTML = [[`${cnt("Bullish")}/${ok.length}`, "Bullish trend verdict", "pos"], [`${above}/${S.length}`, "above the 200-day average", ""],
   [`${outN}/${S.length}`, `RS Mom + against the ${B}`, ""], [`${nearHi}/${S.length}`, "within 5% of the 52-week high", ""]]
   .map(([b, l, c], i) => `<div class="stat"><b class="num ${c}" style="${i === 2 ? "color:var(--orange)" : i === 1 ? "color:var(--ink)" : i === 3 ? "color:var(--blueb)" : ""}">${b}</b><span>${esc(l)}</span></div>`).join("");
+if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
 (function breadthChart() {
   const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b); return {b, n: x.length,
     v: [x.filter(s => s.v === "Bullish").length / x.length, x.filter(s => (s.vs200 ?? -1) > 0).length / x.length, x.filter(s => s.rs === "outperforming").length / x.length]}; });
-  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 46, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
+  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
   let s = `<line x1="${L}" x2="${W - R}" y1="${H - Bt}" y2="${H - Bt}" stroke="var(--line)"/>`;
   [25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
   g.forEach((d, i) => { const cx = L + gw * i + gw / 2; d.v.forEach((v, k) => { const h = (H - Bt - T) * v, x = cx + (k - 1.5) * (bw + 4) + 2, y = H - Bt - h;
       s += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" rx="3" fill="${cols[k]}"/><text class="ink" x="${x + bw / 2}" y="${y - 5}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(v * 100)}</text>`; });
-    s += `<text class="ink" x="${cx}" y="${H - Bt + 18}" font-size="12" font-weight="700" text-anchor="middle">${esc(d.b)}</text><text x="${cx}" y="${H - Bt + 34}" font-size="11" text-anchor="middle">${d.n} stocks</text>`; });
+    const words = d.b.split(" "), cut = d.b.length > 16 && words.length > 1 ? Math.ceil(words.length / 2) : words.length;
+    const l1 = words.slice(0, cut).join(" "), l2 = words.slice(cut).join(" ");
+    s += `<text class="ink" x="${cx}" y="${H - Bt + 16}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l1)}</text>`
+      + (l2 ? `<text class="ink" x="${cx}" y="${H - Bt + 30}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l2)}</text>` : "")
+      + `<text x="${cx}" y="${H - Bt + (l2 ? 44 : 32)}" font-size="11" text-anchor="middle">${d.n} stocks</text>`; });
   $("b-chart").innerHTML = s;
 })();
 (function industryTable() {
-  const groups = {}; S.forEach(s => (groups[s.ind || "Other"] ||= []).push(s));
+  const GL = D.group_label || "sub-industry", GLc = GL[0].toUpperCase() + GL.slice(1);
+  const groups = {}; S.forEach(s => (groups[(D.group_label ? s.grp : s.ind) || "Other"] ||= []).push(s));
   const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, b: x.filter(s => s.v === "Bullish").length, a: x.filter(s => (s.vs200 ?? -1) > 0).length,
     o: x.filter(s => s.rs === "outperforming").length, c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
-  $("i-title").textContent = `By sub-industry: ${rows[0].k} leads on relative strength over 3 months`;
+  $("i-title").textContent = `By ${GL}: ${rows[0].k} leads on relative strength over 3 months`;
+  if (D.group_label) $("i-sub").textContent = `GICS ${GL === "sector" ? "sectors" : GL + "s"}, ranked by median 3-month change in relative strength.${BNOTE}`;
   rows.push({k: `${D.sector_name} constituents`, n: S.length, b: cnt("Bullish"), a: above, o: outN, c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
   const share = (v, n) => `<td class="c ${v / n > .5 ? "pos" : v / n < .5 ? "neg" : ""}" style="font-weight:700">${v}</td>`;
-  $("i-table").innerHTML = `<thead><tr><th>Sub-industry</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
+  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
     + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${share(r.b, r.n)}${share(r.a, r.n)}${share(r.o, r.n)}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
 })();
 
@@ -382,7 +405,7 @@ function drawMap() {
       + `<text class="ink" x="${x + 8}" y="${y - 6}" font-size="10">${esc(p.t.split(" ")[0])}</text></g>`; });
   $("map-svg").innerHTML = s;
 }
-$("map-ctl").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === mapFilter}">${esc(b || "All sub-sectors")}</button>`).join("")
+$("map-ctl").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === mapFilter}">${esc(b || (D.buckets ? "All groups" : "All sub-sectors"))}</button>`).join("")
   + `<span class="legend" style="margin:0 0 0 auto"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Neutral</span><span><i style="background:var(--mulb)"></i>Bearish</span></span>`;
 $("map-ctl").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; mapFilter = b.dataset.b; $("map-ctl").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b)); drawMap(); };
 const tip = $("tip");
@@ -425,14 +448,14 @@ $("d-table").addEventListener("click", e => { const th = e.target.closest("th.so
   if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs", "lst"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
   const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
 $("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
-$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days. Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
+$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
 drawDash();
 
 /* RS leaders / laggards */
 (function rsBars() {
   const rk = S.filter(s => s.rs3 != null).sort((a, b) => b.rs3 - a.rs3), lead = rk.slice(0, 15), lag = rk.slice(-15).reverse(), mx = Math.max(...rk.map(s => Math.abs(s.rs3)));
   $("rs-title").textContent = `The 15 leaders and the 15 laggards against the ${B}`;
-  $("rs-sub").textContent = `3-month change in relative strength (price ÷ ${B}). Median of all constituents: ${pct(med(S.map(s => s.rs3)))}.`;
+  $("rs-sub").textContent = `3-month change in relative strength (price ÷ ${B}). Median of all constituents: ${pct(med(S.map(s => s.rs3)))}.${BNOTE}`;
   const bar = s => `<div class="bar" data-t="${esc(s.t)}" role="button" tabindex="0"><span class="nm">${esc(s.n)}</span><span class="tr"><span class="fl" style="display:block;width:${Math.abs(s.rs3) / mx * 100}%;background:${s.rs3 >= 0 ? "var(--mint)" : "var(--mulb)"}"></span></span><span class="vv ${cls(s.rs3)}">${pct(s.rs3)}</span></div>`;
   $("rs-lead").innerHTML = lead.map(bar).join(""); $("rs-lag").innerHTML = lag.map(bar).join("");
   document.querySelectorAll(".rsbars").forEach(el => el.onclick = e => { const b = e.target.closest(".bar"); if (b) openOne(b.dataset.t); });
@@ -458,7 +481,7 @@ $("t-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) o
 
 /* gallery */
 const galOrder = [];
-$("gal").innerHTML = [["Sector index", [X]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
+$("gal").innerHTML = [[IDX.length ? D.index_heading : "Sector index", [X, ...IDX]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
   const items = x.filter(s => s.img); return `<h3>${esc(b)} <span class="dim" style="font-weight:600;font-size:13px">${items.length}</span></h3><div class="thumbs">`
     + items.map(s => { galOrder.push(s); return `<button class="thumb" data-i="${galOrder.length - 1}"><img loading="lazy" src="${s.img}" alt="${esc(s.n)} chart"><div><span>${esc(s.n)} ${ltag(s.lists)}</span>${hasV(s.v) ? `<span style="color:${s.v === "Bullish" ? "#3BAF90" : s.v.startsWith("Bearish") ? "#AC5D85" : "#4B5F80"}">${GLY[s.v]}</span>` : ""}</div></button>`; }).join("") + "</div>"; }).join("");
 $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(galOrder, +t.dataset.i); };

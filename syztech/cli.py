@@ -89,8 +89,8 @@ def cmd_deck_charts(a) -> int:
     if a.breadth_for:                              # breadth of the other stocks in the universe, for the sector chart
         from .indicators.breadth import breadth_history
         bench_set = set(uni.benchmark.dropna())
-        members = [t for t in uni.ticker if t != a.breadth_for and t not in bench_set and t in prices.reports
-                   and prices.reports[t].bars > 0]
+        members = [t for t, ac in zip(uni.ticker, uni.asset_class) if t != a.breadth_for and t not in bench_set
+                   and ac == "equity" and t in prices.reports and prices.reports[t].bars > 0]     # stocks only, not other indices
         sec = prices.series(a.breadth_for)
         sec = sec[sec.index <= pd.Timestamp(asof)]
         breadth = breadth_history({t: prices.series(t)[lambda z: z.index <= pd.Timestamp(asof)] for t in members}, sec.index)
@@ -214,6 +214,25 @@ def cmd_list_doc(a) -> int:
     return 0
 
 
+def _layout(a, indices) -> dict:
+    """Optional layout settings of sector-doc; omitted ones keep the S&P 500 IT defaults."""
+    out = {}
+    if a.buckets:
+        out["buckets"] = [b.strip() for b in a.buckets.split(";") if b.strip()]
+    if a.group_col:
+        out["group_col"] = a.group_col
+        out["group_label"] = a.group_label or a.group_col
+        out["group_label_pl"] = a.group_label_pl or out["group_label"]
+    if indices is not None:
+        out["indices"] = indices
+        out["index_heading"] = a.index_heading
+    if a.bench_note:
+        out["bench_note"] = a.bench_note
+    if a.trigger_cap:
+        out["trigger_cap"] = a.trigger_cap
+    return out
+
+
 def cmd_sector_doc(a) -> int:
     from .charts.deck_chart import load_trendlines
     from .report.sectordoc import add_momentum, build_sector_doc
@@ -224,14 +243,16 @@ def cmd_sector_doc(a) -> int:
     scores = score_universe(prices, uni, asof)
     df = instrument_table(scores, uni, prices, load_trendlines(a.trendlines))
     df = df.merge(scores[["ticker", "rule"]], on="ticker", how="left")
-    df = df.merge(uni[["ticker", "industry", "bucket"] + (["syz_lists"] if "syz_lists" in uni.columns else [])],
+    df = df.merge(uni[["ticker", "industry", "bucket"] + [c for c in ("syz_lists", "sector") if c in uni.columns]],
                   on="ticker", how="left")
     df = add_momentum(df, prices)
     sec = df[df.ticker == a.sector]
     if sec.empty:
         print(f"sector index {a.sector} has no prices")
         return 1
-    stocks = df[df.ticker != a.sector]
+    idx_t = [t.strip() for t in (a.indices or "").split(",") if t.strip()]
+    indices = df[df.ticker.isin(idx_t)].set_index("ticker").loc[[t for t in idx_t if t in set(df.ticker)]].reset_index() if idx_t else None
+    stocks = df[(df.ticker != a.sector) & ~df.ticker.isin(idx_t)]
     insufficient = stocks[~stocks.verdict.isin(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish_LM", "Bearish"])].name.tolist()
     for t, nm in zip(uni.ticker, uni.name):        # dropped for lack of a scored close: named, never filled
         if t not in set(df.ticker) and t in prices.reports:
@@ -242,13 +263,15 @@ def cmd_sector_doc(a) -> int:
     work = OUT / "doc_charts" / f"{Path(a.universe).stem}_{asof}"
     build_sector_doc(stocks, sec.iloc[0], charts, out, Path(a.template), title=a.title, edition=a.edition,
                      asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
-                     insufficient=insufficient, work=work, draft=not a.final, lists_asof=a.lists_asof or "")
+                     insufficient=insufficient, work=work, draft=not a.final, lists_asof=a.lists_asof or "", **_layout(a, indices))
     print(f"written: {out} ({len(stocks)} stocks, {len(charts)} charts; no verdict: {', '.join(insufficient) or 'none'})")
     if a.html_out:
         from .report.sector_html import build_sector_html
         h = build_sector_html(stocks, sec.iloc[0], charts, Path(a.html_out), title=a.title, edition=a.edition,
                               asof=f"{d.day} {d:%B %Y}", bench=a.benchmark_name, sector_name=a.sector_name,
-                              insufficient=insufficient, draft=not a.final, lists_asof=a.lists_asof or "")
+                              insufficient=insufficient, draft=not a.final, lists_asof=a.lists_asof or "",
+                              **{k: v for k, v in _layout(a, indices).items() if k in ("buckets", "group_col", "group_label", "indices",
+                                                                                      "bench_note", "index_heading")})
         print(f"written: {h} (HTML, charts alongside)")
     return 0
 
@@ -365,6 +388,14 @@ def main(argv=None) -> int:
     s.add_argument("--final", action="store_true")
     s.add_argument("--html-out", help="folder for the HTML version (index.html + charts/)")
     s.add_argument("--lists-asof", help="date of the Syz Focus List / Master list file, shown in the footnotes")
+    s.add_argument("--indices", help="comma-separated index tickers shown with the market index on the opening page")
+    s.add_argument("--index-heading", default="Indices", help="title prefix of that page")
+    s.add_argument("--buckets", help="dashboard groups in order, separated by ';' (default: the S&P 500 IT sub-sectors)")
+    s.add_argument("--group-col", help="universe column for the breadth table (default industry)")
+    s.add_argument("--group-label", help="its label, singular (e.g. 'sector')")
+    s.add_argument("--group-label-pl", help="its label for the subtitle (e.g. 'GICS sectors')")
+    s.add_argument("--bench-note", help="sentence added to the relative-strength footnotes")
+    s.add_argument("--trigger-cap", type=int, help="show at most this many trigger-watch rows")
     s.set_defaults(func=cmd_sector_doc)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
