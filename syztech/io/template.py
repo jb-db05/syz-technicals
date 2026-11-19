@@ -83,16 +83,18 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
         ws.sheet_view.zoomScale = 100
         ws["A2"].alignment = Alignment(horizontal="left")
     if reference:
-        # one row per ticker: name and GICS sub-industry from Bloomberg (display only)
+        # one row per ticker: name, GICS sub-industry and GICS sector from Bloomberg (display only, for grouping)
         rf = wb.create_sheet("Reference", 2)
-        for j, h in enumerate(["Ticker", "Name", "GICS sub-industry"], start=1):
+        for j, h in enumerate(["Ticker", "Name", "GICS sub-industry", "GICS sector"], start=1):
             c = rf.cell(1, j, h)
             c.font, c.fill = head_font, head_fill
         for k, tk in enumerate(universe.ticker, start=2):
             rf.cell(k, 1, tk).font = body_font
             rf.cell(k, 2, f'=BDP($A{k},"NAME")')
             rf.cell(k, 3, f'=BDP($A{k},"GICS_SUB_INDUSTRY_NAME")')
-        rf.column_dimensions["A"].width, rf.column_dimensions["B"].width, rf.column_dimensions["C"].width = 20, 40, 44
+            rf.cell(k, 4, f'=BDP($A{k},"GICS_SECTOR_NAME")')
+        for col, w in zip("ABCD", (20, 40, 44, 28)):
+            rf.column_dimensions[col].width = w
         rf.freeze_panes = "A2"
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)

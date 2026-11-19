@@ -201,7 +201,7 @@ def load_prices(path: str | Path) -> LoadResult:
 
 
 def load_reference(path: str | Path) -> pd.DataFrame:
-    """The template's Reference sheet (ticker, name, GICS sub-industry), if present. Empty frame otherwise."""
+    """The template's Reference sheet (ticker, name, GICS sub-industry[, GICS sector]), if present. Empty otherwise."""
     path = Path(path)
     files = [path] if path.is_file() else sorted(path.glob("*.xls*"))
     for f in files:
@@ -209,7 +209,8 @@ def load_reference(path: str | Path) -> pd.DataFrame:
             df = pd.read_excel(f, sheet_name="Reference")
         except Exception:
             continue
-        df.columns = ["ticker", "name", "industry"][: len(df.columns)]
+        df = df.iloc[:, :4]
+        df.columns = ["ticker", "name", "industry", "sector"][: len(df.columns)]
         bad = df["name"].astype(str).str.startswith("#N/A")
         df.loc[bad, "name"] = None
         return df

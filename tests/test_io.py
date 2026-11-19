@@ -156,12 +156,15 @@ def test_reference_sheet_is_not_a_price_sheet(tmp_path):
     wb = load_workbook(out)
     assert wb.sheetnames[:3] == ["Instructions", "Settings", "Reference"]
     ws = wb["Reference"]
-    ws["B2"], ws["C2"] = "APPLE INC", "Technology Hardware, Storage & Peripherals"      # as Bloomberg fills them
+    assert [c.value for c in ws[1]] == ["Ticker", "Name", "GICS sub-industry", "GICS sector"]
+    assert ws["D2"].value == '=BDP($A2,"GICS_SECTOR_NAME")'
+    ws["B2"], ws["C2"], ws["D2"] = "APPLE INC", "Technology Hardware, Storage & Peripherals", "Information Technology"
     wb.save(out)
     res = load_prices(tmp_path)
     assert not any("Reference" in n for n in res.file_notes)
     ref = load_reference(tmp_path)
-    assert ref.iloc[0].tolist() == ["AAPL UW Equity", "APPLE INC", "Technology Hardware, Storage & Peripherals"]
+    assert ref.iloc[0].tolist() == ["AAPL UW Equity", "APPLE INC", "Technology Hardware, Storage & Peripherals",
+                                    "Information Technology"]
 
 
 def test_syz_list_tags_need_ticker_and_name_to_agree():
