@@ -260,6 +260,37 @@ def _family(v):
     return "Bullish" if v == "Bullish" else "Bearish" if str(v).startswith("Bearish") else "Neutral" if v in VGLYPH else None
 
 
+def key_readings(df: pd.DataFrame):
+    """Facts for the key-readings page: Bullish regions, regions with RS Mom +, and three columns of bullet lines."""
+    by_t = df.set_index("ticker")
+    sect = df[df.sector_key.notna() & df.group.str.contains("Sectors", na=False)]
+    ratios = df[df.group.str.endswith("Ratios", na=False)]
+    acwi = by_t.loc["MXWD Index"] if "MXWD Index" in by_t.index else None
+    reg_t = (("US", "MXUS Index"), ("Europe", "MXEU Index"), ("Japan", "MXJP Index"), ("EM", "MXEF Index"))
+    nb_reg = [REGION_NAME[r] for r, t in reg_t if t in by_t.index and by_t.loc[t].verdict == "Bullish"]
+    out_reg = [REGION_NAME[r] for r, t in reg_t if t in by_t.index and by_t.loc[t].rs_trend == "outperforming"]
+    cols = [("Regions", [f"Bullish: {', '.join(nb_reg) or 'none'}.", f"RS Mom + against the ACWI: {', '.join(out_reg) or 'none'}."]
+             + ([f"MSCI ACWI: {VLABEL.get(acwi.verdict, acwi.verdict)}, {_p(acwi.vs200)} vs its 200-day."] if acwi is not None else []))]
+    lines = []
+    for reg, bench, bname, sg, *_ in REGIONS:
+        x = sect[sect.group == sg]
+        if len(x):
+            lead = x.sort_values("rs_chg63", ascending=False).iloc[0]
+            lines.append(f"{REGION_NAME[reg]}: {int((x.verdict == 'Bullish').sum())} of {len(x)} Bullish; "
+                         f"RS 3m leader {short_name(lead['name'])} ({_p(lead.rs_chg63)}).")
+    cols.append(("Sectors", lines))
+    lines = []
+    for r in ratios.itertuples():
+        spec = next(x for x in RATIOS if x[3] == r.name)
+        fam = _family(r.verdict)
+        if fam == "Bullish":
+            lines.append(f"{r.name}: uptrend – {spec[4]} leads.")
+        elif fam == "Bearish":
+            lines.append(f"{r.name}: downtrend – {spec[5]} leads.")
+    cols.append(("Style & size (ratio trends)", lines or ["No ratio in a Bullish or Bearish trend."]))
+    return nb_reg, out_reg, cols
+
+
 def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, template: Path, *, edition: str, asof: str,
                        dropped: list[str], draft: bool = True) -> Path:
     """df: one row per universe ticker with instrument_table + add_momentum columns and region / sector_key / group."""
@@ -302,32 +333,9 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         text(s, 0.73, 4.75, 4.8, 0.3, "DRAFT – FOR INTERNAL REVIEW", size=10, color=ORANGE, bold=True)
 
     # ── key readings (facts only)
-    nb_reg = [REGION_NAME[r] for r, t in (("US", "MXUS Index"), ("Europe", "MXEU Index"), ("Japan", "MXJP Index"), ("EM", "MXEF Index"))
-              if t in by_t.index and by_t.loc[t].verdict == "Bullish"]
-    out_reg = [REGION_NAME[r] for r, t in (("US", "MXUS Index"), ("Europe", "MXEU Index"), ("Japan", "MXJP Index"), ("EM", "MXEF Index"))
-               if t in by_t.index and by_t.loc[t].rs_trend == "outperforming"]
+    nb_reg, out_reg, cols = key_readings(df)
     s = deck.titled(f"Key readings: {len(nb_reg)} of 4 regions Bullish, {len(out_reg)} with RS Mom + against the MSCI ACWI",
                     "Rules-based facts from the trend engine; no published view")
-    cols = []
-    cols.append(("Regions", [f"Bullish: {', '.join(nb_reg) or 'none'}.", f"RS Mom + against the ACWI: {', '.join(out_reg) or 'none'}."]
-                 + ([f"MSCI ACWI: {VLABEL.get(acwi.verdict, acwi.verdict)}, {_p(acwi.vs200)} vs its 200-day."] if acwi is not None else [])))
-    lines = []
-    for reg, bench, bname, sg, *_ in REGIONS:
-        x = sect[sect.group == sg]
-        if len(x):
-            lead = x.sort_values("rs_chg63", ascending=False).iloc[0]
-            lines.append(f"{REGION_NAME[reg]}: {int((x.verdict == 'Bullish').sum())} of {len(x)} Bullish; "
-                         f"RS 3m leader {lead['name'].split(' ', 2)[-1] if reg != 'US' else lead['name'].replace('S&P 500 ', '')} ({_p(lead.rs_chg63)}).")
-    cols.append(("Sectors", lines))
-    lines = []
-    for r in ratios.itertuples():
-        spec = next(x for x in RATIOS if x[3] == r.name)
-        fam = _family(r.verdict)
-        if fam == "Bullish":
-            lines.append(f"{r.name}: uptrend – {spec[4]} leads.")
-        elif fam == "Bearish":
-            lines.append(f"{r.name}: downtrend – {spec[5]} leads.")
-    cols.append(("Style & size (ratio trends)", lines or ["No ratio in a Bullish or Bearish trend."]))
     est = max(sum(-(-len(l) // 44) for l in ls) for _, ls in cols)        # wrapped lines at 10 pt in 3.0 in
     bh = min(4.45, 0.3 + est * 0.19)
     for k, (lab, ls) in enumerate(cols):

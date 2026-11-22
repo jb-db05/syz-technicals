@@ -329,7 +329,7 @@ def cmd_sector_style(a) -> int:
                        .replace("MSCI EM ", "").replace("MSCI ", ""))
     from .report.sectorstyle import MAP_LABELS
     labels = {t: MAP_LABELS.get(short(n), short(n)) for t, n in zip(df.ticker, df.name)}
-    maps = {}
+    maps, points = {}, {}
     sets = [("regions", ["MXUS Index", "MXEU Index", "MXJP Index", "MXEF Index"], "MXWD Index")]
     for reg, bench, bname, sg, ig, styg in REGIONS:
         sets.append((f"{reg}_sectors", list(df[df.group == sg].ticker), bench))
@@ -340,11 +340,17 @@ def cmd_sector_style(a) -> int:
         pts = rotation_points(prices, [t for t in tickers if t in prices.reports], bench)
         if len(pts):
             maps[key] = rotation_map(pts, labels, vmap, work / f"rotation_{key}.png", BENCH_NAMES.get(bench, bench))
+            points[key] = (pts, bench)
     d = pd.Timestamp(asof)
     out = Path(a.out)
     build_sector_style(df, charts, maps, out, Path(a.template), edition=a.edition, asof=f"{d.day} {d:%B %Y}", dropped=dropped,
                        draft=not a.final)
     print(f"written: {out} ({len(df)} series, {len(charts)} charts, {len(maps)} rotation maps)")
+    if a.html_out:
+        from .report.sectorstyle_html import build_sector_style_html
+        h = build_sector_style_html(df, charts, points, Path(a.html_out), edition=a.edition, asof=f"{d.day} {d:%B %Y}",
+                                    dropped=dropped, draft=not a.final)
+        print(f"written: {h} (HTML, charts alongside)")
     return 0
 
 
@@ -477,6 +483,7 @@ def main(argv=None) -> int:
     s.add_argument("--asof")
     s.add_argument("--out", required=True)
     s.add_argument("--final", action="store_true")
+    s.add_argument("--html-out", help="folder for the HTML version (index.html + charts/)")
     s.set_defaults(func=cmd_sector_style)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
