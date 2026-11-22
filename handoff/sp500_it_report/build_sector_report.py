@@ -585,7 +585,7 @@ def load_reference(path: str | Path) -> pd.DataFrame:
 COLUMNS = ["ticker", "name", "asset_class", "group", "benchmark", "decimals", "support", "resistance",
            "levels_asof", "badge", "badge_asof", "standing_position", "override_reason"]
 
-OPTIONAL_COLUMNS = ["support_origin", "resistance_origin"]
+OPTIONAL_COLUMNS = ["support_origin", "resistance_origin", "currency"]   # currency: BDH conversion, e.g. USD
 
 ASSET_CLASSES = {"equity", "index", "sector", "fx", "rate", "commodity", "crypto"}
 
@@ -636,8 +636,10 @@ BDH_OPTIONS = ['"Days=W"', '"Fill=B"', '"Dates=S"', '"CshAdjNormal=Y"', '"CshAdj
 
 INVALID_SHEET_CHARS = set('[]:*?/\\')
 
-def bdh_formula() -> str:
-    return f'=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3,{",".join(BDH_OPTIONS)})'
+def bdh_formula(currency: str | None = None) -> str:
+    """Daily PX_LAST; `currency` (e.g. "USD") converts the series in Bloomberg, otherwise the local currency."""
+    opts = BDH_OPTIONS + ([f'"Currency={currency}"'] if currency else [])
+    return f'=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3,{",".join(opts)})'
 
 def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: date, reference: bool = False) -> Path:
     head_font = Font(name=T_FONT, bold=True, color="FFFFFF")
@@ -694,7 +696,8 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
             ws[ref] = v
             ws[ref].font, ws[ref].fill = head_font, head_fill
         ws["D1"].fill = PatternFill("solid", fgColor=T_ORANGE)
-        ws["A2"] = bdh_formula()
+        cur = getattr(u, "currency", None)
+        ws["A2"] = bdh_formula(cur if isinstance(cur, str) and cur.strip() else None)
         ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 12, 14
         ws.column_dimensions["D"].width = 20
         ws.freeze_panes = "A2"
@@ -760,6 +763,76 @@ def tag_universe(universe: pd.DataFrame, lists: dict[str, dict[str, str]], alias
 
 
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# Trend engine – swing levels (BUILD_SPEC §3.2, 22 Nov 2026)  (syztech/trend/swing_levels.py)
+# ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+SWING_K = 1.5
+
+@dataclass(frozen=True)
+class SwingLevels:
+    support: float
+    support_bar: int
+    support_broken_prior: bool          # True: support is a prior swing low already undercut (lower low)
+    resistance: float
+    resistance_bar: int
+    resistance_broken_prior: bool       # True: resistance is a prior swing high already exceeded (higher high)
+    start: int                          # breaks count from this bar (earlier of the two swing points)
+
+def monthly_move(close: pd.Series, window: int = 100) -> pd.Series:
+    r = np.log(close).diff()
+    return r.rolling(window, min_periods=window).std() * np.sqrt(20)
+
+def pivots(close: pd.Series, theta: np.ndarray) -> list[tuple[str, int, float, int]]:
+    """Confirmed swing points on closes: (kind 'H'/'L', bar of the extreme, value, bar of confirmation)."""
+    c = close.to_numpy(dtype=float)
+    out = []
+    trend, ext, ext_i = 0, c[0], 0
+    lo, lo_i, hi, hi_i = c[0], 0, c[0], 0
+    for i in range(1, len(c)):
+        x, th = c[i], theta[i]
+        if np.isnan(th):
+            continue
+        if trend == 0:                       # first leg: whichever side moves θ first
+            if x > hi:
+                hi, hi_i = x, i
+            if x < lo:
+                lo, lo_i = x, i
+            if x <= hi * (1 - th):
+                out.append(("H", hi_i, hi, i)); trend, ext, ext_i = -1, x, i
+            elif x >= lo * (1 + th):
+                out.append(("L", lo_i, lo, i)); trend, ext, ext_i = 1, x, i
+            continue
+        if trend == 1:
+            if x > ext:
+                ext, ext_i = x, i
+            elif x <= ext * (1 - th):
+                out.append(("H", ext_i, ext, i)); trend, ext, ext_i = -1, x, i
+        else:
+            if x < ext:
+                ext, ext_i = x, i
+            elif x >= ext * (1 + th):
+                out.append(("L", ext_i, ext, i)); trend, ext, ext_i = 1, x, i
+    return out
+
+def swing_levels(close: pd.Series, k: float = SWING_K) -> SwingLevels | None:
+    """Levels at the last bar of `close` (ascending closes). None when no swing high and low are confirmed yet."""
+    close = close.dropna()
+    if len(close) < 102 or (close <= 0).any():
+        return None
+    piv = pivots(close, (k * monthly_move(close)).to_numpy())
+    H = [(p[2], p[1]) for p in piv if p[0] == "H"]
+    L = [(p[2], p[1]) for p in piv if p[0] == "L"]
+    if not H or not L:
+        return None
+    (sup, sb), sp = L[-1], False
+    (res, rb), rp = H[-1], False
+    if len(L) > 1 and L[-1][0] < L[-2][0]:
+        (sup, sb), sp = L[-2], True
+    if len(H) > 1 and H[-1][0] > H[-2][0]:
+        (res, rb), rp = H[-2], True
+    return SwingLevels(float(sup), int(sb), sp, float(res), int(rb), rp, int(min(sb, rb)))
+
+
+# ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # Trend engine – verdict rules (BUILD_SPEC §3)  (syztech/trend/rules.py)
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 @dataclass(frozen=True)
@@ -804,7 +877,8 @@ class Structure:
 
 def structure_state(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
                     support: float | None = None, resistance: float | None = None,
-                    levels_start: int = 0) -> Structure:
+                    levels_start: int = 0, support_start: int | None = None,
+                    resistance_start: int | None = None) -> Structure:
     """Current structure state from the most recent structural event.
 
     Each side uses its drawn level when one exists, else the 100-day band (§3.2):
@@ -824,11 +898,13 @@ def structure_state(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     n = len(c)
     hi_band = np.nan_to_num(c > max_prior(close, params.band_window).to_numpy(), nan=0).astype(bool)
     lo_band = np.nan_to_num(c < min_prior(close, params.band_window).to_numpy(), nan=0).astype(bool)
-    in_window = np.arange(n) >= levels_start
+    # each side counts its breaks from its own start (drawn level: levels_asof − lookback; swing level: the swing point)
+    in_s = np.arange(n) >= (levels_start if support_start is None else support_start)
+    in_r = np.arange(n) >= (levels_start if resistance_start is None else resistance_start)
 
     has_s, has_r = support is not None, resistance is not None
-    drawn_s = (c < support) & in_window if has_s else np.zeros(n, bool)
-    drawn_r = (c > resistance) & in_window if has_r else np.zeros(n, bool)
+    drawn_s = (c < support) & in_s if has_s else np.zeros(n, bool)
+    drawn_r = (c > resistance) & in_r if has_r else np.zeros(n, bool)
 
     # Event code per bar. Drawn breaks outrank band breaks on the same bar.
     #  +2 resistance broken, -2 support broken, 0 reset to intact, nan no event
@@ -876,7 +952,7 @@ class Snapshot:
 
 def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
              support: float | None = None, resistance: float | None = None,
-             levels_start: int = 0) -> Snapshot:
+             levels_start: int = 0, support_start: int | None = None, resistance_start: int | None = None) -> Snapshot:
     ma200 = sma(close, params.ma_long)
     ma50 = sma(close, params.ma_short)
     s200 = slope_state(ma200, params.slope_lookback, params.flat_band)
@@ -897,7 +973,7 @@ def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
         cross=cr.kind, cross_direction=cr.direction, cross_pos=cr.pos,
         last_band=lb.side, last_band_pos=lb.pos, last_band_level=lb.level,
         bbw100=bbw, target=target,
-        structure=structure_state(close, params, support, resistance, levels_start),
+        structure=structure_state(close, params, support, resistance, levels_start, support_start, resistance_start),
     )
 
 LT_VIEW = {"rising_support_broken_death_cross": "Neutral – 200d rising"}
@@ -936,8 +1012,11 @@ class TrendResult:
 
 def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
              support: float | None = None, resistance: float | None = None,
-             levels_asof=None) -> TrendResult:
-    """Mechanical verdict for one instrument. `close` is ascending, trading days only."""
+             levels_asof=None, support_start: int | None = None, resistance_start: int | None = None) -> TrendResult:
+    """Mechanical verdict for one instrument. `close` is ascending, trading days only.
+
+    `support_start` / `resistance_start` (bar positions) override the levels_asof window for one side – used for swing
+    levels, whose breaks count from the swing point (§3.2)."""
     close = close.dropna()
     if len(close) < params.min_history:
         return TrendResult(INSUFFICIENT, "insufficient_history", None,
@@ -945,7 +1024,7 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     levels_start = 0
     if levels_asof is not None and not pd.isna(levels_asof) and isinstance(close.index, pd.DatetimeIndex):
         levels_start = max(0, int(close.index.searchsorted(pd.Timestamp(levels_asof))) - params.levels_lookback)
-    snap = snapshot(close, params, support, resistance, levels_start)
+    snap = snapshot(close, params, support, resistance, levels_start, support_start, resistance_start)
     for rule, cond, verdict in _rules(snap):
         if cond:
             lt = LT_VIEW.get(rule)
@@ -956,8 +1035,39 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # Trend engine – scoring a universe  (syztech/trend/score.py)
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+FALLBACK_ORIGINS = ("52w", "swing")      # levels with these origins are recomputed at every run, never treated as drawn
+
 def _opt(x):
     return None if x is None or pd.isna(x) else float(x)
+
+def resolve_levels(s: pd.Series, sup, res, sup_origin, res_origin):
+    """Per side: a drawn level (text / chart) is kept; otherwise the swing level (§3.2), else the 52-week level.
+
+    Returns (support, resistance, support_origin, resistance_origin, support_start, resistance_start); a start of None
+    means the drawn-level window (levels_asof − levels_lookback)."""
+    drawn = lambda v, o: v is not None and not (isinstance(o, str) and o.startswith(FALLBACK_ORIGINS))
+    ds, dr = drawn(sup, sup_origin), drawn(res, res_origin)
+    out = [sup if ds else None, res if dr else None, sup_origin if ds else None, res_origin if dr else None, None, None]
+    if ds and dr:
+        return tuple(out)
+    sw = swing_levels(s)
+    if sw is not None:
+        d = lambda b: s.index[b].date()
+        if not ds:
+            out[0], out[4] = sw.support, sw.start
+            out[2] = f"swing low ({d(sw.support_bar)})" + (", broken" if sw.support_broken_prior else "")
+        if not dr:
+            out[1], out[5] = sw.resistance, sw.start
+            out[3] = f"swing high ({d(sw.resistance_bar)})" + (", broken" if sw.resistance_broken_prior else "")
+        return tuple(out)
+    end = s.index[-1]
+    w = s[(s.index > end - pd.Timedelta(weeks=52)) & (s.index < end)]
+    if len(w):
+        if not ds:
+            out[0], out[2], out[4] = float(w.min()), f"52w low ({w.idxmin().date()})", len(s) - 1
+        if not dr:
+            out[1], out[3], out[5] = float(w.max()), f"52w high ({w.idxmax().date()})", len(s) - 1
+    return tuple(out)
 
 def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
                    params: TrendParams = DEFAULT_PARAMS) -> pd.DataFrame:
@@ -976,8 +1086,10 @@ def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
         s = prices.series(t)
         if asof is not None:
             s = s[s.index <= asof]
-        sup, res = _opt(u.get("support")), _opt(u.get("resistance"))
-        r = evaluate(s, params, sup, res, u.get("levels_asof"))
+        sup, res, so, ro, ss, rs_ = resolve_levels(s.dropna(), _opt(u.get("support")), _opt(u.get("resistance")),
+                                                   u.get("support_origin"), u.get("resistance_origin"))
+        base["support_origin"], base["resistance_origin"] = so, ro
+        r = evaluate(s, params, sup, res, u.get("levels_asof"), support_start=ss, resistance_start=rs_)
         row = {**base, "last_date": s.index[-1].date() if len(s) else None, "bars": len(s),
                "verdict": r.verdict, "rule": r.rule, "score": r.score, "lt_view": r.lt_view, "missing": r.missing,
                "support": sup, "resistance": res}
@@ -992,7 +1104,8 @@ def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
                 "last_band_level": n.last_band_level, "bbw100": n.bbw100, "target": n.target,
                 "support_source": st.support_source, "resistance_source": st.resistance_source,
                 "levels": "band-fallback" if sup is None and res is None else
-                          "drawn" if sup is not None and res is not None else "partial",
+                          "+".join(sorted({str(o).split(" ")[0] if isinstance(o, str) and o.startswith(FALLBACK_ORIGINS) else "drawn"
+                                           for o in (so, ro)})),
                 "structure": st.state, "structure_event": st.event, "structure_date": d(st.event_pos),
             })
             prior = u.get("standing_position")
@@ -1187,13 +1300,14 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     for key, colour in (("support", BLUEBERRY), ("resistance", BLUEBERRY)):
         v = row.get(key)
         origin = row.get(f"{key}_origin")
-        is52 = isinstance(origin, str) and origin.startswith("52w")
+        is52 = isinstance(origin, str) and origin.startswith(("52w", "swing"))
+        kind = "swing" if isinstance(origin, str) and origin.startswith("swing") else "52w"
         if show_52w and is52:
             continue                              # already shown by the 52-week range
         if v is not None and not pd.isna(v):
-            if is52:                              # fallback level: grey, labelled, so it is never mistaken for a drawn line
+            if is52:                              # computed level: grey, labelled, so it is never mistaken for a drawn line
                 ax.axhline(v, color="#8A93A6", lw=1.0, ls=(0, (2, 3)), zorder=1)
-                _axis_tag(tags, v, f"52w {'low' if key == 'support' else 'high'} {num(v, dec)}", "#E4E7EE", fg=NAVY)
+                _axis_tag(tags, v, f"{kind} {'low' if key == 'support' else 'high'} {num(v, dec)}", "#E4E7EE", fg=NAVY)
             else:
                 ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
                 _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)
@@ -1381,7 +1495,7 @@ VLABEL = {"Bullish": "Bullish", "Neutral+": "Neutral +", "Neutral": "Neutral", "
 
 SOURCE = "Sources : Syz Research, Bloomberg"
 
-NUMERIC = _re.compile(r"^[+–-]?[\d,.]+(%|bp)?( \(52w\))?$")
+NUMERIC = _re.compile(r"^[+–-]?[\d,.]+(%|bp)?( \((52w|swing)\))?$")
 
 L_COVER, L_GRADIENT, L_TITLE, L_DISCLAIMER, L_FINAL, L_BLANK = 1, 0, 21, 22, 24, 26
 
@@ -1423,7 +1537,7 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
             ticker=t, name=ur["name"], group=ur.get("group"), asset_class=ur.get("asset_class"),
             decimals=int(ur.get("decimals") or 1), close=close, ma200=r.ma200, slope200=r.slope200,
             vs200=close / r.ma200 - 1 if r.ma200 else np.nan,
-            support=r.support, s_origin=ur.get("support_origin"), resistance=r.resistance, r_origin=ur.get("resistance_origin"),
+            support=r.support, s_origin=r.get("support_origin"), resistance=r.resistance, r_origin=r.get("resistance_origin"),
             dist_s=close / r.support - 1 if pd.notna(r.support) else np.nan,
             dist_r=close / r.resistance - 1 if pd.notna(r.resistance) else np.nan,
             trendline=tl_today, dist_tl=close / tl_today - 1 if tl_today else np.nan,
@@ -1439,13 +1553,15 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
     return pd.DataFrame(rows)
 
 def triggers(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
-    """Instruments within `band` of a level: drawn support / resistance, trendline, 52-week high / low."""
+    """Instruments within `band` of a level: drawn support / resistance, swing low / high, trendline."""
     out = []
     for _, r in df.iterrows():
         cands = []
         for lvl, kind, origin in ((r.support, "support", r.s_origin), (r.resistance, "resistance", r.r_origin)):
             if pd.notna(lvl):
-                label = "52-week " + ("low" if kind == "support" else "high") if isinstance(origin, str) and origin.startswith("52w") else kind.capitalize()
+                side = "low" if kind == "support" else "high"
+                label = (f"52-week {side}" if isinstance(origin, str) and origin.startswith("52w") else
+                         f"Swing {side}" if isinstance(origin, str) and origin.startswith("swing") else kind.capitalize())
                 cands.append((lvl, label))
         if r.trendline:
             cands.append((r.trendline, "Trendline"))
@@ -1581,7 +1697,22 @@ SHORT_IND = {"Technology Hardware, Storage & Peripherals": "Hardware, storage & 
              "Internet Services & Infrastructure": "Internet services & infra.",
              "Electronic Equipment & Instruments": "Electronic equipment",
              "Electronic Manufacturing Services": "Electronic manufacturing",
-             "IT Consulting & Other Services": "IT consulting & services"}
+             "IT Consulting & Other Services": "IT consulting & services",
+             # broader universes (Swiss equities, 19 Nov 2026)
+             "Electrical Components & Equipment": "Electrical components",
+             "Apparel, Accessories & Luxury Goods": "Apparel & luxury",
+             "Integrated Telecommunication Services": "Integrated telecoms",
+             "Asset Management & Custody Banks": "Asset management",
+             "Industrial Machinery & Supplies & Components": "Industrial machinery",
+             "Real Estate Operating Companies": "Real estate operating",
+             "Human Resource & Employment Services": "HR & employment services",
+             "Paper & Plastic Packaging Products & Materials": "Paper & plastic packaging",
+             "Diversified Real Estate Activities": "Diversified real estate",
+             "Trading Companies & Distributors": "Trading & distribution",
+             "Construction Machinery & Heavy Transportation Equipment": "Construction machinery",
+             "Investment Banking & Brokerage": "Investment banking",
+             "Life Sciences Tools & Services": "Life sciences tools",
+             "Interactive Media & Services": "Interactive media"}
 
 BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"]
 
@@ -1602,7 +1733,7 @@ def add_momentum(df: pd.DataFrame, prices) -> pd.DataFrame:
     return df
 
 def trigger_watch(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
-    """Nearest level within `band`: 52-week high / low (or drawn levels) and the 100-day band, one row per stock."""
+    """Nearest level within `band`: swing low / high (or drawn levels) and the 100-day band, one row per stock."""
     tw = triggers(df, band)
     extra = []
     for r in df.itertuples():
@@ -1709,8 +1840,15 @@ def momentum_map(df, out: Path, bench: str):
     return out
 
 def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Path, template: Path, *, title: str, edition: str,
-                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True, lists_asof: str = "") -> Path:
+                     asof: str, bench: str, sector_name: str, insufficient: list[str], work: Path, draft: bool = True, lists_asof: str = "",
+                     buckets: list[str] | None = None, group_col: str = "industry", group_label: str = "sub-industry",
+                     group_label_pl: str = "GICS sub-industries", indices: pd.DataFrame | None = None, bench_note: str = "",
+                     max_rows: int = 25, trigger_cap: int | None = None, index_heading: str = "Indices") -> Path:
+    """IT defaults reproduce the 18 Nov 2026 edition. `indices` (other index rows with RS against the benchmark) replaces
+    the sector-tile page with an index table followed by every index chart; `group_col` sets the breadth table level."""
     lists_asof = f" ({lists_asof})" if lists_asof else ""
+    bench_note = f" {bench_note}" if bench_note else ""
+    buckets = buckets or BUCKETS
     deck = Deck(template)
     df = _sort(df).reset_index(drop=True)
     ok = df[df.verdict.isin(VGLYPH)]
@@ -1744,6 +1882,18 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     if draft:
         text(s, 0.73, 4.75, 4.8, 0.3, "DRAFT – FOR INTERNAL REVIEW", size=10, color=R_ORANGE, bold=True)
 
+    if indices is not None and len(indices):
+        index_page(deck, sector, indices, charts, bench, asof, bench_note, index_heading)
+    else:
+        sector_page(deck, sector, charts, bench, asof, sector_name)
+    _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
+          work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap)
+    deck.slide(L_DISCLAIMER)
+    deck.slide(L_FINAL)
+    deck.save(out)
+    return out
+
+def sector_page(deck, sector, charts, bench, asof, sector_name):
     # sector against the market
     sv = sector.verdict
     s = deck.titled(f"{sector_name}: {VLABEL.get(sv, sv)} trend, RS Mom {_rs(sector.rs_trend)} against the {bench}",
@@ -1769,9 +1919,44 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     if sector.ticker in charts:
         full_page_chart(deck, charts[sector.ticker])
 
+def index_page(deck, sector, indices, charts, bench, asof, bench_note="", heading="Indices"):
+    """The market index and the other indices against it: one table, then every index chart."""
+    rows_df = pd.concat([sector.to_frame().T, indices], ignore_index=True)
+    parts = [f"{VLABEL.get(sector.verdict, sector.verdict)} trend for the {sector['name']}"]
+    parts += [f"{r.name} RS Mom {_rs(r.rs_trend)}" for r in indices.itertuples()]
+    s = deck.titled(f"{heading}: {parts[0]}; " + ", ".join(parts[1:]) + f" against the {bench}",
+                    f"Absolute momentum of each index and relative strength against the {bench}")
+    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", f"RS Mom vs {bench}", f"RS 3m vs {bench}", "Trend"]
+    col_w = [1.6, 0.95, 0.75, 0.8, 0.75, 0.75, 0.8, 0.95, 1.05, 1.0, 0.88]
+    rows, st = [], {}
+    for i, r in enumerate(rows_df.itertuples()):
+        rows.append([r.name, num(r.close, r.decimals), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
+                     _p(r.from_hi52), _rs(r.rs_trend) if i else EN_DASH, _p(r.rs_chg63) if i else EN_DASH, _vtxt(r.verdict)])
+        st[(i, 0)] = {"bold": True}
+        st[(i, 2)] = {"color": {"rising": R_MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
+        for j, v in ((3, r.vs200), (4, r.chg1m), (5, r.chg3m), (6, r.chg12m)):
+            st[(i, j)] = _posneg(v)
+        st[(i, 7)] = {"color": R_MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else R_NAVY, "align": PP_ALIGN.RIGHT}
+        if i:
+            st[(i, 8)] = {"color": {"outperforming": R_MINT, "underperforming": MULB}.get(r.rs_trend, R_GREY), "bold": True,
+                          "align": PP_ALIGN.CENTER}
+            st[(i, 9)] = _posneg(r.rs_chg63)
+        st[(i, 10)] = _vstyle(r.verdict)
+    table(s, X0, 2.6, W, hdr, rows, col_w, row_h=0.42, size=10, styles=st)
+    notes = [f"{r.name}: last close {num(r.close, r.decimals)}, 52-week low {num(r.lo52, r.decimals)}, high {num(r.hi52, r.decimals)}; "
+             f"rule fired: {r.rule}." for r in rows_df.itertuples()]
+    text(s, X0, 2.6 + 0.42 * (len(rows) + 1) + 0.3, W, 1.6, notes, size=9, color=BLUEB)
+    source(s, asof, f"The {sector['name']} chart carries a third panel: share of today's constituents with a rising 200-day average, "
+                    f"each counted once it has 220 closes (survivorship applies).{bench_note}")
+    for r in rows_df.itertuples():
+        if r.ticker in charts:
+            full_page_chart(deck, charts[r.ticker])
+
+def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
+          work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap):
     # breadth: four numbers + share by sub-sector (native chart)
     s = deck.titled(f"Breadth: {nb} of {n_ok} stocks Bullish, {above} of {n} above their 200-day, {out_n} with RS Mom +",
-                    f"Share of stocks by sub-sector, %")
+                    "Share of stocks by " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
     stats = [(f"{nb}/{n_ok}", "Bullish trend verdict", R_MINT), (f"{above}/{n}", "above the 200-day average", R_NAVY),
              (f"{out_n}/{n}", f"RS Mom + against the {bench}", R_ORANGE), (f"{near_hi}/{n}", "within 5% of the 52-week high", BLUEB)]
     for k, (big, lab, col) in enumerate(stats):
@@ -1780,7 +1965,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         text(s, X0 + 0.18, y + 0.08, 1.5, 0.9, big, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
         text(s, X0 + 1.6, y + 0.08, 1.55, 0.9, lab, size=10, anchor=MSO_ANCHOR.MIDDLE)
     cd = CategoryChartData()
-    bk = [b for b in BUCKETS if b in set(df.bucket)]
+    bk = [b for b in buckets if b in set(df.bucket)]
     g = {b: df[df.bucket == b] for b in bk}
     cd.categories = [f"{b} ({len(g[b])})" for b in bk]
     cd.add_series("Bullish", [round(100 * (g[b].verdict == "Bullish").mean(), 0) for b in bk])
@@ -1813,7 +1998,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     # breadth by GICS sub-industry
     rows, st = [], {}
     agg = []
-    for ind, x in df.groupby("industry"):
+    for ind, x in df.groupby(group_col):
         agg.append((ind, len(x), int((x.verdict == "Bullish").sum()), int((x.vs200 > 0).sum()),
                     int((x.rs_trend == "outperforming").sum()), x.chg3m.median(), x.rs_chg63.median()))
     agg.sort(key=lambda a: -(a[6] if pd.notna(a[6]) else -9))
@@ -1830,11 +2015,11 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
                 st.setdefault((i, j), {})
                 st[(i, j)] = {**st[(i, j)], "fill": "FFE9D6", "bold": True}
     best = agg[0][0]
-    s = deck.titled(f"By sub-industry: {best} leads on relative strength over 3 months",
-                    "GICS sub-industries, ranked by median 3-month change in relative strength")
-    table(s, X0, 2.5, W, ["Sub-industry", "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
+    s = deck.titled(f"By {group_label}: {best} leads on relative strength over 3 months",
+                    f"{group_label_pl}, ranked by median 3-month change in relative strength")
+    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
           rows, [3.6, 0.9, 0.9, 1.2, 1.1, 1.1, 1.48], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
-    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}." + insuf_note)
+    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
 
     # momentum map
     s = deck.titled(f"Momentum map: {int(((df.vs200 > 0) & (df.rs_chg63 > 0)).sum())} stocks above their 200-day and gaining on the {bench}",
@@ -1848,10 +2033,15 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         x = _sort(g[b])
         xb = int((x.verdict == "Bullish").sum())
         xo = int((x.rs_trend == "outperforming").sum())
-        momentum_dashboard(deck, x, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}", bench, asof,
-                           f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
-                           f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
-                           f"not part of the verdict." + (insuf_note if set(insufficient) & set(x.name) else ""))
+        pages = max(1, -(-len(x) // max_rows))
+        per = -(-len(x) // pages)
+        for p in range(pages):
+            part = x.iloc[p * per:(p + 1) * per]
+            sfx = f" ({p + 1}/{pages})" if pages > 1 else ""
+            momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}{sfx}", bench, asof,
+                               f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
+                               f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
+                               f"not part of the verdict.{bench_note}" + (insuf_note if set(insufficient) & set(part.name) else ""))
 
     # relative-strength ranking: 15 leaders and 15 laggards
     rk = df.dropna(subset=["rs_chg63"]).sort_values("rs_chg63")
@@ -1883,7 +2073,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
             pt.format.fill.fore_color.rgb = rgb(R_MINT if v >= 0 else MULB)
         ch.value_axis.visible = False
         ch.value_axis.has_major_gridlines = False
-    source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.")
+    source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.{bench_note}")
 
     # trend × RS grid
     bull_lag = ok[(ok.verdict == "Bullish") & (ok.rs_trend == "underperforming")]
@@ -1910,8 +2100,11 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
 
     # trigger watch
     tw = trigger_watch(df)
-    s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a 52-week or 100-day high or low",
-                    "Where a breakout or a breakdown is closest")
+    n_tw = len(tw)
+    if trigger_cap and n_tw > trigger_cap:
+        tw = tw.iloc[:trigger_cap]
+    s = deck.titled(f"Trigger watch: {n_tw} stocks within 2% of a swing level or a 100-day high or low",
+                    "Where a breakout or a breakdown is closest" + (f" – the {len(tw)} nearest shown" if len(tw) < n_tw else ""))
     rows, st = [], {}
     for i, r in enumerate(tw.itertuples()):
         rows.append([r.name, num(r.close, r.decimals), r.kind, num(r.level, r.decimals), pct(r.dist, 2), _vtxt(r.verdict)])
@@ -1920,12 +2113,14 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     if rows:
         table(s, X0, 2.5, W, ["Stock", "Last", "Level", "Value", "Distance", "Trend"], rows,
               [3.6, 1.3, 1.7, 1.3, 1.0, 1.38], row_h=min(0.3, 5.0 / (len(rows) + 1)), size=9.5 if len(rows) < 18 else 8, styles=st)
-    source(s, asof, "52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.")
+    source(s, asof, "Swing levels: last confirmed swing low / high (a 1.5 × one-month-move reversal); a broken swing low stays the level "
+                    "until the resistance breaks. 100-day high / low: highest / lowest close of the prior 100 trading days.")
 
     # method
     s = deck.titled("How to read the verdicts", "One rule set, applied to every stock")
     items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
-             ("Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."),
+             ("Structure", "Support = last confirmed swing low, resistance = last swing high (a swing needs a 1.5 × one-month-move "
+                           "reversal). A support break stands until a resistance break."),
              ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
              ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {bench} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
@@ -1941,10 +2136,6 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
         for r in _sort(g[b]).itertuples():
             if r.ticker in charts:
                 full_page_chart(deck, charts[r.ticker])
-    deck.slide(L_DISCLAIMER)
-    deck.slide(L_FINAL)
-    deck.save(out)
-    return out
 
 
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1960,7 +2151,8 @@ def _slug(t: str) -> str:
     return t.replace(" ", "_").replace("/", "-")
 
 def _row(r, charts):
-    return dict(t=r.ticker, n=_s(r.name), ind=_s(getattr(r, "industry", None)), ish=SHORT_IND.get(_s(getattr(r, "industry", None)), _s(getattr(r, "industry", None))),
+    nm = r["name"] if isinstance(r, pd.Series) else r.name       # a Series' .name is its index label, not the column
+    return dict(t=r.ticker, n=_s(nm), ind=_s(getattr(r, "industry", None)), ish=SHORT_IND.get(_s(getattr(r, "industry", None)), _s(getattr(r, "industry", None))),
                 b=_s(getattr(r, "bucket", None)), c=_f(r.close), d=int(r.decimals), s200=_s(r.slope200),
                 vs200=_f(r.vs200), c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52),
                 rs=_s(r.rs_trend), rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
@@ -1969,9 +2161,12 @@ def _row(r, charts):
                 lists=[x.strip() for x in _s(getattr(r, "syz_lists", None)).split(";") if x.strip()])
 
 def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out_dir: Path, *, title: str, edition: str,
-                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True, lists_asof: str = "") -> Path:
+                      asof: str, bench: str, sector_name: str, insufficient: list[str], draft: bool = True, lists_asof: str = "",
+                      buckets: list[str] | None = None, group_col: str | None = None, group_label: str | None = None,
+                      indices: pd.DataFrame | None = None, bench_note: str = "", index_heading: str = "Indices") -> Path:
     out_dir = Path(out_dir)
     (out_dir / "charts").mkdir(parents=True, exist_ok=True)
+    extra_rows = list(indices.itertuples()) if indices is not None else []
     for t, src in charts.items():
         dst = out_dir / "charts" / f"{_slug(t)}.jpg"
         with Image.open(src) as im:
@@ -1986,6 +2181,18 @@ def build_sector_html(stocks: pd.DataFrame, sector: pd.Series, charts: dict, out
         triggers=[dict(t=r.ticker, n=r.name, c=_f(r.close), d=int(r.decimals), kind=_s(r.kind), level=_f(r.level),
                        dist=_f(r.dist), v=_s(r.verdict)) for r in tw.itertuples()],
     )
+    # optional layout keys – absent for the S&P 500 IT edition, so its page is unchanged
+    if buckets:
+        data["buckets"] = buckets
+    if group_col:
+        data["group_label"] = group_label or group_col
+        for row, r in zip(data["stocks"], stocks.itertuples()):
+            row["grp"] = _s(getattr(r, group_col, None))
+    if extra_rows:
+        data["indices"] = [_row(r, charts) for r in extra_rows]
+        data["index_heading"] = index_heading
+    if bench_note:
+        data["bench_note"] = bench_note
     html = HTML_TEMPLATE
     html = html.replace("__TITLE__", f"{sector_name} Technicals").replace(
         "/*__DATA__*/null", json.dumps(data, ensure_ascii=False, allow_nan=False))
@@ -2187,21 +2394,21 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 </header>
 
 <nav class="sec" aria-label="Sections"><div class="wrap">
-  <a href="#sector">Sector</a><a href="#breadth">Breadth</a><a href="#map">Momentum map</a><a href="#dashboard">Dashboard</a>
+  <a href="#sector" id="nav-sector">Sector</a><a href="#breadth">Breadth</a><a href="#map">Momentum map</a><a href="#dashboard">Dashboard</a>
   <a href="#rs">Relative strength</a><a href="#grid">Trend × RS</a><a href="#triggers">Trigger watch</a><a href="#charts">Charts</a><a href="#method">Method</a>
 </div></nav>
 
 <main class="wrap">
   <section id="sector">
-    <div class="sh"><span class="k">Sector against the market</span><h2 id="s-title"></h2><p id="s-sub"></p></div>
+    <div class="sh"><span class="k" id="s-kick">Sector against the market</span><h2 id="s-title"></h2><p id="s-sub"></p></div>
     <div class="sector">
-      <div><div class="tiles" id="s-tiles"></div><p class="note" id="s-note"></p></div>
+      <div><div class="tiles" id="s-tiles"></div><div class="tw" id="s-idx" hidden style="margin-top:14px"></div><p class="note" id="s-note"></p></div>
       <button class="plate" id="s-chart" aria-label="Open the sector chart"></button>
     </div>
   </section>
 
   <section id="breadth">
-    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p>Share of stocks by sub-sector, %</p></div>
+    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by sub-sector, %</p></div>
     <div class="breadth">
       <div class="stats" id="b-stats"></div>
       <div class="card">
@@ -2210,7 +2417,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
       </div>
     </div>
     <h3 style="margin:28px 0 4px;font-size:17px;font-weight:800" id="i-title"></h3>
-    <p class="note" style="margin:0 0 10px">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
+    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
     <div class="tw"><table id="i-table"></table></div>
   </section>
 
@@ -2248,11 +2455,11 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   <section id="triggers">
     <div class="sh"><span class="k">Trigger watch</span><h2 id="t-title"></h2><p>Where a breakout or a breakdown is closest.</p></div>
     <div class="tw"><table id="t-table"></table></div>
-    <p class="note">52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.</p>
+    <p class="note">Swing levels: last confirmed swing low / high (1.5 × one-month-move reversal). 100-day high / low: highest / lowest close of the prior 100 trading days.</p>
   </section>
 
   <section id="charts" class="gal">
-    <div class="sh"><span class="k">Charts</span><h2>One chart per stock, by sub-sector</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day high / low band, 52-week levels; relative strength panel.</p></div>
+    <div class="sh"><span class="k">Charts</span><h2>One chart per stock, by sub-sector</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day high / low band, swing levels; relative strength panel.</p></div>
     <div id="gal"></div>
   </section>
 
@@ -2289,8 +2496,9 @@ const ND = "–", MINUS = "–";
 const VORD = {Bullish: 0, "Neutral+": 1, Neutral: 2, "Neutral-": 3, Bearish_LM: 4, Bearish: 5};
 const RORD = {outperforming: 0, mixed: 1, underperforming: 2};
 const GLY = {Bullish: "▲", "Neutral+": "◆", Neutral: "◆", "Neutral-": "◆", Bearish_LM: "▼", Bearish: "▼"};
-const BUCKETS = ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"];
-const B = D.bench, S = D.stocks, X = D.sector;
+const BUCKETS = D.buckets || ["Semiconductors & equipment", "Software", "Hardware & equipment", "IT services & internet"];
+const B = D.bench, S = D.stocks, X = D.sector, IDX = D.indices || [];
+const BNOTE = D.bench_note ? " " + D.bench_note : "";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
 const pct = (x, d = 1) => x == null ? ND : (x >= 0 ? "+" : MINUS) + Math.abs(x * 100).toFixed(d) + "%";
@@ -2304,7 +2512,7 @@ const slope = s => `<span class="${s === "rising" ? "pos" : s === "falling" ? "n
 const med = a => { a = a.filter(x => x != null).sort((p, q) => p - q); if (!a.length) return null; const m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
 const ok = S.filter(s => hasV(s.v));
 const ltag = l => (l || []).slice().sort((a, b) => (a !== "Focus List") - (b !== "Focus List")).map(x => `<span class="lt ${x === "Master list" ? "lt-m" : "lt-f"}">★ ${x === "Master list" ? "Master" : "Focus"}</span>`).join("");
-const byT = Object.fromEntries([X, ...S].map(s => [s.t, s]));
+const byT = Object.fromEntries([X, ...IDX, ...S].map(s => [s.t, s]));
 const defaultSort = (a, b) => (VORD[a.v] ?? 9) - (VORD[b.v] ?? 9) || (RORD[a.rs] ?? 9) - (RORD[b.rs] ?? 9) || (b.rs3 ?? -9) - (a.rs3 ?? -9);
 const insuf = D.insufficient.length ? ` Insufficient history for a verdict: ${D.insufficient.join(", ")}.` : "";
 
@@ -2318,13 +2526,28 @@ $("m-counts").innerHTML = [["bull", "Bullish"], ["neu", "Neutral"], ["bear", "Be
   + (D.insufficient.length ? `<div class="counts-note">${D.insufficient.length} without enough history for a verdict</div>` : "");
 
 /* sector */
+if (IDX.length) {
+  $("s-kick").textContent = D.index_heading;
+  $("nav-sector").textContent = "Indices";
+  $("s-title").textContent = `${hasV(X.v) ? D.vlabel[X.v] : "No"} trend for the ${X.n}; ` + IDX.map(r => `${r.n} RS Mom ${r.rs === "outperforming" ? "+" : r.rs === "underperforming" ? "−" : ND}`).join(", ") + ` against the ${B}`;
+  $("s-sub").textContent = `Absolute momentum of each index and relative strength against the ${B}. Click a row for its chart.`;
+} else {
 $("s-title").textContent = `${D.sector_name}: ${hasV(X.v) ? D.vlabel[X.v] : "no"} trend, RS Mom ${X.rs === "outperforming" ? "+" : X.rs === "underperforming" ? "−" : ND} against the ${B}`;
 $("s-sub").textContent = `Sector index: absolute momentum and relative strength against the ${B}.`;
+}
 const tiles = [["Trend verdict", pill(X.v)], ["200-day average", slope(X.s200)], ["Price vs 200-day", `<span class="${cls(X.vs200)}">${pct(X.vs200)}</span>`],
   ["vs 52-week high", pct(X.fh)], ["1-month change", `<span class="${cls(X.c1)}">${pct(X.c1)}</span>`], ["3-month change", `<span class="${cls(X.c3)}">${pct(X.c3)}</span>`],
   ["12-month change", `<span class="${cls(X.c12)}">${pct(X.c12)}</span>`], [`RS Mom vs ${B}`, rsm(X.rs)], [`RS 3m vs ${B}`, `<span class="${cls(X.rs3)}">${pct(X.rs3)}</span>`]];
+if (IDX.length) tiles.splice(7, 2), tiles.splice(4, 1);       // the market index has no benchmark; 1m sits in the table
 $("s-tiles").innerHTML = tiles.map(([l, v]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v num">${v}</div></div>`).join("");
 $("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. 100-day band ${num(X.lo100, X.d)} – ${num(X.hi100, X.d)}. Rule fired: ${X.rule}. Chart, lower panel: share of today’s constituents with a rising 200-day average (green) and above it (blue), each counted once it has 220 closes; past members are not included.`;
+if (IDX.length) {
+  $("s-idx").hidden = false;
+  $("s-idx").innerHTML = `<table><thead><tr><th>Index</th><th class="r">Last</th><th class="r">vs 200d</th><th class="r">3m</th><th class="c">RS Mom</th><th class="r">RS 3m</th><th class="c">Trend</th></tr></thead><tbody>`
+    + [X, ...IDX].map((r, i) => `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td><b>${esc(r.n)}</b></td><td class="r">${num(r.c, r.d)}</td><td class="r ${cls(r.vs200)}">${pct(r.vs200)}</td><td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="c">${i ? rsm(r.rs) : ND}</td><td class="r ${i ? cls(r.rs3) : "dim"}">${i ? pct(r.rs3) : ND}</td><td class="c">${pill(r.v)}</td></tr>`).join("") + "</tbody></table>";
+  $("s-idx").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openLB([X, ...IDX], [X, ...IDX].findIndex(r => r.t === tr.dataset.t)); };
+  $("s-note").textContent = `Last close ${num(X.c, X.d)}. 52-week low ${num(X.lo52, X.d)}, high ${num(X.hi52, X.d)}. Rule fired: ${X.rule}. Chart, lower panel: share of today’s constituents with a rising 200-day average (green) and above it (blue), each counted once it has 220 closes; past members are not included.${BNOTE}`;
+}
 if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart">`;
 $("s-chart").onclick = () => openLB([X], 0);
 
@@ -2334,25 +2557,32 @@ $("b-title").textContent = `${cnt("Bullish")} of ${ok.length} stocks Bullish, ${
 $("b-stats").innerHTML = [[`${cnt("Bullish")}/${ok.length}`, "Bullish trend verdict", "pos"], [`${above}/${S.length}`, "above the 200-day average", ""],
   [`${outN}/${S.length}`, `RS Mom + against the ${B}`, ""], [`${nearHi}/${S.length}`, "within 5% of the 52-week high", ""]]
   .map(([b, l, c], i) => `<div class="stat"><b class="num ${c}" style="${i === 2 ? "color:var(--orange)" : i === 1 ? "color:var(--ink)" : i === 3 ? "color:var(--blueb)" : ""}">${b}</b><span>${esc(l)}</span></div>`).join("");
+if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
 (function breadthChart() {
   const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b); return {b, n: x.length,
     v: [x.filter(s => s.v === "Bullish").length / x.length, x.filter(s => (s.vs200 ?? -1) > 0).length / x.length, x.filter(s => s.rs === "outperforming").length / x.length]}; });
-  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 46, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
+  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
   let s = `<line x1="${L}" x2="${W - R}" y1="${H - Bt}" y2="${H - Bt}" stroke="var(--line)"/>`;
   [25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
   g.forEach((d, i) => { const cx = L + gw * i + gw / 2; d.v.forEach((v, k) => { const h = (H - Bt - T) * v, x = cx + (k - 1.5) * (bw + 4) + 2, y = H - Bt - h;
       s += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" rx="3" fill="${cols[k]}"/><text class="ink" x="${x + bw / 2}" y="${y - 5}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(v * 100)}</text>`; });
-    s += `<text class="ink" x="${cx}" y="${H - Bt + 18}" font-size="12" font-weight="700" text-anchor="middle">${esc(d.b)}</text><text x="${cx}" y="${H - Bt + 34}" font-size="11" text-anchor="middle">${d.n} stocks</text>`; });
+    const words = d.b.split(" "), cut = d.b.length > 16 && words.length > 1 ? Math.ceil(words.length / 2) : words.length;
+    const l1 = words.slice(0, cut).join(" "), l2 = words.slice(cut).join(" ");
+    s += `<text class="ink" x="${cx}" y="${H - Bt + 16}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l1)}</text>`
+      + (l2 ? `<text class="ink" x="${cx}" y="${H - Bt + 30}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l2)}</text>` : "")
+      + `<text x="${cx}" y="${H - Bt + (l2 ? 44 : 32)}" font-size="11" text-anchor="middle">${d.n} stocks</text>`; });
   $("b-chart").innerHTML = s;
 })();
 (function industryTable() {
-  const groups = {}; S.forEach(s => (groups[s.ind || "Other"] ||= []).push(s));
+  const GL = D.group_label || "sub-industry", GLc = GL[0].toUpperCase() + GL.slice(1);
+  const groups = {}; S.forEach(s => (groups[(D.group_label ? s.grp : s.ind) || "Other"] ||= []).push(s));
   const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, b: x.filter(s => s.v === "Bullish").length, a: x.filter(s => (s.vs200 ?? -1) > 0).length,
     o: x.filter(s => s.rs === "outperforming").length, c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
-  $("i-title").textContent = `By sub-industry: ${rows[0].k} leads on relative strength over 3 months`;
+  $("i-title").textContent = `By ${GL}: ${rows[0].k} leads on relative strength over 3 months`;
+  if (D.group_label) $("i-sub").textContent = `GICS ${GL === "sector" ? "sectors" : GL + "s"}, ranked by median 3-month change in relative strength.${BNOTE}`;
   rows.push({k: `${D.sector_name} constituents`, n: S.length, b: cnt("Bullish"), a: above, o: outN, c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
   const share = (v, n) => `<td class="c ${v / n > .5 ? "pos" : v / n < .5 ? "neg" : ""}" style="font-weight:700">${v}</td>`;
-  $("i-table").innerHTML = `<thead><tr><th>Sub-industry</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
+  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
     + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${share(r.b, r.n)}${share(r.a, r.n)}${share(r.o, r.n)}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
 })();
 
@@ -2379,7 +2609,7 @@ function drawMap() {
       + `<text class="ink" x="${x + 8}" y="${y - 6}" font-size="10">${esc(p.t.split(" ")[0])}</text></g>`; });
   $("map-svg").innerHTML = s;
 }
-$("map-ctl").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === mapFilter}">${esc(b || "All sub-sectors")}</button>`).join("")
+$("map-ctl").innerHTML = ["", ...BUCKETS].map(b => `<button class="chip" data-b="${esc(b)}" aria-pressed="${b === mapFilter}">${esc(b || (D.buckets ? "All groups" : "All sub-sectors"))}</button>`).join("")
   + `<span class="legend" style="margin:0 0 0 auto"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Neutral</span><span><i style="background:var(--mulb)"></i>Bearish</span></span>`;
 $("map-ctl").onclick = e => { const b = e.target.closest(".chip"); if (!b) return; mapFilter = b.dataset.b; $("map-ctl").querySelectorAll(".chip").forEach(c => c.setAttribute("aria-pressed", c === b)); drawMap(); };
 const tip = $("tip");
@@ -2422,14 +2652,14 @@ $("d-table").addEventListener("click", e => { const th = e.target.closest("th.so
   if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs", "lst"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
   const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
 $("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
-$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days. Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
+$("d-note").textContent = `Default order: trend verdict, then RS Mom, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. RS Mom: direction of the 200-day average of relative strength (stock ÷ ${B}) over 20 trading days.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
 drawDash();
 
 /* RS leaders / laggards */
 (function rsBars() {
   const rk = S.filter(s => s.rs3 != null).sort((a, b) => b.rs3 - a.rs3), lead = rk.slice(0, 15), lag = rk.slice(-15).reverse(), mx = Math.max(...rk.map(s => Math.abs(s.rs3)));
   $("rs-title").textContent = `The 15 leaders and the 15 laggards against the ${B}`;
-  $("rs-sub").textContent = `3-month change in relative strength (price ÷ ${B}). Median of all constituents: ${pct(med(S.map(s => s.rs3)))}.`;
+  $("rs-sub").textContent = `3-month change in relative strength (price ÷ ${B}). Median of all constituents: ${pct(med(S.map(s => s.rs3)))}.${BNOTE}`;
   const bar = s => `<div class="bar" data-t="${esc(s.t)}" role="button" tabindex="0"><span class="nm">${esc(s.n)}</span><span class="tr"><span class="fl" style="display:block;width:${Math.abs(s.rs3) / mx * 100}%;background:${s.rs3 >= 0 ? "var(--mint)" : "var(--mulb)"}"></span></span><span class="vv ${cls(s.rs3)}">${pct(s.rs3)}</span></div>`;
   $("rs-lead").innerHTML = lead.map(bar).join(""); $("rs-lag").innerHTML = lag.map(bar).join("");
   document.querySelectorAll(".rsbars").forEach(el => el.onclick = e => { const b = e.target.closest(".bar"); if (b) openOne(b.dataset.t); });
@@ -2448,26 +2678,26 @@ drawDash();
 })();
 
 /* triggers */
-$("t-title").textContent = `${D.triggers.length} stocks within 2% of a 52-week or 100-day high or low`;
+$("t-title").textContent = `${D.triggers.length} stocks within 2% of a swing level or a 100-day high or low`;
 $("t-table").innerHTML = `<thead><tr><th>Stock</th><th class="r">Last</th><th>Level</th><th class="r">Value</th><th class="r">Distance</th><th class="c">Trend</th></tr></thead><tbody>`
   + D.triggers.map(r => `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td><b>${esc(r.n)}</b></td><td class="r">${num(r.c, r.d)}</td><td>${esc(r.kind)}</td><td class="r">${num(r.level, r.d)}</td><td class="r ${cls(r.dist)}" style="font-weight:700">${pct(r.dist, 2)}</td><td class="c">${pill(r.v)}</td></tr>`).join("") + "</tbody>";
 $("t-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t); };
 
 /* gallery */
 const galOrder = [];
-$("gal").innerHTML = [["Sector index", [X]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
+$("gal").innerHTML = [[IDX.length ? D.index_heading : "Sector index", [X, ...IDX]], ...BUCKETS.map(b => [b, S.filter(s => s.b === b).sort(defaultSort)])].map(([b, x]) => {
   const items = x.filter(s => s.img); return `<h3>${esc(b)} <span class="dim" style="font-weight:600;font-size:13px">${items.length}</span></h3><div class="thumbs">`
     + items.map(s => { galOrder.push(s); return `<button class="thumb" data-i="${galOrder.length - 1}"><img loading="lazy" src="${s.img}" alt="${esc(s.n)} chart"><div><span>${esc(s.n)} ${ltag(s.lists)}</span>${hasV(s.v) ? `<span style="color:${s.v === "Bullish" ? "#3BAF90" : s.v.startsWith("Bearish") ? "#AC5D85" : "#4B5F80"}">${GLY[s.v]}</span>` : ""}</div></button>`; }).join("") + "</div>"; }).join("");
 $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(galOrder, +t.dataset.i); };
 
 /* method */
 $("method-rows").innerHTML = [["Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."],
-  ["Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."],
+  ["Structure", "Support = last confirmed swing low, resistance = last swing high (1.5 × one-month-move reversal). A support break stands until a resistance break."],
   ["Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."],
   ["Relative strength", `RS Mom: is the 200-day average of price ÷ ${B} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.`]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
-$("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: 52-week low / high (prior 52 weeks, last close excluded); no drawn charts for this list.${insuf}`;
+$("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: last confirmed swing low / high (1.5 × one-month-move reversal); no drawn charts for this list.${insuf}`;
 
 /* lightbox */
 let lbList = [], lbI = 0;
@@ -2585,9 +2815,10 @@ def make_charts(prices, uni, asof, out_dir: Path) -> None:
         t = u.ticker
         s = prices.series(t)
         s = s[s.index <= pd.Timestamp(asof)]
-        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": u.support, "resistance": u.resistance,
-               "support_origin": getattr(u, "support_origin", None), "resistance_origin": getattr(u, "resistance_origin", None)}
-        v = scores.loc[t, "verdict"]
+        sc = scores.loc[t]                                            # levels as resolved by the engine (swing levels)
+        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": sc.get("support"), "resistance": sc.get("resistance"),
+               "support_origin": sc.get("support_origin"), "resistance_origin": sc.get("resistance_origin")}
+        v = sc["verdict"]
         badge = v if v in VERDICTS else None                                  # no published views: rules-based reading
         group = (u.group or "Other").replace(" – ", "_").replace(" & ", "_").replace(" ", "_")
         f = out_dir / group / f"{i:03d}_{_slug(t)}.png"

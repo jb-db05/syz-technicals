@@ -1,17 +1,11 @@
 # Build spec – S&P 500 Information Technology: Technical special report
 
-Version of 19 November 2026. The reference edition is **18 November 2026, data to 17 November 2026**. It has two outputs:
+Version of 22 November 2026 (trend levels: swing rule adopted 22 Nov 2026). The reference edition is **18 November 2026, data to 17 November 2026**. It has two outputs:
 
 - **PowerPoint:** Syz A4, 91 pages.
 - **HTML:** one interactive page plus 77 chart images.
 
-`build_sector_report.py` implements this spec exactly. Running it on the reference inputs reproduces both outputs:
-
-- every chart pixel;
-- every slide part;
-- the HTML file.
-
-The only difference is the save timestamps of the three embedded chart workbooks.
+`build_sector_report.py` implements this spec exactly. Under the rule in force until 21 November 2026 (52-week levels), running it on the reference inputs reproduced both outputs pixel for pixel and part for part (only the save timestamps of three embedded workbooks differed). Since 22 November 2026 levels come from swings (§1.2), so the same inputs give the edition under the current rule.
 
 Notation used throughout:
 
@@ -75,15 +69,15 @@ The universe has one row for the sector index and one per constituent. Columns:
 | name | from `DISPLAY_NAMES` | from `DISPLAY_NAMES` (Bloomberg NAME is never used as the display name) |
 | asset_class / group | `sector` / `Sector index` | `equity` / `S&P 500 Information Technology` |
 | benchmark / decimals | `SPX Index` / 1 | `SPX Index` / 1 |
-| support / resistance | 52-week low / high | 52-week low / high |
-| support_origin / resistance_origin | `52w low (YYYY-MM-DD)` / `52w high (YYYY-MM-DD)` | same |
+| support / resistance | written as 52-week low / high; replaced at scoring by the swing levels (§2.1) | same |
+| support_origin / resistance_origin | `52w …` in the file; the engine reports `swing low (YYYY-MM-DD)[, broken]` / `swing high (…)` | same |
 | levels_asof | today | today |
 | industry | empty | full GICS sub-industry (§1.3) |
 | bucket | empty | sub-sector (§1.3) |
 | syz_lists | empty | `Master list`, `Focus List`, `Master list; Focus List` or empty (§1.4) |
 | badge, badge_asof, standing_position, override_reason | empty | empty (no published views in this report) |
 
-**52-week levels:** the min and max of closes strictly after (last date − 52 weeks) and strictly before the last date. The last close is excluded.
+**Levels (rule of 22 Nov 2026):** the universe file carries the 52-week low / high, but any level with a `52w` origin is recomputed by the engine as a **swing level**: support = last confirmed swing low, resistance = last confirmed swing high, a swing being confirmed when the close reverses 1.5 × the one-month move (daily volatility over 100 days × √20). After a lower low the broken prior swing low stays the support until the resistance breaks (and symmetrically). The 52-week low / high are used only where no swing is confirmed.
 
 ### 1.3 Sub-industry and sub-sector
 
@@ -149,7 +143,7 @@ The universe has one row for the sector index and one per constituent. Columns:
 - **Structure state:** set by the most recent structural event.
   - Support side, with a level: close < support, counted from levels_asof − 100 bars. Without a level: close < MIN100 (lowest of the prior 100 closes).
   - Resistance side, with a level: close > resistance. Without a level: close > MAX100.
-  - Here both sides have levels (the 52-week low and high), and they outrank band breaks.
+  - Here both sides have swing levels (support / resistance of §1.2); breaks count from the earlier of the two swing points, and the levels outrank band breaks.
   - A MAX100 break resets an old support break to intact; a MIN100 break resets an old resistance break.
 - **Cross:** the last golden or death cross of MA50 / MA200 within 40 bars.
 - **price_vs_200:** above or below the MA200.
@@ -207,7 +201,7 @@ The universe has one row for the sector index and one per constituent. Columns:
 
 - One row per stock: the nearest level within ±2 % of the close.
 - **Candidate levels:**
-  - the 52-week low (support) and 52-week high (resistance), labelled "52-week low / high";
+  - the swing low (support) and swing high (resistance), labelled "Swing low / high";
   - the 100-day high and low (prior 100 closes), labelled "100-day high / low".
 - **Distance** = close / level − 1, shown with 2 decimals.
 - **Sort:** by absolute distance; keep the first row per stock.
@@ -362,7 +356,7 @@ The universe has one row for the sector index and one per constituent. Columns:
 
 **13. Trigger watch**
 
-- **Title:** "Trigger watch: N stocks within 2% of a 52-week or 100-day high or low".
+- **Title:** "Trigger watch: N stocks within 2% of a swing level or a 100-day high or low".
 - **Table:**
 
   | Stock | Last | Level | Value | Distance | Trend |
@@ -403,10 +397,10 @@ The universe has one row for the sector index and one per constituent. Columns:
   | 50-day MA | blue 2F6FDE, 1.3 pt |
   | 200-day MA | orange FF6C0E, 2.0 pt |
   | 100-day high/low band | fill Blueberry, alpha 0.08; edges Blueberry 0.6 pt, alpha 0.45 |
-  | 52-week low/high | grey 8A93A6, 1.0 pt, dash (2, 3) |
+  | swing low/high (52-week where no swing) | grey 8A93A6, 1.0 pt, dash (2, 3) |
 
   - **Tags on the right axis,** pushed apart by at least 19 pt so none hides another:
-    - "52w low x" / "52w high x" on E4E7EE;
+    - "swing low x" / "swing high x" (or "52w …") on E4E7EE;
     - "100d high x" / "100d low x";
     - last close on navy;
     - MA200 on orange.

@@ -34,6 +34,7 @@ MODULES = [
      "Universe file"),
     ("io/template", ALL, T_NAMES, "Bloomberg price template writer"),
     ("io/syz_lists", ALL, {}, "Syz list membership (display only)"),
+    ("trend/swing_levels", ALL, {}, "Trend engine – swing levels (BUILD_SPEC §3.2, 22 Nov 2026)"),
     ("trend/rules", ALL, {}, "Trend engine – verdict rules (BUILD_SPEC §3)"),
     ("trend/score", ALL, {}, "Trend engine – scoring a universe"),
     ("charts/syz_style", ALL, {}, "Syz chart style and the verdict badge"),

@@ -101,9 +101,10 @@ def make_charts(prices, uni, asof, out_dir: Path) -> None:
         t = u.ticker
         s = prices.series(t)
         s = s[s.index <= pd.Timestamp(asof)]
-        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": u.support, "resistance": u.resistance,
-               "support_origin": getattr(u, "support_origin", None), "resistance_origin": getattr(u, "resistance_origin", None)}
-        v = scores.loc[t, "verdict"]
+        sc = scores.loc[t]                                            # levels as resolved by the engine (swing levels)
+        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": sc.get("support"), "resistance": sc.get("resistance"),
+               "support_origin": sc.get("support_origin"), "resistance_origin": sc.get("resistance_origin")}
+        v = sc["verdict"]
         badge = v if v in VERDICTS else None                                  # no published views: rules-based reading
         group = (u.group or "Other").replace(" – ", "_").replace(" & ", "_").replace(" ", "_")
         f = out_dir / group / f"{i:03d}_{_slug(t)}.png"

@@ -11,7 +11,9 @@
 1. Give it these files, the refreshed Bloomberg export and the Master list workbook.
 2. Ask it to set the parameters listed in `INPUTS.md` and run `python build_sector_report.py build`.
 
-**Verified on 19 Nov 2026:** run on the reference inputs, the script reproduces the published 18 November 2026 edition exactly:
+**Rule change, 22 Nov 2026:** support / resistance now come from volatility-scaled swings (k = 1.5) instead of the 52-week low / high, so the script no longer reproduces the 18 November PowerPoint, which was built under the old rule; it produces the edition under the current rule.
+
+**Verified on 19 Nov 2026 (old rule):** run on the reference inputs, the script reproduces the published 18 November 2026 edition exactly:
 - 77 charts, pixel for pixel;
 - all PowerPoint slides and images;
 - the HTML page.
