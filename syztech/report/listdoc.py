@@ -194,7 +194,7 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
     tw = pd.concat([tw, pd.DataFrame(extra)], ignore_index=True) if extra else tw
     if len(tw):
         tw = tw.sort_values("dist", key=lambda x: x.abs()).drop_duplicates("ticker")
-    s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a 52-week or 100-day high or low",
+    s = deck.titled(f"Trigger watch: {len(tw)} stocks within 2% of a swing level or a 100-day high or low",
                     "Where a breakout or a breakdown is closest")
     rows, st = [], {}
     for i, r in enumerate(tw.itertuples()):
@@ -210,7 +210,8 @@ def build_list_doc(df: pd.DataFrame, charts: dict, out: Path, template: Path, *,
     # method
     s = deck.titled("How to read the verdicts", "One rule set, applied to every stock")
     items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
-             ("Structure", "A support break (here: a close below the 52-week low or the 100-day low) stands until a resistance break."),
+             ("Structure", "Support = last confirmed swing low, resistance = last swing high (a swing needs a 1.5 × one-month-move "
+                           "reversal). A support break stands until a resistance break."),
              ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {benchmark_name} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
     for k, (lab, body) in enumerate(items):

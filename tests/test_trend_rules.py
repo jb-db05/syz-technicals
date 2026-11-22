@@ -230,3 +230,75 @@ def test_reclaimed_support_stays_broken_until_resistance_breaks():
     assert st.support_broken
     recovered = pd.concat([s, pd.Series([1.385], index=[s.index[-1] + pd.offsets.BDay()])])
     assert structure_state(recovered, support=1.32, resistance=1.38).resistance_broken
+
+
+# ── swing levels (adopted 22 Nov 2026, BUILD_SPEC §3.2) ──────────────────────────────────────────────────────────
+
+def _legs(*pairs, start=100.0, n=40):
+    """Piecewise-linear closes through the given multiplicative legs, n bars each, with tiny noise for volatility."""
+    import numpy as np
+    import pandas as pd
+    rng = np.random.default_rng(0)
+    x, out = start, []
+    for f in pairs:
+        leg = np.linspace(x, x * f, n)
+        out.append(leg)
+        x = leg[-1]
+    c = np.concatenate(out) * (1 + rng.normal(0, 0.002, sum(len(o) for o in out)))
+    return pd.Series(c, index=pd.bdate_range("2019-01-01", periods=len(c)))
+
+
+def test_swing_support_is_last_swing_low():
+    from syztech.trend.swing_levels import swing_levels
+    s = _legs(1.3, 0.85, 1.3, 0.85, 1.3, 0.9, 1.05)          # higher lows: support = last swing low
+    lv = swing_levels(s)
+    assert lv is not None and not lv.support_broken_prior
+    assert lv.support < s.iloc[-1] < lv.resistance * 1.2
+
+
+def test_lower_low_keeps_the_broken_prior_low_as_support():
+    from syztech.trend.swing_levels import swing_levels
+    s = _legs(1.3, 0.8, 1.2, 0.7, 1.1)                       # second low below the first: the first low was broken
+    lv = swing_levels(s)
+    assert lv.support_broken_prior and lv.support > s.iloc[-1] * 0.0
+    lows = s.iloc[:lv.support_bar + 1]
+    assert abs(lv.support - lows.iloc[-1]) < 1e-9             # the level is the close on the swing bar
+
+
+def test_falling_trend_with_lower_low_is_bearish_and_resets_on_resistance_break():
+    from syztech.trend.score import resolve_levels
+    from syztech.trend.rules import evaluate
+    s = _legs(1.0, 0.8, 1.1, 0.75, 1.05, 0.7, 1.08, n=60)    # lower highs and lower lows, falling 200-day
+    sup, res, so, ro, ss, rs_ = resolve_levels(s, None, None, None, None)
+    assert so.startswith("swing low") and ro.startswith("swing high")
+    r = evaluate(s, support=sup, resistance=res, support_start=ss, resistance_start=rs_)
+    assert r.snapshot.slope200 == "falling" and r.verdict in ("Bearish", "Bearish_LM")
+    up = _legs(1.0, 0.8, 1.1, 0.75, 1.05, 0.7, 1.08, 1.6, n=60)   # rally through the last swing high
+    sup, res, so, ro, ss, rs_ = resolve_levels(up, None, None, None, None)
+    assert not evaluate(up, support=sup, resistance=res, support_start=ss, resistance_start=rs_).verdict.startswith("Bearish")
+
+
+def test_per_side_start_ignores_closes_before_the_swing_point():
+    import pandas as pd
+    from syztech.trend.rules import structure_state
+    s = pd.Series([10.0, 8.0, 9.0, 9.5, 9.6], index=pd.bdate_range("2024-01-01", periods=5))
+    assert structure_state(s, support=8.5, resistance=20, support_start=0, resistance_start=0).support_broken
+    assert not structure_state(s, support=8.5, resistance=20, support_start=2, resistance_start=2).support_broken
+
+
+def test_drawn_levels_outrank_swing_and_52w_origins_are_replaced():
+    from syztech.trend.score import resolve_levels
+    s = _legs(1.3, 0.85, 1.3, 0.85, 1.3, 0.9, 1.05)
+    sup, res, so, ro, ss, rs_ = resolve_levels(s, 123.0, 456.0, "chart", "text")
+    assert (sup, res, ss, rs_) == (123.0, 456.0, None, None)
+    sup, res, so, ro, ss, rs_ = resolve_levels(s, 123.0, 456.0, "52w low (2024-01-01)", "52w high (2024-01-01)")
+    assert so.startswith("swing low") and ro.startswith("swing high") and sup != 123.0
+
+
+def test_negative_series_falls_back_to_52_week_levels():
+    import numpy as np
+    import pandas as pd
+    from syztech.trend.score import resolve_levels
+    s = pd.Series(np.sin(np.arange(400) / 20) * 0.5 - 0.2, index=pd.bdate_range("2023-01-02", periods=400))   # yields < 0
+    sup, res, so, ro, ss, rs_ = resolve_levels(s, None, None, None, None)
+    assert so.startswith("52w low") and ro.startswith("52w high") and ss == len(s) - 1

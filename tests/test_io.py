@@ -67,7 +67,7 @@ def test_universe_draft_and_end_to_end(tmp_path):
     assert problems == []
     out = score_universe(res, u).set_index("ticker")
     assert out.loc["XAG Curncy", "verdict"] == "Bearish"
-    assert out.loc["XAG Curncy", "levels"] == "partial"
+    assert out.loc["XAG Curncy", "levels"] == "drawn+swing"          # drawn support, swing resistance (22 Nov 2026)
     assert out.loc["MISSING Index", "verdict"] == "insufficient_data"
     # CLI exits non-zero on insufficient_data unless --allow-partial
     import os

@@ -121,13 +121,14 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
     for key, colour in (("support", BLUEBERRY), ("resistance", BLUEBERRY)):
         v = row.get(key)
         origin = row.get(f"{key}_origin")
-        is52 = isinstance(origin, str) and origin.startswith("52w")
+        is52 = isinstance(origin, str) and origin.startswith(("52w", "swing"))
+        kind = "swing" if isinstance(origin, str) and origin.startswith("swing") else "52w"
         if show_52w and is52:
             continue                              # already shown by the 52-week range
         if v is not None and not pd.isna(v):
-            if is52:                              # fallback level: grey, labelled, so it is never mistaken for a drawn line
+            if is52:                              # computed level: grey, labelled, so it is never mistaken for a drawn line
                 ax.axhline(v, color="#8A93A6", lw=1.0, ls=(0, (2, 3)), zorder=1)
-                _axis_tag(tags, v, f"52w {'low' if key == 'support' else 'high'} {num(v, dec)}", "#E4E7EE", fg=NAVY)
+                _axis_tag(tags, v, f"{kind} {'low' if key == 'support' else 'high'} {num(v, dec)}", "#E4E7EE", fg=NAVY)
             else:
                 ax.axhline(v, color=colour, lw=1.2, ls=(0, (6, 4)), zorder=1)
                 _axis_tag(tags, v, num(v, dec), "#79D6FF", fg=NAVY)

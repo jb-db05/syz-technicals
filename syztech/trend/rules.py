@@ -69,7 +69,8 @@ class Structure:
 
 def structure_state(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
                     support: float | None = None, resistance: float | None = None,
-                    levels_start: int = 0) -> Structure:
+                    levels_start: int = 0, support_start: int | None = None,
+                    resistance_start: int | None = None) -> Structure:
     """Current structure state from the most recent structural event.
 
     Each side uses its drawn level when one exists, else the 100-day band (§3.2):
@@ -89,11 +90,13 @@ def structure_state(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     n = len(c)
     hi_band = np.nan_to_num(c > max_prior(close, params.band_window).to_numpy(), nan=0).astype(bool)
     lo_band = np.nan_to_num(c < min_prior(close, params.band_window).to_numpy(), nan=0).astype(bool)
-    in_window = np.arange(n) >= levels_start
+    # each side counts its breaks from its own start (drawn level: levels_asof − lookback; swing level: the swing point)
+    in_s = np.arange(n) >= (levels_start if support_start is None else support_start)
+    in_r = np.arange(n) >= (levels_start if resistance_start is None else resistance_start)
 
     has_s, has_r = support is not None, resistance is not None
-    drawn_s = (c < support) & in_window if has_s else np.zeros(n, bool)
-    drawn_r = (c > resistance) & in_window if has_r else np.zeros(n, bool)
+    drawn_s = (c < support) & in_s if has_s else np.zeros(n, bool)
+    drawn_r = (c > resistance) & in_r if has_r else np.zeros(n, bool)
 
     # Event code per bar. Drawn breaks outrank band breaks on the same bar.
     #  +2 resistance broken, -2 support broken, 0 reset to intact, nan no event
@@ -148,7 +151,7 @@ class Snapshot:
 
 def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
              support: float | None = None, resistance: float | None = None,
-             levels_start: int = 0) -> Snapshot:
+             levels_start: int = 0, support_start: int | None = None, resistance_start: int | None = None) -> Snapshot:
     ma200 = sma(close, params.ma_long)
     ma50 = sma(close, params.ma_short)
     s200 = slope_state(ma200, params.slope_lookback, params.flat_band)
@@ -169,7 +172,7 @@ def snapshot(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
         cross=cr.kind, cross_direction=cr.direction, cross_pos=cr.pos,
         last_band=lb.side, last_band_pos=lb.pos, last_band_level=lb.level,
         bbw100=bbw, target=target,
-        structure=structure_state(close, params, support, resistance, levels_start),
+        structure=structure_state(close, params, support, resistance, levels_start, support_start, resistance_start),
     )
 
 
@@ -221,8 +224,11 @@ class TrendResult:
 
 def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
              support: float | None = None, resistance: float | None = None,
-             levels_asof=None) -> TrendResult:
-    """Mechanical verdict for one instrument. `close` is ascending, trading days only."""
+             levels_asof=None, support_start: int | None = None, resistance_start: int | None = None) -> TrendResult:
+    """Mechanical verdict for one instrument. `close` is ascending, trading days only.
+
+    `support_start` / `resistance_start` (bar positions) override the levels_asof window for one side – used for swing
+    levels, whose breaks count from the swing point (§3.2)."""
     close = close.dropna()
     if len(close) < params.min_history:
         return TrendResult(INSUFFICIENT, "insufficient_history", None,
@@ -230,7 +236,7 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
     levels_start = 0
     if levels_asof is not None and not pd.isna(levels_asof) and isinstance(close.index, pd.DatetimeIndex):
         levels_start = max(0, int(close.index.searchsorted(pd.Timestamp(levels_asof))) - params.levels_lookback)
-    snap = snapshot(close, params, support, resistance, levels_start)
+    snap = snapshot(close, params, support, resistance, levels_start, support_start, resistance_start)
     for rule, cond, verdict in _rules(snap):
         if cond:
             lt = LT_VIEW.get(rule)

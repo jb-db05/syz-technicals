@@ -32,7 +32,7 @@ VLABEL = {"Bullish": "Bullish", "Neutral+": "Neutral +", "Neutral": "Neutral", "
           "Bearish_LM": "Bearish (LM)", "Bearish": "Bearish"}
 SOURCE = "Sources : Syz Research, Bloomberg"
 import re as _re
-NUMERIC = _re.compile(r"^[+–-]?[\d,.]+(%|bp)?( \(52w\))?$")
+NUMERIC = _re.compile(r"^[+–-]?[\d,.]+(%|bp)?( \((52w|swing)\))?$")
 L_COVER, L_GRADIENT, L_TITLE, L_DISCLAIMER, L_FINAL, L_BLANK = 1, 0, 21, 22, 24, 26
 X0, W = 0.73, 10.28           # content left edge and width (inches), from the template's title placeholder
 
@@ -77,7 +77,7 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
             ticker=t, name=ur["name"], group=ur.get("group"), asset_class=ur.get("asset_class"),
             decimals=int(ur.get("decimals") or 1), close=close, ma200=r.ma200, slope200=r.slope200,
             vs200=close / r.ma200 - 1 if r.ma200 else np.nan,
-            support=r.support, s_origin=ur.get("support_origin"), resistance=r.resistance, r_origin=ur.get("resistance_origin"),
+            support=r.support, s_origin=r.get("support_origin"), resistance=r.resistance, r_origin=r.get("resistance_origin"),
             dist_s=close / r.support - 1 if pd.notna(r.support) else np.nan,
             dist_r=close / r.resistance - 1 if pd.notna(r.resistance) else np.nan,
             trendline=tl_today, dist_tl=close / tl_today - 1 if tl_today else np.nan,
@@ -94,13 +94,15 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
 
 
 def triggers(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
-    """Instruments within `band` of a level: drawn support / resistance, trendline, 52-week high / low."""
+    """Instruments within `band` of a level: drawn support / resistance, swing low / high, trendline."""
     out = []
     for _, r in df.iterrows():
         cands = []
         for lvl, kind, origin in ((r.support, "support", r.s_origin), (r.resistance, "resistance", r.r_origin)):
             if pd.notna(lvl):
-                label = "52-week " + ("low" if kind == "support" else "high") if isinstance(origin, str) and origin.startswith("52w") else kind.capitalize()
+                side = "low" if kind == "support" else "high"
+                label = (f"52-week {side}" if isinstance(origin, str) and origin.startswith("52w") else
+                         f"Swing {side}" if isinstance(origin, str) and origin.startswith("swing") else kind.capitalize())
                 cands.append((lvl, label))
         if r.trendline:
             cands.append((r.trendline, "Trendline"))
@@ -245,8 +247,8 @@ def dashboard_slide(deck, df, title, subtitle, asof):
     rows, styles = [], {}
     for i, r in enumerate(df.itertuples()):
         d = r.decimals
-        s_tag = " (52w)" if isinstance(r.s_origin, str) and r.s_origin.startswith("52w") else ""
-        r_tag = " (52w)" if isinstance(r.r_origin, str) and r.r_origin.startswith("52w") else ""
+        tag = lambda o: " (52w)" if isinstance(o, str) and o.startswith("52w") else " (swing)" if isinstance(o, str) and o.startswith("swing") else ""
+        s_tag, r_tag = tag(r.s_origin), tag(r.r_origin)
         rows.append([r.name, num(r.close, d), {"rising": "rising", "falling": "falling", "flat": "flat"}.get(r.slope200, EN_DASH),
                      dist(r, r.ma200), num(r.support, d) + s_tag, dist(r, r.support), num(r.resistance, d) + r_tag, dist(r, r.resistance),
                      pct(r.chg1w), f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}"])
@@ -260,7 +262,7 @@ def dashboard_slide(deck, df, title, subtitle, asof):
     rh = min(0.26, 5.0 / (n + 1))
     table(s, X0, 2.55, W, hdr, rows, [2.75, 0.95, 0.7, 0.75, 1.15, 0.65, 1.15, 0.65, 0.68, 1.6],
           row_h=rh, size=8.5 if n <= 16 else 7.5, styles=styles)
-    source(s, asof, "Support / resistance: drawn levels; (52w) = 52-week low / high where none is drawn. dist. = last close against the level.")
+    source(s, asof, "Support / resistance: drawn levels; (swing) = last confirmed swing low / high where none is drawn. dist. = last close against the level.")
     return s
 
 
@@ -435,7 +437,7 @@ def build(table_df: pd.DataFrame, commentary: dict, charts: dict, out: Path, tem
         ("Trend", "The direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
         ("Structure", "Whether the key support or resistance drawn on the chart has broken. A broken support stands until the resistance breaks."),
         ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. Everything in between is Neutral, with a tilt."),
-        ("Levels", "Drawn supports and resistances; where none is drawn, the 52-week low and high."),
+        ("Levels", "Drawn supports and resistances; where none is drawn, the last confirmed swing low and high (1.5 × one-month-move reversal)."),
         ("Relative strength", "For single stocks, RS Mom: is the 200-day average of price ÷ regional index rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict."),
     ]
     for k, (lab, body) in enumerate(items):

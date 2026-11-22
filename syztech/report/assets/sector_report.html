@@ -251,11 +251,11 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   <section id="triggers">
     <div class="sh"><span class="k">Trigger watch</span><h2 id="t-title"></h2><p>Where a breakout or a breakdown is closest.</p></div>
     <div class="tw"><table id="t-table"></table></div>
-    <p class="note">52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.</p>
+    <p class="note">Swing levels: last confirmed swing low / high (1.5 × one-month-move reversal). 100-day high / low: highest / lowest close of the prior 100 trading days.</p>
   </section>
 
   <section id="charts" class="gal">
-    <div class="sh"><span class="k">Charts</span><h2>One chart per stock, by sub-sector</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day high / low band, 52-week levels; relative strength panel.</p></div>
+    <div class="sh"><span class="k">Charts</span><h2>One chart per stock, by sub-sector</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day high / low band, swing levels; relative strength panel.</p></div>
     <div id="gal"></div>
   </section>
 
@@ -474,7 +474,7 @@ drawDash();
 })();
 
 /* triggers */
-$("t-title").textContent = `${D.triggers.length} stocks within 2% of a 52-week or 100-day high or low`;
+$("t-title").textContent = `${D.triggers.length} stocks within 2% of a swing level or a 100-day high or low`;
 $("t-table").innerHTML = `<thead><tr><th>Stock</th><th class="r">Last</th><th>Level</th><th class="r">Value</th><th class="r">Distance</th><th class="c">Trend</th></tr></thead><tbody>`
   + D.triggers.map(r => `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td><b>${esc(r.n)}</b></td><td class="r">${num(r.c, r.d)}</td><td>${esc(r.kind)}</td><td class="r">${num(r.level, r.d)}</td><td class="r ${cls(r.dist)}" style="font-weight:700">${pct(r.dist, 2)}</td><td class="c">${pill(r.v)}</td></tr>`).join("") + "</tbody>";
 $("t-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t); };
@@ -488,12 +488,12 @@ $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(ga
 
 /* method */
 $("method-rows").innerHTML = [["Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."],
-  ["Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."],
+  ["Structure", "Support = last confirmed swing low, resistance = last swing high (1.5 × one-month-move reversal). A support break stands until a resistance break."],
   ["Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."],
   ["Relative strength", `RS Mom: is the 200-day average of price ÷ ${B} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.`]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
-$("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: 52-week low / high (prior 52 weeks, last close excluded); no drawn charts for this list.${insuf}`;
+$("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: last confirmed swing low / high (1.5 × one-month-move reversal); no drawn charts for this list.${insuf}`;
 
 /* lightbox */
 let lbList = [], lbI = 0;

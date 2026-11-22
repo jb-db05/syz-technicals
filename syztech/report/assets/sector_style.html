@@ -251,7 +251,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   <div id="regsecs"></div>
 
   <section id="charts" class="gal">
-    <div class="sh"><span class="k">Charts</span><h2>Every index and ratio</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day band, 52-week levels; relative strength panel against the benchmark.</p></div>
+    <div class="sh"><span class="k">Charts</span><h2>Every index and ratio</h2><p>Daily close, log scale, five years; 50- and 200-day averages, 100-day band, swing levels; relative strength panel against the benchmark.</p></div>
     <div id="gal"></div>
   </section>
 
@@ -426,7 +426,7 @@ $("gal").innerHTML = galGroups.map(([h, rows]) => { const items = rows.filter(r 
 $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(galOrder, +t.dataset.i); };
 
 /* method */
-$("method-rows").innerHTML = [["Trend", "Direction of the 200-day average over 20 trading days; support = 52-week low, resistance = 52-week high (prior 52 weeks)."],
+$("method-rows").innerHTML = [["Trend", "Direction of the 200-day average over 20 trading days; support / resistance = last confirmed swing low / high (1.5 × one-month-move reversal); a broken swing low stays the level until the resistance breaks."],
   ["Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Relative strength", "Index ÷ benchmark. RS Mom: direction of its 200-day average; RS 3m: its 3-month change. It informs, it does not change the verdict."],
   ["Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = the numerator leads."],

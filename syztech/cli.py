@@ -103,8 +103,9 @@ def cmd_deck_charts(a) -> int:
             skipped.append(f"{t}: no prices"); continue
         s = prices.series(t)
         s = s[s.index <= pd.Timestamp(asof)]
-        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": u.support, "resistance": u.resistance,
-               "support_origin": getattr(u, "support_origin", None), "resistance_origin": getattr(u, "resistance_origin", None)}
+        sc = scores.loc[t]
+        row = {"ticker": t, "name": u.name, "decimals": u.decimals, "support": sc.get("support"), "resistance": sc.get("resistance"),
+               "support_origin": sc.get("support_origin"), "resistance_origin": sc.get("resistance_origin")}
         badge, kind = (u.badge, "published") if isinstance(u.badge, str) and u.badge else (None, "mechanical")
         if badge is None:
             v = scores.loc[t, "verdict"]
@@ -296,14 +297,16 @@ def cmd_sector_style(a) -> int:
     for d in dropped:
         print(f"left out: {d}")
     scores = score_universe(prices, uni, asof)
-    verdict = scores.set_index("ticker").verdict
+    scores_i = scores.set_index("ticker")
+    verdict = scores_i.verdict
     charts, skipped = {}, []
     for i, r in enumerate(uni.itertuples(index=False), start=1):
         t = r.ticker
         s = prices.series(t)
         s = s[s.index <= pd.Timestamp(asof)]
-        row = {"ticker": t, "name": r.name, "decimals": r.decimals, "support": r.support, "resistance": r.resistance,
-               "support_origin": r.support_origin, "resistance_origin": r.resistance_origin}
+        sc = scores_i.loc[t]
+        row = {"ticker": t, "name": r.name, "decimals": r.decimals, "support": sc.get("support"), "resistance": sc.get("resistance"),
+               "support_origin": sc.get("support_origin"), "resistance_origin": sc.get("resistance_origin")}
         v = verdict.get(t)
         bench = r.benchmark if isinstance(r.benchmark, str) and r.benchmark in prices.reports else None
         slug = t.replace(" ÷ ", "_over_").replace(" ", "_").replace("/", "-")

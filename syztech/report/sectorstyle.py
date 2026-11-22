@@ -442,7 +442,8 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
 
     # ── method
     s = deck.titled("How to read this document", "One rule set, applied to every index and ratio")
-    items = [("Trend", "Direction of the 200-day average over 20 trading days; support = 52-week low, resistance = 52-week high (prior 52 weeks)."),
+    items = [("Trend", "Direction of the 200-day average over 20 trading days; support / resistance = last confirmed swing low / high "
+                       "(1.5 × one-month-move reversal); a broken swing low stays the level until the resistance breaks."),
              ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Relative strength", "Index ÷ benchmark. RS Mom: direction of its 200-day average; RS 3m: its 3-month change. It informs, it does not change the verdict."),
              ("Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = numerator leads."),

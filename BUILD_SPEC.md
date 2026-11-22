@@ -82,11 +82,11 @@ Known Bloomberg export defects to handle: sheets where price/MA columns are roun
 | badge_asof | date | edition date of that badge |
 | standing_position | str | optional editorial prior (e.g. "Bullish"); a prior, never an override |
 
-Optional columns `support_origin` / `resistance_origin` record where each level came from: `text` (named in the commentary), `chart` (value tag of a horizontal line on the published chart), `52w low` / `52w high` (fallback, 8 Nov 2026: when neither text nor chart gives the level, the lowest / highest close of the 52 weeks before the data date, excluding the last bar). Priority: text, then chart (closest line on that side), then 52-week. A level named as a broken support in the text stays the support even when price is below it. A horizontal chart line above price that price closed above within the last 100 trading days is a broken support and is entered as the support (Florian, 8 Nov 2026 – Asian indices); the resistance is then the next line above, else the 52-week high.
+Optional columns `support_origin` / `resistance_origin` record where each level came from: `text` (named in the commentary), `chart` (value tag of a horizontal line on the published chart), `52w low` / `52w high` (fallback, 8 Nov 2026: when neither text nor chart gives the level, the lowest / highest close of the 52 weeks before the data date, excluding the last bar). Priority: text, then chart (closest line on that side), then the **swing level** (§3.2, adopted 22 Nov 2026 – replaces the 52-week fallback; levels with a `52w` or `swing` origin are recomputed at every run and never treated as drawn). A level named as a broken support in the text stays the support even when price is below it. A horizontal chart line above price that price closed above within the last 100 trading days is a broken support and is entered as the support (Florian, 8 Nov 2026 – Asian indices); the resistance is then the next line above, else the 52-week high.
 
 `Neutral+` / `Neutral-` = Neutral with explicitly stated positive / negative tilt. `Bearish_LM` = "Bearish, but losing momentum".
 
-Drawn levels are inputs, not outputs: the engine cannot draw Florian's lines. When `support`/`resistance` are blank the engine falls back to the 100-day band structure (§3.2) and flags `levels: band-fallback` in the output.
+Drawn levels are inputs, not outputs: the engine cannot draw Florian's lines. When `support`/`resistance` are blank (or carry a `52w` / `swing` origin) the engine uses the swing levels of §3.2 and flags the source per side in `levels` (`drawn`, `swing`, `drawn+swing`); the 52-week low / high remain only as the last resort where no swing is confirmed.
 
 ### 2.3 Breadth extract (`data/breadth/`)
 
@@ -112,9 +112,16 @@ Drawn levels are inputs, not outputs: the engine cannot draw Florian's lines. Wh
 Two sources, in priority order:
 
 1. **Drawn levels** (`support`, `resistance` from the universe file). `support_broken = close < support`; `resistance_broken = close > resistance`. A close exactly at the trigger counts as **not** broken; a stated trigger "turn negative below X" means `close < X`, and when it is met the engine acts – it never waits for a "decisive" or "confirmed" break.
-2. **Band fallback** when no drawn level exists: `support_broken ≡ last_band == lower`, `resistance_broken ≡ last_band == upper`.
+2. **Swing levels** when no level is drawn on that side (decided 22 Nov 2026 after the side-by-side study, `syztech/research/`, page "Trend rule study"):
+   - one-month move `m_t` = stdev of daily log returns over 100 days × √20; a swing high / low is **confirmed** when the close reverses by `k × m_t` from the extreme, **k = 1.5** (`TrendParams`-independent constant `SWING_K`, `trend/swing_levels.py`);
+   - support = last confirmed swing low; resistance = last confirmed swing high;
+   - **a broken level stands**: after a lower low, the prior swing low (already undercut) stays the support and its break counts until the resistance breaks; after a higher high, the prior swing high stays the resistance;
+   - breaks on swing levels count from the earlier of the two swing points used (per-side start, `support_start` / `resistance_start`); drawn levels keep their window (`levels_asof − levels_lookback`);
+   - closes only; series with values ≤ 0 (negative yields) or no confirmed swing yet fall back to the 52-week low / high (prior 52 weeks, last bar excluded), which only today's close can break.
+   Origins are written `swing low (YYYY-MM-DD)` / `swing high (…)`, with `, broken` when the level is a prior swing already undercut / exceeded.
+3. **Band events** (`MIN100` / `MAX100`) no longer set the state where a level exists on that side; they reset the opposite state as before.
 
-HH/HL structure is read on the 100-day band events, not on minor intermediate swing lows (SMFG rule): losing a minor low without a `MIN100` break does not change the structure state.
+Study result (436 series weekly 2019–2026; 80 published verdicts of 8 Nov 2026): 69 / 80 published calls matched (drawn levels: 67; 52-week levels: 57), 14 / 17 Bearish calls caught (52-week: 1), 2.8 verdict changes a year per instrument (52-week: 2.75). The verdict table §3.3 is unchanged. No rule separated forward 1–3-month returns in that sample.
 
 ### 3.3 Verdict rules (apply in order; first match wins)
 

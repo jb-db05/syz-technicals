@@ -68,7 +68,7 @@ def add_momentum(df: pd.DataFrame, prices) -> pd.DataFrame:
 
 
 def trigger_watch(df: pd.DataFrame, band: float = 0.02) -> pd.DataFrame:
-    """Nearest level within `band`: 52-week high / low (or drawn levels) and the 100-day band, one row per stock."""
+    """Nearest level within `band`: swing low / high (or drawn levels) and the 100-day band, one row per stock."""
     tw = triggers(df, band)
     extra = []
     for r in df.itertuples():
@@ -451,7 +451,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     n_tw = len(tw)
     if trigger_cap and n_tw > trigger_cap:
         tw = tw.iloc[:trigger_cap]
-    s = deck.titled(f"Trigger watch: {n_tw} stocks within 2% of a 52-week or 100-day high or low",
+    s = deck.titled(f"Trigger watch: {n_tw} stocks within 2% of a swing level or a 100-day high or low",
                     "Where a breakout or a breakdown is closest" + (f" – the {len(tw)} nearest shown" if len(tw) < n_tw else ""))
     rows, st = [], {}
     for i, r in enumerate(tw.itertuples()):
@@ -461,12 +461,14 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     if rows:
         table(s, X0, 2.5, W, ["Stock", "Last", "Level", "Value", "Distance", "Trend"], rows,
               [3.6, 1.3, 1.7, 1.3, 1.0, 1.38], row_h=min(0.3, 5.0 / (len(rows) + 1)), size=9.5 if len(rows) < 18 else 8, styles=st)
-    source(s, asof, "52-week levels: prior 52 weeks, last close excluded. 100-day high / low: highest / lowest close of the prior 100 trading days.")
+    source(s, asof, "Swing levels: last confirmed swing low / high (a 1.5 × one-month-move reversal); a broken swing low stays the level "
+                    "until the resistance breaks. 100-day high / low: highest / lowest close of the prior 100 trading days.")
 
     # method
     s = deck.titled("How to read the verdicts", "One rule set, applied to every stock")
     items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
-             ("Structure", "A support break (a close below the 52-week low or the 100-day low) stands until a resistance break."),
+             ("Structure", "Support = last confirmed swing low, resistance = last swing high (a swing needs a 1.5 × one-month-move "
+                           "reversal). A support break stands until a resistance break."),
              ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
              ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {bench} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
