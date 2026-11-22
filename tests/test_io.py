@@ -176,3 +176,14 @@ def test_syz_list_tags_need_ticker_and_name_to_agree():
     assert tags["TXN UW Equity"] == "Master list; Focus List"
     assert tags["IT UN Equity"] == "" and len(issues) == 1          # ticker collision: not tagged, reported
     assert tags["TXN LN Equity"] == ""                               # only US listings are matched
+
+
+def test_template_currency_option_per_ticker(tmp_path):
+    from datetime import date
+    from openpyxl import load_workbook
+    from syztech.io.template import build_template
+    u = draft(["MXEU Index", "SXXP Index"])
+    u["currency"] = ["USD", None]
+    wb = load_workbook(build_template(u, tmp_path / "t.xlsx", date(2019, 1, 1), date(2026, 11, 20)))
+    assert wb["MXEU Index"]["A2"].value.endswith(',"Currency=USD")')
+    assert "Currency" not in wb["SXXP Index"]["A2"].value

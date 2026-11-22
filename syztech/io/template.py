@@ -17,8 +17,10 @@ BDH_OPTIONS = ['"Days=W"', '"Fill=B"', '"Dates=S"', '"CshAdjNormal=Y"', '"CshAdj
 INVALID_SHEET_CHARS = set('[]:*?/\\')
 
 
-def bdh_formula() -> str:
-    return f'=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3,{",".join(BDH_OPTIONS)})'
+def bdh_formula(currency: str | None = None) -> str:
+    """Daily PX_LAST; `currency` (e.g. "USD") converts the series in Bloomberg, otherwise the local currency."""
+    opts = BDH_OPTIONS + ([f'"Currency={currency}"'] if currency else [])
+    return f'=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3,{",".join(opts)})'
 
 
 def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: date, reference: bool = False) -> Path:
@@ -76,7 +78,8 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
             ws[ref] = v
             ws[ref].font, ws[ref].fill = head_font, head_fill
         ws["D1"].fill = PatternFill("solid", fgColor=ORANGE)
-        ws["A2"] = bdh_formula()
+        cur = getattr(u, "currency", None)
+        ws["A2"] = bdh_formula(cur if isinstance(cur, str) and cur.strip() else None)
         ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 12, 14
         ws.column_dimensions["D"].width = 20
         ws.freeze_panes = "A2"
