@@ -112,3 +112,35 @@ def test_breadth_history_counts_only_measurable_stocks():
     assert b["rising"].iloc[-1] == 50.0 and b["above"].iloc[-1] == 50.0
     assert b["rising"].iloc[:218].isna().all()                      # 200 bars for the average + 20 for the slope
     assert b["rising"].iloc[219] == 50.0
+
+
+def test_swing_pivots_and_structure_on_a_staircase():
+    import numpy as np
+    import pandas as pd
+    from syztech.research.swing import pivots, swing_history
+    # up 20%, down 10%, up 20%, down 10% ... : higher highs and higher lows
+    legs = []
+    x = 100.0
+    for _ in range(6):
+        up = np.linspace(x, x * 1.2, 30); x = up[-1]
+        dn = np.linspace(x, x * 0.9, 20); x = dn[-1]
+        legs += [up, dn]
+    s = pd.Series(np.concatenate(legs), index=pd.bdate_range("2020-01-01", periods=sum(len(l) for l in legs)))
+    piv = pivots(s, np.full(len(s), 0.05))
+    hs = [p[2] for p in piv if p[0] == "H"]; ls = [p[2] for p in piv if p[0] == "L"]
+    assert all(b > a for a, b in zip(hs, hs[1:])) and all(b > a for a, b in zip(ls, ls[1:]))
+    assert all(p[3] > p[1] for p in piv)                 # confirmed after the extreme, never on it
+    h = swing_history(s, k=2.0)
+    assert h.structure.dropna().iloc[-1] in ("up", "mixed")
+
+
+def test_swing_break_of_last_low_downgrades_structure():
+    import numpy as np
+    import pandas as pd
+    from syztech.research.swing import swing_history
+    base = np.concatenate([np.linspace(100, 130, 120), np.linspace(130, 115, 60), np.linspace(115, 150, 120),
+                           np.linspace(150, 135, 60), np.linspace(135, 170, 120), np.linspace(170, 120, 60)])
+    s = pd.Series(base, index=pd.bdate_range("2020-01-01", periods=len(base)))
+    h = swing_history(s, k=1.0)
+    last = h.dropna(subset=["swing_low"]).iloc[-1]
+    assert s.iloc[-1] < last.swing_low and last.structure != "up"
