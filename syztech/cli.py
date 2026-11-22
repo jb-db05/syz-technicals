@@ -276,6 +276,78 @@ def cmd_sector_doc(a) -> int:
     return 0
 
 
+def cmd_sector_style(a) -> int:
+    """Sectors & style across four regions: universe (+ratios) -> charts -> rotation maps -> PowerPoint."""
+    from PIL import Image
+    from .charts.deck_chart import deck_chart
+    from .report.sectordoc import add_momentum
+    from .report.sectorstyle import BENCH_NAMES, REGIONS, build_sector_style, build_universe, rotation_map, rotation_points
+    from .report.weekly import instrument_table
+    prices = load_prices(a.prices)
+    asof = pd.Timestamp(a.asof).date() if a.asof else prices.prices.date.max().date()
+    base = pd.read_csv(a.universe)
+    u, dropped = build_universe(base, prices, asof)
+    work = OUT / "sector_style" / str(asof)
+    work.mkdir(parents=True, exist_ok=True)
+    u.to_csv(work / "universe_built.csv", index=False)
+    uni, problems = load_universe(work / "universe_built.csv")
+    for p in problems:
+        print(f"universe: {p}")
+    for d in dropped:
+        print(f"left out: {d}")
+    scores = score_universe(prices, uni, asof)
+    verdict = scores.set_index("ticker").verdict
+    charts, skipped = {}, []
+    for i, r in enumerate(uni.itertuples(index=False), start=1):
+        t = r.ticker
+        s = prices.series(t)
+        s = s[s.index <= pd.Timestamp(asof)]
+        row = {"ticker": t, "name": r.name, "decimals": r.decimals, "support": r.support, "resistance": r.resistance,
+               "support_origin": r.support_origin, "resistance_origin": r.resistance_origin}
+        v = verdict.get(t)
+        bench = r.benchmark if isinstance(r.benchmark, str) and r.benchmark in prices.reports else None
+        slug = t.replace(" ÷ ", "_over_").replace(" ", "_").replace("/", "-")
+        png = work / "charts" / f"{i:03d}_{slug}.png"
+        try:
+            deck_chart(s, row, png, badge=v if v in ("Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish_LM", "Bearish") else None,
+                       badge_kind="mechanical", benchmark=prices.series(bench) if bench else None,
+                       benchmark_name=BENCH_NAMES.get(bench, bench) if bench else None, page="a4")
+        except Exception as e:                      # one bad series must not stop the run
+            skipped.append(f"{t}: {e}")
+            continue
+        jp = work / "jpg" / (png.stem + ".jpg")
+        jp.parent.mkdir(parents=True, exist_ok=True)
+        with Image.open(png) as im:
+            im.convert("RGB").resize((1800, int(1800 * im.height / im.width)), Image.LANCZOS).save(jp, quality=88)
+        charts[t] = jp
+    print(f"charts: {len(charts)}" + (f"; skipped: {skipped}" if skipped else ""))
+    df = instrument_table(scores, uni, prices, {})
+    df = df.merge(scores[["ticker", "rule"]], on="ticker", how="left").merge(uni[["ticker", "region", "sector_key"]], on="ticker", how="left")
+    df = add_momentum(df, prices)
+    vmap = dict(zip(df.ticker, df.verdict))
+    short = lambda n: (n.replace("S&P 500 ", "").replace("Stoxx 600 ", "").replace("MSCI Europe ", "").replace("MSCI Japan ", "")
+                       .replace("MSCI EM ", "").replace("MSCI ", ""))
+    from .report.sectorstyle import MAP_LABELS
+    labels = {t: MAP_LABELS.get(short(n), short(n)) for t, n in zip(df.ticker, df.name)}
+    maps = {}
+    sets = [("regions", ["MXUS Index", "MXEU Index", "MXJP Index", "MXEF Index"], "MXWD Index")]
+    for reg, bench, bname, sg, ig, styg in REGIONS:
+        sets.append((f"{reg}_sectors", list(df[df.group == sg].ticker), bench))
+        if ig:
+            sets.append((f"{reg}_industries", [t for t in df[df.group == ig].ticker if t != "SXXP Index"],
+                         "SXXP Index" if reg == "Europe" else bench))
+    for key, tickers, bench in sets:
+        pts = rotation_points(prices, [t for t in tickers if t in prices.reports], bench)
+        if len(pts):
+            maps[key] = rotation_map(pts, labels, vmap, work / f"rotation_{key}.png", BENCH_NAMES.get(bench, bench))
+    d = pd.Timestamp(asof)
+    out = Path(a.out)
+    build_sector_style(df, charts, maps, out, Path(a.template), edition=a.edition, asof=f"{d.day} {d:%B %Y}", dropped=dropped,
+                       draft=not a.final)
+    print(f"written: {out} ({len(df)} series, {len(charts)} charts, {len(maps)} rotation maps)")
+    return 0
+
+
 def cmd_trend(a) -> int:
     prices = load_prices(a.prices)
     uni, problems = load_universe(a.universe)
@@ -397,6 +469,15 @@ def main(argv=None) -> int:
     s.add_argument("--bench-note", help="sentence added to the relative-strength footnotes")
     s.add_argument("--trigger-cap", type=int, help="show at most this many trigger-watch rows")
     s.set_defaults(func=cmd_sector_doc)
+    s = sub.add_parser("sector-style", help="sectors & style across four regions (PowerPoint)")
+    s.add_argument("--prices", required=True)
+    s.add_argument("--universe", required=True, help="universe CSV used for the Bloomberg template")
+    s.add_argument("--edition", required=True)
+    s.add_argument("--template", default=str(Path(__file__).parent / "report" / "assets" / "template_syz_a4.pptx"))
+    s.add_argument("--asof")
+    s.add_argument("--out", required=True)
+    s.add_argument("--final", action="store_true")
+    s.set_defaults(func=cmd_sector_style)
     s = sub.add_parser("trend", help="mechanical trend verdicts for the universe")
     s.add_argument("--prices", default="data/prices")
     s.add_argument("--universe", default="data/universe.csv")

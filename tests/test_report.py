@@ -58,3 +58,37 @@ def test_html_row_reads_the_name_column_of_a_series():
                        vs200=0.1, chg1m=0.0, chg3m=0.0, chg12m=0.0, from_hi52=0.0, rs_trend=None, rs_chg63=None,
                        verdict="Bullish", hi52=1.0, lo52=1.0, hi100=1.0, lo100=1.0), name=7)
     assert _row(r, {})["n"] == "SPI"
+
+
+def _prices(series: dict):
+    import pandas as pd
+    from syztech.io.bloomberg_prices import LoadResult, SeriesReport
+    rows = [pd.DataFrame({"date": s.index, "ticker": t, "close": s.to_numpy()}) for t, s in series.items()]
+    return LoadResult(pd.concat(rows, ignore_index=True), {t: SeriesReport(t, "test", bars=len(s)) for t, s in series.items()}, [])
+
+
+def test_ratio_series_uses_common_dates_and_is_rebased_to_100():
+    import pandas as pd
+    from syztech.report.sectorstyle import add_ratio
+    idx = pd.bdate_range("2024-01-01", periods=5)
+    a = pd.Series([10.0, 11, 12, 13, 14], index=idx)
+    b = pd.Series([5.0, 5, 6, 6], index=idx[[0, 1, 2, 4]])          # no close on day 4: that day is left out, not filled
+    p = _prices({"A": a, "B": b})
+    key = add_ratio(p, "A", "B")
+    r = p.series(key)
+    assert list(r.index) == list(idx[[0, 1, 2, 4]])
+    assert r.iloc[0] == 100.0 and abs(r.iloc[-1] - (14 / 6) / (10 / 5) * 100) < 1e-9
+
+
+def test_rotation_point_coordinates():
+    import numpy as np
+    import pandas as pd
+    from syztech.report.sectorstyle import rotation_points
+    idx = pd.bdate_range("2023-01-02", periods=400)
+    bench = pd.Series(100.0, index=idx)
+    up = pd.Series(np.linspace(100, 140, 400), index=idx)           # steadily outperforming
+    pts = rotation_points(_prices({"X": up, "B": bench}), ["X"], "B", tail=0)
+    rs = up / bench * 100
+    assert abs(pts.x.iloc[0] - (rs.iloc[-1] / rs.iloc[-200:].mean() - 1) * 100) < 1e-9
+    assert abs(pts.y.iloc[0] - (rs.iloc[-1] / rs.iloc[-64] - 1) * 100) < 1e-9
+    assert pts.x.iloc[0] > 0 and pts.y.iloc[0] > 0                    # "Leading" quadrant
