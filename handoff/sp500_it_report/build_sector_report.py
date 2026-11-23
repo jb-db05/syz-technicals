@@ -813,12 +813,16 @@ def pivots(close: pd.Series, theta: np.ndarray) -> list[tuple[str, int, float, i
                 out.append(("L", ext_i, ext, i)); trend, ext, ext_i = 1, x, i
     return out
 
+def swing_threshold(close: pd.Series, k: float = SWING_K) -> pd.Series:
+    """θ_t = k × median one-month move over the past 252 bars (at least 120 needed)."""
+    return k * monthly_move(close).rolling(252, min_periods=120).median()
+
 def swing_levels(close: pd.Series, k: float = SWING_K) -> SwingLevels | None:
     """Levels at the last bar of `close` (ascending closes). None when no swing high and low are confirmed yet."""
     close = close.dropna()
     if len(close) < 102 or (close <= 0).any():
         return None
-    piv = pivots(close, (k * monthly_move(close)).to_numpy())
+    piv = pivots(close, swing_threshold(close, k).to_numpy())
     H = [(p[2], p[1]) for p in piv if p[0] == "H"]
     L = [(p[2], p[1]) for p in piv if p[0] == "L"]
     if not H or not L:
@@ -1954,24 +1958,28 @@ def index_page(deck, sector, indices, charts, bench, asof, bench_note="", headin
 
 def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
           work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap):
-    # breadth: four numbers + share by sub-sector (native chart)
-    s = deck.titled(f"Breadth: {nb} of {n_ok} stocks Bullish, {above} of {n} above their 200-day, {out_n} with RS Mom +",
-                    "Share of stocks by " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
-    stats = [(f"{nb}/{n_ok}", "Bullish trend verdict", R_MINT), (f"{above}/{n}", "above the 200-day average", R_NAVY),
-             (f"{out_n}/{n}", f"RS Mom + against the {bench}", R_ORANGE), (f"{near_hi}/{n}", "within 5% of the 52-week high", BLUEB)]
-    for k, (big, lab, col) in enumerate(stats):
-        y = 2.55 + k * 1.22
-        box(s, X0, y, 3.2, 1.05, "F6F7F9")
-        text(s, X0 + 0.18, y + 0.08, 1.5, 0.9, big, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
-        text(s, X0 + 1.6, y + 0.08, 1.55, 0.9, lab, size=10, anchor=MSO_ANCHOR.MIDDLE)
+    # breadth: share of stocks by trend verdict (three numbers + 100% stacked columns per sub-sector)
+    fams = ok.verdict.map(_bucket)
+    share = {f: (fams == f).sum() / max(1, n_ok) for f in ("Bullish", "Neutral", "Bearish")}
+    pc = {f: int(round(100 * v)) for f, v in share.items()}
+    s = deck.titled(f"Breadth: {pc['Bullish']}% of stocks Bullish, {pc['Neutral']}% Neutral, {pc['Bearish']}% Bearish",
+                    "Share of stocks by trend verdict, per " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
+    for k, (f, col) in enumerate((("Bullish", R_MINT), ("Neutral", BLUEB), ("Bearish", MULB))):
+        y = 2.55 + k * 1.62
+        box(s, X0, y, 3.2, 1.42, "F6F7F9")
+        box(s, X0, y, 0.09, 1.42, col, radius=0)
+        text(s, X0 + 0.28, y + 0.1, 1.6, 1.22, f"{pc[f]}%", size=30, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, X0 + 1.75, y + 0.1, 1.4, 1.22, [[(f"{VGLYPH[f]} {f}", {"bold": True, "color": col})],
+                                                [(f"{int((fams == f).sum())} of {n_ok} stocks", {"size": 9.5})]],
+             size=11, anchor=MSO_ANCHOR.MIDDLE)
     cd = CategoryChartData()
     bk = [b for b in buckets if b in set(df.bucket)]
     g = {b: df[df.bucket == b] for b in bk}
-    cd.categories = [f"{b} ({len(g[b])})" for b in bk]
-    cd.add_series("Bullish", [round(100 * (g[b].verdict == "Bullish").mean(), 0) for b in bk])
-    cd.add_series("Above 200-day", [round(100 * (g[b].vs200 > 0).mean(), 0) for b in bk])
-    cd.add_series(f"RS Mom +", [round(100 * (g[b].rs_trend == "outperforming").mean(), 0) for b in bk])
-    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(X0 + 3.45), Inches(2.45), Inches(6.85), Inches(4.95), cd)
+    gok = {b: g[b][g[b].verdict.isin(VGLYPH)].verdict.map(_bucket) for b in bk}
+    cd.categories = [f"{b} ({len(gok[b])})" for b in bk]
+    for f in ("Bullish", "Neutral", "Bearish"):
+        cd.add_series(f, [round(100 * (gok[b] == f).mean(), 0) if len(gok[b]) else 0 for b in bk])
+    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_STACKED, Inches(X0 + 3.45), Inches(2.45), Inches(6.85), Inches(4.95), cd)
     ch = gf.chart
     ch.has_title = False
     ch.has_legend = True
@@ -1979,13 +1987,15 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     ch.legend.include_in_layout = False
     ch.legend.font.size = Pt(9)
     pl = ch.plots[0]
-    pl.gap_width = 60
-    pl.overlap = -10
+    pl.gap_width = 55
+    pl.overlap = 100
     pl.has_data_labels = True
-    pl.data_labels.font.size = Pt(8)
-    pl.data_labels.number_format = '0'
+    pl.data_labels.font.size = Pt(9)
+    pl.data_labels.font.bold = True
+    pl.data_labels.font.color.rgb = rgb("FFFFFF")
+    pl.data_labels.number_format = '0"%";;;'
     pl.data_labels.number_format_is_linked = False
-    for ser, c in zip(ch.series, (R_MINT, R_NAVY, R_ORANGE)):
+    for ser, c in zip(ch.series, (R_MINT, BLUEB, MULB)):
         ser.format.fill.solid()
         ser.format.fill.fore_color.rgb = rgb(c)
     ch.category_axis.tick_labels.font.size = Pt(8.5)
@@ -1993,22 +2003,24 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     ch.value_axis.has_major_gridlines = False
     ch.value_axis.maximum_scale = 100
     ch.value_axis.minimum_scale = 0
-    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
+    source(s, asof, "Shares of the stocks with a trend verdict; Neutral includes the tilts (Neutral + / Neutral –), Bearish includes "
+                    "losing momentum. Rounded, may not add to 100." + insuf_note)
 
     # breadth by GICS sub-industry
     rows, st = [], {}
     agg = []
+    fam = df.verdict.map(_bucket).where(df.verdict.isin(VGLYPH))       # Bullish / Neutral / Bearish; no verdict excluded
+    cnt3 = lambda x: tuple(int((fam.loc[x.index] == f).sum()) for f in ("Bullish", "Neutral", "Bearish"))
     for ind, x in df.groupby(group_col):
-        agg.append((ind, len(x), int((x.verdict == "Bullish").sum()), int((x.vs200 > 0).sum()),
-                    int((x.rs_trend == "outperforming").sum()), x.chg3m.median(), x.rs_chg63.median()))
+        agg.append((ind, len(x), *cnt3(x), x.chg3m.median(), x.rs_chg63.median()))
     agg.sort(key=lambda a: -(a[6] if pd.notna(a[6]) else -9))
-    agg.append((f"{sector_name} constituents", n, nb, above, out_n, df.chg3m.median(), df.rs_chg63.median()))
-    for i, (ind, k, b, a, o, c3, r3) in enumerate(agg):
-        rows.append([ind, str(k), f"{b}", f"{a}", f"{o}", _p(c3), _p(r3)])
+    agg.append((f"{sector_name} constituents", n, *cnt3(df), df.chg3m.median(), df.rs_chg63.median()))
+    for i, (ind, k, bu, ne, be, c3, r3) in enumerate(agg):
+        rows.append([ind, str(k), f"{bu}", f"{ne}", f"{be}", _p(c3), _p(r3)])
         st[(i, 5)] = _posneg(c3)
         st[(i, 6)] = _posneg(r3)
-        for j, v in ((2, b), (3, a), (4, o)):
-            st[(i, j)] = {"align": PP_ALIGN.CENTER, "color": R_MINT if v / k > 0.5 else (MULB if v / k < 0.5 else R_NAVY), "bold": True}
+        for j, v, col in ((2, bu, R_MINT), (3, ne, BLUEB), (4, be, MULB)):
+            st[(i, j)] = {"align": PP_ALIGN.CENTER, "color": col if v else R_GREY, "bold": bool(v)}
         st[(i, 1)] = {"align": PP_ALIGN.CENTER}
         if i == len(agg) - 1:
             for j in range(7):
@@ -2017,9 +2029,9 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     best = agg[0][0]
     s = deck.titled(f"By {group_label}: {best} leads on relative strength over 3 months",
                     f"{group_label_pl}, ranked by median 3-month change in relative strength")
-    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
-          rows, [3.6, 0.9, 0.9, 1.2, 1.1, 1.1, 1.48], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
-    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
+    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "▲ Bullish", "◆ Neutral", "▼ Bearish", "Median 3m", f"Median RS 3m vs {bench}"],
+          rows, [3.6, 0.9, 1.0, 1.0, 1.0, 1.1, 1.68], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
+    source(s, asof, f"Counts of stocks by trend verdict (Neutral includes the tilts, Bearish includes losing momentum); medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
 
     # momentum map
     s = deck.titled(f"Momentum map: {int(((df.vs200 > 0) & (df.rs_chg63 > 0)).sum())} stocks above their 200-day and gaining on the {bench}",
@@ -2408,16 +2420,16 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   </section>
 
   <section id="breadth">
-    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by sub-sector, %</p></div>
+    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by trend verdict, per sub-sector, %</p></div>
     <div class="breadth">
       <div class="stats" id="b-stats"></div>
       <div class="card">
-        <div class="legend"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Above 200-day</span><span><i style="background:var(--orange)"></i>RS Mom +</span></div>
+        <div class="legend"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Neutral</span><span><i style="background:var(--mulb)"></i>Bearish</span></div>
         <svg id="b-chart" viewBox="0 0 760 300" role="img" aria-label="Breadth by sub-sector"></svg>
       </div>
     </div>
     <h3 style="margin:28px 0 4px;font-size:17px;font-weight:800" id="i-title"></h3>
-    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
+    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength. Counts by trend verdict (Neutral includes the tilts).</p>
     <div class="tw"><table id="i-table"></table></div>
   </section>
 
@@ -2552,20 +2564,21 @@ if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart"
 $("s-chart").onclick = () => openLB([X], 0);
 
 /* breadth */
-const above = S.filter(s => (s.vs200 ?? -1) > 0).length, outN = S.filter(s => s.rs === "outperforming").length, nearHi = S.filter(s => (s.fh ?? -1) >= -0.05).length;
-$("b-title").textContent = `${cnt("Bullish")} of ${ok.length} stocks Bullish, ${above} of ${S.length} above their 200-day, ${outN} with RS Mom +`;
-$("b-stats").innerHTML = [[`${cnt("Bullish")}/${ok.length}`, "Bullish trend verdict", "pos"], [`${above}/${S.length}`, "above the 200-day average", ""],
-  [`${outN}/${S.length}`, `RS Mom + against the ${B}`, ""], [`${nearHi}/${S.length}`, "within 5% of the 52-week high", ""]]
-  .map(([b, l, c], i) => `<div class="stat"><b class="num ${c}" style="${i === 2 ? "color:var(--orange)" : i === 1 ? "color:var(--ink)" : i === 3 ? "color:var(--blueb)" : ""}">${b}</b><span>${esc(l)}</span></div>`).join("");
-if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
+const pc = f => Math.round(100 * cnt(f) / Math.max(1, ok.length));
+$("b-title").textContent = `${pc("Bullish")}% of stocks Bullish, ${pc("Neutral")}% Neutral, ${pc("Bearish")}% Bearish`;
+$("b-stats").innerHTML = [["Bullish", "pos", "▲"], ["Neutral", "flat", "◆"], ["Bearish", "neg", "▼"]]
+  .map(([f, c, gl]) => `<div class="stat"><b class="num ${c}">${pc(f)}%</b><span><b class="${c}" style="font-size:14px;min-width:0">${gl} ${f}</b><br>${cnt(f)} of ${ok.length} stocks</span></div>`).join("");
+if (D.buckets) $("b-sub").textContent = "Share of stocks by trend verdict, per group, %";
 (function breadthChart() {
-  const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b); return {b, n: x.length,
-    v: [x.filter(s => s.v === "Bullish").length / x.length, x.filter(s => (s.vs200 ?? -1) > 0).length / x.length, x.filter(s => s.rs === "outperforming").length / x.length]}; });
-  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
-  let s = `<line x1="${L}" x2="${W - R}" y1="${H - Bt}" y2="${H - Bt}" stroke="var(--line)"/>`;
-  [25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
-  g.forEach((d, i) => { const cx = L + gw * i + gw / 2; d.v.forEach((v, k) => { const h = (H - Bt - T) * v, x = cx + (k - 1.5) * (bw + 4) + 2, y = H - Bt - h;
-      s += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" rx="3" fill="${cols[k]}"/><text class="ink" x="${x + bw / 2}" y="${y - 5}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(v * 100)}</text>`; });
+  const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b && hasV(s.v)); const n = Math.max(1, x.length);
+    return {b, n: x.length, v: ["Bullish", "Neutral", "Bearish"].map(f => x.filter(s => vb(s.v) === f).length / n)}; });
+  const W = 760, H = 300, L = 40, R = 10, T = 14, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(70, gw * 0.55), cols = ["var(--mint)", "var(--blueb)", "var(--mulb)"];
+  let s = "";
+  [0, 25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" ${p ? 'stroke-dasharray="2 4"' : ""}/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
+  g.forEach((d, i) => { const cx = L + gw * i + gw / 2; let base = H - Bt;
+    d.v.forEach((v, k) => { const h = (H - Bt - T) * v; if (h <= 0) return; const y = base - h;
+      s += `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${h}" fill="${cols[k]}"/>` + (h >= 15 ? `<text x="${cx}" y="${y + h / 2 + 4}" font-size="11" font-weight="700" text-anchor="middle" style="fill:#fff">${Math.round(v * 100)}%</text>` : "");
+      base = y; });
     const words = d.b.split(" "), cut = d.b.length > 16 && words.length > 1 ? Math.ceil(words.length / 2) : words.length;
     const l1 = words.slice(0, cut).join(" "), l2 = words.slice(cut).join(" ");
     s += `<text class="ink" x="${cx}" y="${H - Bt + 16}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l1)}</text>`
@@ -2576,14 +2589,14 @@ if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
 (function industryTable() {
   const GL = D.group_label || "sub-industry", GLc = GL[0].toUpperCase() + GL.slice(1);
   const groups = {}; S.forEach(s => (groups[(D.group_label ? s.grp : s.ind) || "Other"] ||= []).push(s));
-  const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, b: x.filter(s => s.v === "Bullish").length, a: x.filter(s => (s.vs200 ?? -1) > 0).length,
-    o: x.filter(s => s.rs === "outperforming").length, c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
+  const c3f = x => ({bu: x.filter(s => vb(s.v) === "Bullish").length, ne: x.filter(s => vb(s.v) === "Neutral").length, be: x.filter(s => vb(s.v) === "Bearish").length});
+  const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, ...c3f(x), c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
   $("i-title").textContent = `By ${GL}: ${rows[0].k} leads on relative strength over 3 months`;
   if (D.group_label) $("i-sub").textContent = `GICS ${GL === "sector" ? "sectors" : GL + "s"}, ranked by median 3-month change in relative strength.${BNOTE}`;
-  rows.push({k: `${D.sector_name} constituents`, n: S.length, b: cnt("Bullish"), a: above, o: outN, c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
-  const share = (v, n) => `<td class="c ${v / n > .5 ? "pos" : v / n < .5 ? "neg" : ""}" style="font-weight:700">${v}</td>`;
-  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
-    + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${share(r.b, r.n)}${share(r.a, r.n)}${share(r.o, r.n)}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
+  rows.push({k: `${D.sector_name} constituents`, n: S.length, ...c3f(S), c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
+  const cnt3 = (v, c) => `<td class="c ${v ? c : "dim"}" style="font-weight:${v ? 700 : 400}">${v}</td>`;
+  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">▲ Bullish</th><th class="c">◆ Neutral</th><th class="c">▼ Bearish</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
+    + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${cnt3(r.bu, "pos")}${cnt3(r.ne, "flat")}${cnt3(r.be, "neg")}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
 })();
 
 /* momentum map */

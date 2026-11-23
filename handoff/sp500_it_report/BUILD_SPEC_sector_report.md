@@ -77,7 +77,7 @@ The universe has one row for the sector index and one per constituent. Columns:
 | syz_lists | empty | `Master list`, `Focus List`, `Master list; Focus List` or empty (§1.4) |
 | badge, badge_asof, standing_position, override_reason | empty | empty (no published views in this report) |
 
-**Levels (rule of 22 Nov 2026):** the universe file carries the 52-week low / high, but any level with a `52w` origin is recomputed by the engine as a **swing level**: support = last confirmed swing low, resistance = last confirmed swing high, a swing being confirmed when the close reverses 1.5 × the one-month move (daily volatility over 100 days × √20). After a lower low the broken prior swing low stays the support until the resistance breaks (and symmetrically). The 52-week low / high are used only where no swing is confirmed.
+**Levels (rule of 22 Nov 2026):** the universe file carries the 52-week low / high, but any level with a `52w` origin is recomputed by the engine as a **swing level**: support = last confirmed swing low, resistance = last confirmed swing high, a swing being confirmed when the close reverses 1.5 × the median one-month move of the past year (one-month move = daily volatility over 100 days × √20; robust threshold of 23 Nov 2026). After a lower low the broken prior swing low stays the support until the resistance breaks (and symmetrically). The 52-week low / high are used only where no swing is confirmed.
 
 ### 1.3 Sub-industry and sub-sector
 
