@@ -258,7 +258,7 @@ def test_swing_support_is_last_swing_low():
 
 def test_lower_low_keeps_the_broken_prior_low_as_support():
     from syztech.trend.swing_levels import swing_levels
-    s = _legs(1.3, 0.8, 1.2, 0.7, 1.1)                       # second low below the first: the first low was broken
+    s = _legs(1.3, 0.8, 1.2, 0.7, 1.1, n=90)                 # second low below the first: the first low was broken
     lv = swing_levels(s)
     assert lv.support_broken_prior and lv.support > s.iloc[-1] * 0.0
     lows = s.iloc[:lv.support_bar + 1]
@@ -302,3 +302,33 @@ def test_negative_series_falls_back_to_52_week_levels():
     s = pd.Series(np.sin(np.arange(400) / 20) * 0.5 - 0.2, index=pd.bdate_range("2023-01-02", periods=400))   # yields < 0
     sup, res, so, ro, ss, rs_ = resolve_levels(s, None, None, None, None)
     assert so.startswith("52w low") and ro.startswith("52w high") and ss == len(s) - 1
+
+
+def test_swing_threshold_is_not_inflated_by_a_parabola_and_crash():
+    """Fix 23 Nov 2026 (Teradyne case): the threshold uses the median one-month move of the past year."""
+    import numpy as np
+    import pandas as pd
+    from syztech.trend.swing_levels import monthly_move, swing_threshold
+    rng = np.random.default_rng(1)
+    calm = 100 * np.exp(np.cumsum(rng.normal(0.0005, 0.01, 300)))
+    boom = calm[-1] * np.exp(np.cumsum(rng.normal(0.01, 0.04, 80)))          # parabolic, very volatile
+    bust = boom[-1] * np.exp(np.cumsum(rng.normal(-0.012, 0.04, 40)))
+    s = pd.Series(np.concatenate([calm, boom, bust]), index=pd.bdate_range("2023-01-02", periods=420))
+    assert swing_threshold(s).iloc[-1] < 1.5 * monthly_move(s).iloc[-1] * 0.75   # well below the spot-volatility version
+
+
+def test_parabola_then_crash_below_last_swing_low_is_not_bullish():
+    import numpy as np
+    import pandas as pd
+    from syztech.trend.score import resolve_levels
+    from syztech.trend.rules import evaluate
+    rng = np.random.default_rng(2)
+    legs = [(1.6, 120), (0.85, 25), (1.7, 90), (0.8, 25), (1.5, 70), (0.45, 60)]   # up with pullbacks, then −55%
+    x, out = 100.0, []
+    for f, n in legs:
+        out.append(np.linspace(x, x * f, n)); x = out[-1][-1]
+    c = np.concatenate(out) * (1 + rng.normal(0, 0.01, sum(n for _, n in legs)))
+    s = pd.Series(c, index=pd.bdate_range("2022-01-03", periods=len(c)))
+    sup, res, so, ro, ss, rs_ = resolve_levels(s, None, None, None, None)
+    r = evaluate(s, support=sup, resistance=res, support_start=ss, resistance_start=rs_)
+    assert s.iloc[-1] < sup and r.verdict != "Bullish"

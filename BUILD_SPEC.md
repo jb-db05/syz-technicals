@@ -113,7 +113,7 @@ Two sources, in priority order:
 
 1. **Drawn levels** (`support`, `resistance` from the universe file). `support_broken = close < support`; `resistance_broken = close > resistance`. A close exactly at the trigger counts as **not** broken; a stated trigger "turn negative below X" means `close < X`, and when it is met the engine acts – it never waits for a "decisive" or "confirmed" break.
 2. **Swing levels** when no level is drawn on that side (decided 22 Nov 2026 after the side-by-side study, `syztech/research/`, page "Trend rule study"):
-   - one-month move `m_t` = stdev of daily log returns over 100 days × √20; a swing high / low is **confirmed** when the close reverses by `k × m_t` from the extreme, **k = 1.5** (`TrendParams`-independent constant `SWING_K`, `trend/swing_levels.py`);
+   - one-month move `m_t` = stdev of daily log returns over 100 days × √20; swing size `θ_t = k × median(m over the past 252 bars)` (**robust threshold, 23 Nov 2026**: the spot `m_t` let a parabolic run and crash inflate θ to 25–36%, leaving only 2024–25 swing lows – Teradyne, AMAT, ON read Bullish after −55–58%); a swing high / low is **confirmed** when the close reverses by θ from the extreme, **k = 1.5** (`TrendParams`-independent constant `SWING_K`, `trend/swing_levels.py`);
    - support = last confirmed swing low; resistance = last confirmed swing high;
    - **a broken level stands**: after a lower low, the prior swing low (already undercut) stays the support and its break counts until the resistance breaks; after a higher high, the prior swing high stays the resistance;
    - breaks on swing levels count from the earlier of the two swing points used (per-side start, `support_start` / `resistance_start`); drawn levels keep their window (`levels_asof − levels_lookback`);
@@ -121,7 +121,7 @@ Two sources, in priority order:
    Origins are written `swing low (YYYY-MM-DD)` / `swing high (…)`, with `, broken` when the level is a prior swing already undercut / exceeded.
 3. **Band events** (`MIN100` / `MAX100`) no longer set the state where a level exists on that side; they reset the opposite state as before.
 
-Study result (436 series weekly 2019–2026; 80 published verdicts of 8 Nov 2026): 69 / 80 published calls matched (drawn levels: 67; 52-week levels: 57), 14 / 17 Bearish calls caught (52-week: 1), 2.8 verdict changes a year per instrument (52-week: 2.75). The verdict table §3.3 is unchanged. No rule separated forward 1–3-month returns in that sample.
+Robust threshold (23 Nov 2026): 68 / 80 published calls matched, 14 / 17 Bearish caught, 2.85 verdict changes a year. First study (22 Nov 2026, spot threshold): 69 / 80 published calls matched (drawn levels: 67; 52-week levels: 57), 14 / 17 Bearish calls caught (52-week: 1), 2.8 verdict changes a year per instrument (52-week: 2.75). The verdict table §3.3 is unchanged. No rule separated forward 1–3-month returns in that sample.
 
 ### 3.3 Verdict rules (apply in order; first match wins)
 

@@ -17,11 +17,11 @@ Florian Marini, CFA, CMT – Head of Research, Syz Private Banking. Senior techn
 ## Trend rule in force (adopted 22 Nov 2026 – BUILD_SPEC §2.2 / §3.2, code `syztech/trend/swing_levels.py`)
 - **Direction**: 200-day average over 20 trading days – rising / flat / falling (0.20% band). Unchanged.
 - **Support / resistance**, per side, in priority order: (1) Florian's drawn levels (text, then chart); (2) **swing levels** – last confirmed swing low / swing high; (3) 52-week low / high only where no swing is confirmed yet or the series has values ≤ 0 (negative yields).
-- **Swing**: confirmed when the close reverses **k = 1.5 × the one-month move** (stdev of daily log returns over 100 days × √20) from the extreme. Closes only, nothing filled.
+- **Swing**: confirmed when the close reverses **k = 1.5 × the median one-month move of the past year** from the extreme (one-month move = stdev of daily log returns over 100 days × √20; median over 252 bars – robust threshold adopted 23 Nov 2026 so a parabola or crash cannot inflate it). Closes only, nothing filled.
 - **A broken level stands**: after a lower low, the broken prior swing low stays the support until the resistance breaks; after a higher high, the prior swing high stays the resistance. Swing-level breaks count from the earlier of the two swing points; drawn levels keep their `levels_asof − 100 bars` window.
 - **Verdict table (§3.3) unchanged**: rising + support intact = Bullish; falling + support broken = Bearish; in between Neutral with a tilt (Neutral+ / Neutral−), plus the death-cross and losing-momentum cases.
 - Levels with a `52w` or `swing` origin in a universe file are recomputed at every run, never treated as drawn. Charts label them `swing low / swing high` (grey dashed); the trigger watch uses them.
-- Basis: side-by-side study (`syztech/research/`, 436 series 2019–2026): 69 / 80 published calls matched (drawn levels 67, 52-week 57), 14 / 17 Bearish calls caught. No rule separated forward 1–3-month returns – the verdict describes the trend, it does not forecast.
+- Basis: side-by-side study (`syztech/research/`, 436 series 2019–2026): robust k = 1.5 matches 68 / 80 published calls (drawn levels 67, 52-week 57), 14 / 17 Bearish calls caught, 2.85 verdict changes a year. No rule separated forward 1–3-month returns – the verdict describes the trend, it does not forecast.
 - **Not yet decided**: the same rule applied to relative strength (Outperform / Neutral / Underperform, replacing RS Mom + / −) – to be tested before any change. Never change the trend rule or k without a new study and Florian's decision.
 
 ## Style conventions (outputs, charts, text)

@@ -1,7 +1,10 @@
 """Support / resistance from volatility-scaled swings (adopted 22 Nov 2026, BUILD_SPEC §2.2 / §3.2).
 
 * one-month move  m_t = stdev(daily log returns, 100 days) × √20
-* a swing high / low is confirmed once the close reverses k × m_t from the extreme (k = 1.5)
+* swing size      θ_t = k × median(m over the past 252 bars), k = 1.5 – the median of a year of one-month moves, so a
+  parabolic run or a crash cannot inflate it (fix of 23 Nov 2026: Teradyne / AMAT / ON read Bullish after −55–58%
+  because a 25–36% threshold left only 2024–25 swing lows)
+* a swing high / low is confirmed once the close reverses θ_t from the extreme
 * support = last confirmed swing low, resistance = last confirmed swing high
 * a broken level stands: after a lower low the prior swing low (now broken) stays the support, its break counting
   until the resistance breaks; after a higher high the prior swing high stays the resistance
@@ -67,12 +70,17 @@ def pivots(close: pd.Series, theta: np.ndarray) -> list[tuple[str, int, float, i
     return out
 
 
+def swing_threshold(close: pd.Series, k: float = SWING_K) -> pd.Series:
+    """θ_t = k × median one-month move over the past 252 bars (at least 120 needed)."""
+    return k * monthly_move(close).rolling(252, min_periods=120).median()
+
+
 def swing_levels(close: pd.Series, k: float = SWING_K) -> SwingLevels | None:
     """Levels at the last bar of `close` (ascending closes). None when no swing high and low are confirmed yet."""
     close = close.dropna()
     if len(close) < 102 or (close <= 0).any():
         return None
-    piv = pivots(close, (k * monthly_move(close)).to_numpy())
+    piv = pivots(close, swing_threshold(close, k).to_numpy())
     H = [(p[2], p[1]) for p in piv if p[0] == "H"]
     L = [(p[2], p[1]) for p in piv if p[0] == "L"]
     if not H or not L:
