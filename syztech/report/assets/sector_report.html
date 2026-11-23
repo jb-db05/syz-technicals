@@ -213,7 +213,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
       </div>
     </div>
     <h3 style="margin:28px 0 4px;font-size:17px;font-weight:800" id="i-title"></h3>
-    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength.</p>
+    <p class="note" style="margin:0 0 10px" id="i-sub">GICS sub-industries, ranked by median 3-month change in relative strength. Counts by trend verdict (Neutral includes the tilts).</p>
     <div class="tw"><table id="i-table"></table></div>
   </section>
 
@@ -372,14 +372,14 @@ if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
 (function industryTable() {
   const GL = D.group_label || "sub-industry", GLc = GL[0].toUpperCase() + GL.slice(1);
   const groups = {}; S.forEach(s => (groups[(D.group_label ? s.grp : s.ind) || "Other"] ||= []).push(s));
-  const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, b: x.filter(s => s.v === "Bullish").length, a: x.filter(s => (s.vs200 ?? -1) > 0).length,
-    o: x.filter(s => s.rs === "outperforming").length, c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
+  const c3f = x => ({bu: x.filter(s => vb(s.v) === "Bullish").length, ne: x.filter(s => vb(s.v) === "Neutral").length, be: x.filter(s => vb(s.v) === "Bearish").length});
+  const rows = Object.entries(groups).map(([k, x]) => ({k, n: x.length, ...c3f(x), c3: med(x.map(s => s.c3)), r3: med(x.map(s => s.rs3))})).sort((p, q) => (q.r3 ?? -9) - (p.r3 ?? -9));
   $("i-title").textContent = `By ${GL}: ${rows[0].k} leads on relative strength over 3 months`;
   if (D.group_label) $("i-sub").textContent = `GICS ${GL === "sector" ? "sectors" : GL + "s"}, ranked by median 3-month change in relative strength.${BNOTE}`;
-  rows.push({k: `${D.sector_name} constituents`, n: S.length, b: cnt("Bullish"), a: above, o: outN, c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
-  const share = (v, n) => `<td class="c ${v / n > .5 ? "pos" : v / n < .5 ? "neg" : ""}" style="font-weight:700">${v}</td>`;
-  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">Bullish</th><th class="c">Above 200-day</th><th class="c">RS Mom +</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
-    + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${share(r.b, r.n)}${share(r.a, r.n)}${share(r.o, r.n)}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
+  rows.push({k: `${D.sector_name} constituents`, n: S.length, ...c3f(S), c3: med(S.map(s => s.c3)), r3: med(S.map(s => s.rs3)), total: true});
+  const cnt3 = (v, c) => `<td class="c ${v ? c : "dim"}" style="font-weight:${v ? 700 : 400}">${v}</td>`;
+  $("i-table").innerHTML = `<thead><tr><th>${esc(GLc)}</th><th class="c">Stocks</th><th class="c">▲ Bullish</th><th class="c">◆ Neutral</th><th class="c">▼ Bearish</th><th class="r">Median 3m</th><th class="r">Median RS 3m vs ${esc(B)}</th></tr></thead><tbody>`
+    + rows.map(r => `<tr class="${r.total ? "total" : ""}"><td>${esc(r.k)}</td><td class="c">${r.n}</td>${cnt3(r.bu, "pos")}${cnt3(r.ne, "flat")}${cnt3(r.be, "neg")}<td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.r3)}">${pct(r.r3)}</td></tr>`).join("") + "</tbody>";
 })();
 
 /* momentum map */

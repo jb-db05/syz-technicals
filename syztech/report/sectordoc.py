@@ -346,17 +346,18 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     # breadth by GICS sub-industry
     rows, st = [], {}
     agg = []
+    fam = df.verdict.map(_bucket).where(df.verdict.isin(VGLYPH))       # Bullish / Neutral / Bearish; no verdict excluded
+    cnt3 = lambda x: tuple(int((fam.loc[x.index] == f).sum()) for f in ("Bullish", "Neutral", "Bearish"))
     for ind, x in df.groupby(group_col):
-        agg.append((ind, len(x), int((x.verdict == "Bullish").sum()), int((x.vs200 > 0).sum()),
-                    int((x.rs_trend == "outperforming").sum()), x.chg3m.median(), x.rs_chg63.median()))
+        agg.append((ind, len(x), *cnt3(x), x.chg3m.median(), x.rs_chg63.median()))
     agg.sort(key=lambda a: -(a[6] if pd.notna(a[6]) else -9))
-    agg.append((f"{sector_name} constituents", n, nb, above, out_n, df.chg3m.median(), df.rs_chg63.median()))
-    for i, (ind, k, b, a, o, c3, r3) in enumerate(agg):
-        rows.append([ind, str(k), f"{b}", f"{a}", f"{o}", _p(c3), _p(r3)])
+    agg.append((f"{sector_name} constituents", n, *cnt3(df), df.chg3m.median(), df.rs_chg63.median()))
+    for i, (ind, k, bu, ne, be, c3, r3) in enumerate(agg):
+        rows.append([ind, str(k), f"{bu}", f"{ne}", f"{be}", _p(c3), _p(r3)])
         st[(i, 5)] = _posneg(c3)
         st[(i, 6)] = _posneg(r3)
-        for j, v in ((2, b), (3, a), (4, o)):
-            st[(i, j)] = {"align": PP_ALIGN.CENTER, "color": MINT if v / k > 0.5 else (MULB if v / k < 0.5 else NAVY), "bold": True}
+        for j, v, col in ((2, bu, MINT), (3, ne, BLUEB), (4, be, MULB)):
+            st[(i, j)] = {"align": PP_ALIGN.CENTER, "color": col if v else GREY, "bold": bool(v)}
         st[(i, 1)] = {"align": PP_ALIGN.CENTER}
         if i == len(agg) - 1:
             for j in range(7):
@@ -365,9 +366,9 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     best = agg[0][0]
     s = deck.titled(f"By {group_label}: {best} leads on relative strength over 3 months",
                     f"{group_label_pl}, ranked by median 3-month change in relative strength")
-    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "Bullish", "Above 200-day", "RS Mom +", "Median 3m", f"Median RS 3m vs {bench}"],
-          rows, [3.6, 0.9, 0.9, 1.2, 1.1, 1.1, 1.48], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
-    source(s, asof, f"Counts of stocks; medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
+    table(s, X0, 2.5, W, [group_label[0].upper() + group_label[1:], "Stocks", "▲ Bullish", "◆ Neutral", "▼ Bearish", "Median 3m", f"Median RS 3m vs {bench}"],
+          rows, [3.6, 0.9, 1.0, 1.0, 1.0, 1.1, 1.68], row_h=min(0.34, 5.0 / (len(rows) + 1)), size=9.5, styles=st)
+    source(s, asof, f"Counts of stocks by trend verdict (Neutral includes the tilts, Bearish includes losing momentum); medians of the stock values. RS 3m: 3-month change of price ÷ {bench}.{bench_note}" + insuf_note)
 
     # momentum map
     s = deck.titled(f"Momentum map: {int(((df.vs200 > 0) & (df.rs_chg63 > 0)).sum())} stocks above their 200-day and gaining on the {bench}",
