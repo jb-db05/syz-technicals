@@ -129,7 +129,8 @@ Robust threshold (23 Nov 2026): 68 / 80 published calls matched, 14 / 17 Bearish
 insufficient_data            if history < 320 bars
 
 # Rising 200-day
-Bullish                      if slope200 == rising and not support_broken      # also covers rising + resistance_broken (golden cross / hooked-up MA + resistance break → straight to Bullish, may skip a step)
+Bullish                      if slope200 == rising and not support_broken and MA50 >= MA200   # also covers rising + resistance_broken (golden cross / hooked-up MA + resistance break → straight to Bullish, may skip a step)
+Neutral+                     if slope200 == rising and not support_broken and MA50 < MA200    # variant B, 23 Nov 2026: Bullish needs the 50-day above the 200-day (rule rising_support_intact_ma50_below)
 Bearish (ST), LT Neutral     if slope200 == rising and support_broken and MA50 < MA200   # death cross complete with a still-rising 200d (KOSPI, 8 Nov 2026)
 Neutral+                     if slope200 == rising and support_broken        # broken higher-low → Neutral with positive tilt
 

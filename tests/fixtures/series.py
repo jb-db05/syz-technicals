@@ -45,7 +45,15 @@ def alphabet_rising_ma_lower_highs():
 
 
 def gold_rising_ma_below_price_support_holds():
-    s = Path(50).to(100, 300).to(82, 99).series("XAU Curncy")
+    # Price below a rising 200-day, support intact, 50-day still above the 200-day (variant B, 23 Nov 2026: the
+    # correction is that price below the 200-day alone does not downgrade; a 50-day below the 200-day does).
+    s = Path(50).to(100, 300).to(83, 50).series("XAU Curncy")
+    return s, dict(support=78.0)
+
+
+def rising_ma_support_intact_ma50_below():
+    # Rising 200-day, support intact, but the 50-day has dropped below the 200-day (Western Digital case, 23 Nov 2026)
+    s = Path(50).to(100, 300).to(82, 99).series("WDC UW Equity")
     return s, dict(support=78.0)
 
 

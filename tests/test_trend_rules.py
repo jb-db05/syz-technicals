@@ -67,6 +67,13 @@ def test_gold_rising_ma_below_price_support_holds():
     assert (r.verdict, r.rule) == (BULLISH, "rising_support_intact")
 
 
+def test_variant_b_rising_support_intact_but_ma50_below_is_neutral_plus():
+    s, r, _ = run(fx.rising_ma_support_intact_ma50_below)
+    assert r.snapshot.slope200 == "rising" and not r.snapshot.structure.support_broken
+    assert r.snapshot.ma50 < r.snapshot.ma200
+    assert (r.verdict, r.rule) == ("Neutral+", "rising_support_intact_ma50_below")
+
+
 def test_usdbrl_falling_ma_price_above_higher_lows():
     s, r, _ = run(fx.usdbrl_falling_ma_price_above_higher_lows)
     snap = r.snapshot

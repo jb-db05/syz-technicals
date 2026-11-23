@@ -195,7 +195,9 @@ def _rules(s: Snapshot):
     dn = s.slope200 == FALLING
     fl = s.slope200 == FLAT
     return [
-        ("rising_support_intact", up and not sb, BULLISH),
+        # Variant B (23 Nov 2026): Bullish needs the 50-day above the 200-day; below it the uptrend is only Neutral+
+        ("rising_support_intact", up and not sb and s.ma50 >= s.ma200, BULLISH),
+        ("rising_support_intact_ma50_below", up and not sb, NEUTRAL_POS),
         # Short-term Bearish, long-term Neutral stated alongside (lt_view) – KOSPI, 8 Nov 2026
         ("rising_support_broken_death_cross", up and sb and s.ma50 < s.ma200, BEARISH),
         ("rising_support_broken", up and sb, NEUTRAL_POS),
