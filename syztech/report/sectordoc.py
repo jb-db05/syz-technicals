@@ -302,24 +302,28 @@ def index_page(deck, sector, indices, charts, bench, asof, bench_note="", headin
 
 def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, charts, asof, bench, sector_name, insufficient,
           work, lists_asof, buckets, group_col, group_label, group_label_pl, bench_note, max_rows, trigger_cap):
-    # breadth: four numbers + share by sub-sector (native chart)
-    s = deck.titled(f"Breadth: {nb} of {n_ok} stocks Bullish, {above} of {n} above their 200-day, {out_n} with RS Mom +",
-                    "Share of stocks by " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
-    stats = [(f"{nb}/{n_ok}", "Bullish trend verdict", MINT), (f"{above}/{n}", "above the 200-day average", NAVY),
-             (f"{out_n}/{n}", f"RS Mom + against the {bench}", ORANGE), (f"{near_hi}/{n}", "within 5% of the 52-week high", BLUEB)]
-    for k, (big, lab, col) in enumerate(stats):
-        y = 2.55 + k * 1.22
-        box(s, X0, y, 3.2, 1.05, "F6F7F9")
-        text(s, X0 + 0.18, y + 0.08, 1.5, 0.9, big, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
-        text(s, X0 + 1.6, y + 0.08, 1.55, 0.9, lab, size=10, anchor=MSO_ANCHOR.MIDDLE)
+    # breadth: share of stocks by trend verdict (three numbers + 100% stacked columns per sub-sector)
+    fams = ok.verdict.map(_bucket)
+    share = {f: (fams == f).sum() / max(1, n_ok) for f in ("Bullish", "Neutral", "Bearish")}
+    pc = {f: int(round(100 * v)) for f, v in share.items()}
+    s = deck.titled(f"Breadth: {pc['Bullish']}% of stocks Bullish, {pc['Neutral']}% Neutral, {pc['Bearish']}% Bearish",
+                    "Share of stocks by trend verdict, per " + ("sub-sector" if buckets == BUCKETS else "group") + ", %")
+    for k, (f, col) in enumerate((("Bullish", MINT), ("Neutral", BLUEB), ("Bearish", MULB))):
+        y = 2.55 + k * 1.62
+        box(s, X0, y, 3.2, 1.42, "F6F7F9")
+        box(s, X0, y, 0.09, 1.42, col, radius=0)
+        text(s, X0 + 0.28, y + 0.1, 1.6, 1.22, f"{pc[f]}%", size=30, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
+        text(s, X0 + 1.75, y + 0.1, 1.4, 1.22, [[(f"{VGLYPH[f]} {f}", {"bold": True, "color": col})],
+                                                [(f"{int((fams == f).sum())} of {n_ok} stocks", {"size": 9.5})]],
+             size=11, anchor=MSO_ANCHOR.MIDDLE)
     cd = CategoryChartData()
     bk = [b for b in buckets if b in set(df.bucket)]
     g = {b: df[df.bucket == b] for b in bk}
-    cd.categories = [f"{b} ({len(g[b])})" for b in bk]
-    cd.add_series("Bullish", [round(100 * (g[b].verdict == "Bullish").mean(), 0) for b in bk])
-    cd.add_series("Above 200-day", [round(100 * (g[b].vs200 > 0).mean(), 0) for b in bk])
-    cd.add_series(f"RS Mom +", [round(100 * (g[b].rs_trend == "outperforming").mean(), 0) for b in bk])
-    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_CLUSTERED, Inches(X0 + 3.45), Inches(2.45), Inches(6.85), Inches(4.95), cd)
+    gok = {b: g[b][g[b].verdict.isin(VGLYPH)].verdict.map(_bucket) for b in bk}
+    cd.categories = [f"{b} ({len(gok[b])})" for b in bk]
+    for f in ("Bullish", "Neutral", "Bearish"):
+        cd.add_series(f, [round(100 * (gok[b] == f).mean(), 0) if len(gok[b]) else 0 for b in bk])
+    gf = s.shapes.add_chart(XL_CHART_TYPE.COLUMN_STACKED, Inches(X0 + 3.45), Inches(2.45), Inches(6.85), Inches(4.95), cd)
     ch = gf.chart
     ch.has_title = False
     ch.has_legend = True
@@ -327,13 +331,15 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     ch.legend.include_in_layout = False
     ch.legend.font.size = Pt(9)
     pl = ch.plots[0]
-    pl.gap_width = 60
-    pl.overlap = -10
+    pl.gap_width = 55
+    pl.overlap = 100
     pl.has_data_labels = True
-    pl.data_labels.font.size = Pt(8)
-    pl.data_labels.number_format = '0'
+    pl.data_labels.font.size = Pt(9)
+    pl.data_labels.font.bold = True
+    pl.data_labels.font.color.rgb = rgb("FFFFFF")
+    pl.data_labels.number_format = '0"%";;;'
     pl.data_labels.number_format_is_linked = False
-    for ser, c in zip(ch.series, (MINT, NAVY, ORANGE)):
+    for ser, c in zip(ch.series, (MINT, BLUEB, MULB)):
         ser.format.fill.solid()
         ser.format.fill.fore_color.rgb = rgb(c)
     ch.category_axis.tick_labels.font.size = Pt(8.5)
@@ -341,7 +347,8 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     ch.value_axis.has_major_gridlines = False
     ch.value_axis.maximum_scale = 100
     ch.value_axis.minimum_scale = 0
-    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
+    source(s, asof, "Shares of the stocks with a trend verdict; Neutral includes the tilts (Neutral + / Neutral –), Bearish includes "
+                    "losing momentum. Rounded, may not add to 100." + insuf_note)
 
     # breadth by GICS sub-industry
     rows, st = [], {}

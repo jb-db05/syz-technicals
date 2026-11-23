@@ -204,11 +204,11 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   </section>
 
   <section id="breadth">
-    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by sub-sector, %</p></div>
+    <div class="sh"><span class="k">Breadth</span><h2 id="b-title"></h2><p id="b-sub">Share of stocks by trend verdict, per sub-sector, %</p></div>
     <div class="breadth">
       <div class="stats" id="b-stats"></div>
       <div class="card">
-        <div class="legend"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Above 200-day</span><span><i style="background:var(--orange)"></i>RS Mom +</span></div>
+        <div class="legend"><span><i style="background:var(--mint)"></i>Bullish</span><span><i style="background:var(--blueb)"></i>Neutral</span><span><i style="background:var(--mulb)"></i>Bearish</span></div>
         <svg id="b-chart" viewBox="0 0 760 300" role="img" aria-label="Breadth by sub-sector"></svg>
       </div>
     </div>
@@ -348,20 +348,21 @@ if (X.img) $("s-chart").innerHTML = `<img src="${X.img}" alt="${esc(X.n)} chart"
 $("s-chart").onclick = () => openLB([X], 0);
 
 /* breadth */
-const above = S.filter(s => (s.vs200 ?? -1) > 0).length, outN = S.filter(s => s.rs === "outperforming").length, nearHi = S.filter(s => (s.fh ?? -1) >= -0.05).length;
-$("b-title").textContent = `${cnt("Bullish")} of ${ok.length} stocks Bullish, ${above} of ${S.length} above their 200-day, ${outN} with RS Mom +`;
-$("b-stats").innerHTML = [[`${cnt("Bullish")}/${ok.length}`, "Bullish trend verdict", "pos"], [`${above}/${S.length}`, "above the 200-day average", ""],
-  [`${outN}/${S.length}`, `RS Mom + against the ${B}`, ""], [`${nearHi}/${S.length}`, "within 5% of the 52-week high", ""]]
-  .map(([b, l, c], i) => `<div class="stat"><b class="num ${c}" style="${i === 2 ? "color:var(--orange)" : i === 1 ? "color:var(--ink)" : i === 3 ? "color:var(--blueb)" : ""}">${b}</b><span>${esc(l)}</span></div>`).join("");
-if (D.buckets) $("b-sub").textContent = "Share of stocks by group, %";
+const pc = f => Math.round(100 * cnt(f) / Math.max(1, ok.length));
+$("b-title").textContent = `${pc("Bullish")}% of stocks Bullish, ${pc("Neutral")}% Neutral, ${pc("Bearish")}% Bearish`;
+$("b-stats").innerHTML = [["Bullish", "pos", "▲"], ["Neutral", "flat", "◆"], ["Bearish", "neg", "▼"]]
+  .map(([f, c, gl]) => `<div class="stat"><b class="num ${c}">${pc(f)}%</b><span><b class="${c}" style="font-size:14px;min-width:0">${gl} ${f}</b><br>${cnt(f)} of ${ok.length} stocks</span></div>`).join("");
+if (D.buckets) $("b-sub").textContent = "Share of stocks by trend verdict, per group, %";
 (function breadthChart() {
-  const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b); return {b, n: x.length,
-    v: [x.filter(s => s.v === "Bullish").length / x.length, x.filter(s => (s.vs200 ?? -1) > 0).length / x.length, x.filter(s => s.rs === "outperforming").length / x.length]}; });
-  const W = 760, H = 300, L = 40, R = 10, T = 22, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(46, gw / 4.2), cols = ["var(--mint)", "var(--blueb)", "var(--orange)"];
-  let s = `<line x1="${L}" x2="${W - R}" y1="${H - Bt}" y2="${H - Bt}" stroke="var(--line)"/>`;
-  [25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
-  g.forEach((d, i) => { const cx = L + gw * i + gw / 2; d.v.forEach((v, k) => { const h = (H - Bt - T) * v, x = cx + (k - 1.5) * (bw + 4) + 2, y = H - Bt - h;
-      s += `<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h, 0.5)}" rx="3" fill="${cols[k]}"/><text class="ink" x="${x + bw / 2}" y="${y - 5}" font-size="11" font-weight="700" text-anchor="middle">${Math.round(v * 100)}</text>`; });
+  const g = BUCKETS.filter(b => S.some(s => s.b === b)).map(b => { const x = S.filter(s => s.b === b && hasV(s.v)); const n = Math.max(1, x.length);
+    return {b, n: x.length, v: ["Bullish", "Neutral", "Bearish"].map(f => x.filter(s => vb(s.v) === f).length / n)}; });
+  const W = 760, H = 300, L = 40, R = 10, T = 14, Bt = 54, gw = (W - L - R) / g.length, bw = Math.min(70, gw * 0.55), cols = ["var(--mint)", "var(--blueb)", "var(--mulb)"];
+  let s = "";
+  [0, 25, 50, 75, 100].forEach(p => { const y = H - Bt - (H - Bt - T) * p / 100; s += `<line x1="${L}" x2="${W - R}" y1="${y}" y2="${y}" stroke="var(--line)" ${p ? 'stroke-dasharray="2 4"' : ""}/><text x="${L - 6}" y="${y + 4}" font-size="10" text-anchor="end">${p}%</text>`; });
+  g.forEach((d, i) => { const cx = L + gw * i + gw / 2; let base = H - Bt;
+    d.v.forEach((v, k) => { const h = (H - Bt - T) * v; if (h <= 0) return; const y = base - h;
+      s += `<rect x="${cx - bw / 2}" y="${y}" width="${bw}" height="${h}" fill="${cols[k]}"/>` + (h >= 15 ? `<text x="${cx}" y="${y + h / 2 + 4}" font-size="11" font-weight="700" text-anchor="middle" style="fill:#fff">${Math.round(v * 100)}%</text>` : "");
+      base = y; });
     const words = d.b.split(" "), cut = d.b.length > 16 && words.length > 1 ? Math.ceil(words.length / 2) : words.length;
     const l1 = words.slice(0, cut).join(" "), l2 = words.slice(cut).join(" ");
     s += `<text class="ink" x="${cx}" y="${H - Bt + 16}" font-size="11.5" font-weight="700" text-anchor="middle">${esc(l1)}</text>`
