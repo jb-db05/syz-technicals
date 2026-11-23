@@ -62,11 +62,14 @@ def pivots(close: pd.Series, theta: np.ndarray) -> list[tuple[str, int, float, i
     return out
 
 
-def swing_history(close: pd.Series, k: float = 2.0, flat_f: float = 0.25) -> pd.DataFrame:
-    """Daily slope state, structure and verdict, using only information available on each bar."""
+def swing_history(close: pd.Series, k: float = 2.0, flat_f: float = 0.25, robust: bool = False) -> pd.DataFrame:
+    """Daily slope state, structure and verdict, using only information available on each bar.
+
+    robust: swing threshold = k × median one-month move over the past 252 bars (a parabolic run or a crash cannot
+    inflate it); otherwise k × the current one-month move."""
     close = close.dropna()
     m = monthly_move(close)
-    theta = (k * m).to_numpy()
+    theta = (k * (m.rolling(252, min_periods=120).median() if robust else m)).to_numpy()
     ma = close.rolling(200, min_periods=200).mean()
     s20 = (ma / ma.shift(20) - 1).to_numpy()
     band = (flat_f * m).to_numpy()
