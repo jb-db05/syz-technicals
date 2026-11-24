@@ -26,7 +26,7 @@ from ..io.bloomberg_prices import SeriesReport
 from .listdoc import V_ORDER
 from .sectordoc import REL_ORDER, _p, _posneg, _rel, _relstyle, _vstyle, _vtxt
 from .weekly import (AMBER, BLUEB, GREY, L_COVER, L_DISCLAIMER, L_FINAL, MINT, MULB, NAVY, ORANGE, SKY, VGLYPH, VLABEL, W, X0,
-                     Deck, box, chart_image, full_page_chart, source, table, text, verdict_style)
+                     Deck, box, chart_image, full_page_chart, rgb, source, table, text, verdict_style)
 
 SECTOR_KEYS = [("EN", "Energy"), ("MT", "Materials"), ("IN", "Industrials"), ("CD", "Consumer Discretionary"),
                ("CS", "Consumer Staples"), ("HC", "Health Care"), ("FN", "Financials"), ("IT", "Information Technology"),
@@ -377,42 +377,79 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dots: weekly positions. "
                         "Colour: trend verdict of the index.")
 
-    # ── global sector map: three readings (200-day momentum, relative trend, verdict), one page each
-    hdr = ["Sector"] + [REGION_NAME[r[0]] for r in REGIONS]
+    # ── global sector map: two clean pages – momentum | relative trend side by side in each cell, then the verdict
     n_sect = len(sect)
-    views = [
-        ("momentum", lambda r: (f"{SLOPE_TXT[r.slope200]}\nvs 200d {_p(r.vs200)}", _badge(SLOPE_COL[r.slope200])) if r.slope200 in SLOPE_TXT else (EN_DASH, _NA),
-         f"Global sector map – momentum: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day average",
-         "Direction of the 200-day average over 20 trading days (cell colour); second line: price against its 200-day average",
-         "Rising / flat / falling: 20-day change of the 200-day average above +0.20%, within ±0.20%, below −0.20%.".replace("−", EN_DASH)),
-        ("relative", lambda r: (f"{REL_TXT[r.rel_state]}\nRS 3m {_p(r.rs_chg63)}", _badge(REL_COLOUR[r.rel_state])) if r.rel_state in REL_TXT else (EN_DASH, _NA),
-         f"Global sector map – relative trend: {int((sect.rel_state == 'Outperform').sum())} of {n_sect} sector indices Outperform their regional benchmark",
-         "Relative trend against the regional benchmark (cell colour); second line: 3-month change in relative strength",
-         rs_note),
-        ("verdict", lambda r: (_vtxt(r.verdict), verdict_style(r.verdict)) if _family(r.verdict) else ("n/a – history", _NA),
-         f"Global sector map – verdict: {int((sect.verdict == 'Bullish').sum())} of {n_sect} sector indices Bullish",
-         "Trend verdict per sector and region",
-         "Verdict: rising 200-day + intact support + 50-day above the 200-day = Bullish; falling 200-day + broken support = Bearish; in between Neutral with a tilt."),
-    ]
-    for _, cell, title_, sub_, note_ in views:
-        rows, st = [], {}
-        for i, (key, sname) in enumerate(SECTOR_KEYS):
-            row = [sname]
-            st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
-            for j, (reg, bench, bname, sg, *_r) in enumerate(REGIONS, start=1):
-                x = sect[(sect.group == sg) & (sect.sector_key == key)]
-                if not len(x):
-                    row.append("n/a – series discontinued")
-                    st[(i, j)] = dict(_NA)
-                    continue
-                txt, sty = cell(x.iloc[0])
-                row.append(txt)
-                st[(i, j)] = sty
-            rows.append(row)
-        s = deck.titled(title_, sub_)
-        table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=9, styles=st)
-        source(s, asof, "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index "
-                        "(USD). " + note_ + drop_note)
+    bench_note_ = ("Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). ")
+
+    def _cells(key, sg):
+        x = sect[(sect.group == sg) & (sect.sector_key == key)]
+        return x.iloc[0] if len(x) else None
+
+    # page 1: each region = two half-cells (200-day direction | relative trend), a thin gap between regions
+    hdr, col_w, spacers = ["Sector"], [1.75], []
+    for k, r_ in enumerate(REGIONS):
+        hdr += [REGION_NAME[r_[0]], ""]
+        col_w += [0.85, 1.2]
+        if k < len(REGIONS) - 1:
+            spacers.append(len(hdr)); hdr.append(""); col_w.append(0.07)
+    col_w = [w_ * W / sum(col_w) for w_ in col_w]
+    rows, st = [], {}
+    for i, (key, sname) in enumerate(SECTOR_KEYS):
+        row = [sname]
+        st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
+        for k, (reg, bench, bname, sg, *_r) in enumerate(REGIONS):
+            r = _cells(key, sg)
+            if r is None:
+                row += ["n/a", ""]
+                st[(i, len(row) - 2)] = dict(_NA); st[(i, len(row) - 1)] = dict(_NA)
+            else:
+                for txt, sty in (_slope_cell(r.slope200), _rel_cell(r.rel_state)):
+                    row.append(txt); st[(i, len(row) - 1)] = sty
+            if k < len(REGIONS) - 1:
+                row.append(""); st[(i, len(row) - 1)] = {"fill": "FFFFFF"}
+        rows.append(row)
+    s = deck.titled(f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day, "
+                    f"{int((sect.rel_state == 'Outperform').sum())} Outperform their regional benchmark",
+                    "In each region – left: momentum (direction of the 200-day average); right: relative trend against the regional benchmark")
+    gt = table(s, X0, 2.5, W, hdr, rows, col_w, row_h=0.41, size=8, styles=st)
+    c0 = 1
+    for k in range(len(REGIONS)):                      # region name centred over its two half-cells
+        gt.cell(0, c0).merge(gt.cell(0, c0 + 1))
+        gt.cell(0, c0).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        c0 += 3
+    for c in spacers:
+        gt.cell(0, c).fill.solid(); gt.cell(0, c).fill.fore_color.rgb = rgb("FFFFFF")
+    for i, (key, _n) in enumerate(SECTOR_KEYS, start=1):   # a discontinued series: one grey cell over both halves
+        c0 = 1
+        for reg, bench, bname, sg, *_r in REGIONS:
+            if _cells(key, sg) is None:
+                gt.cell(i, c0).merge(gt.cell(i, c0 + 1))
+                tf = gt.cell(i, c0).text_frame
+                tf.paragraphs[0].runs[0].text = "n/a – series discontinued"
+            c0 += 3
+    source(s, asof, bench_note_ + "Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. "
+                    + rs_note.split(";")[0] + "." + drop_note)
+
+    # page 2: verdict
+    hdr = ["Sector"] + [REGION_NAME[r_[0]] for r_ in REGIONS]
+    rows, st = [], {}
+    for i, (key, sname) in enumerate(SECTOR_KEYS):
+        row = [sname]
+        st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
+        for j_, (reg, bench, bname, sg, *_r) in enumerate(REGIONS, start=1):
+            r = _cells(key, sg)
+            if r is None:
+                row.append("n/a – series discontinued"); st[(i, j_)] = dict(_NA)
+            elif _family(r.verdict):
+                row.append(_vtxt(r.verdict)); st[(i, j_)] = verdict_style(r.verdict)
+            else:
+                row.append("n/a – history"); st[(i, j_)] = dict(_NA)
+        rows.append(row)
+    s = deck.titled(f"Global sector map – verdict: {int((sect.verdict == 'Bullish').sum())} of {n_sect} sector indices Bullish",
+                    "Trend verdict per sector and region")
+    table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=9, styles=st)
+    source(s, asof, bench_note_ + "Verdict: rising 200-day + intact support + 50-day above the 200-day = Bullish; falling 200-day + broken "
+                    "support = Bearish; in between Neutral with a tilt." + drop_note)
 
     # ── style & size ratios
     hdr = ["Ratio", "Ratio trend", "200-day", "vs 200d", "3m", "12m", "Leads (trend rule)"]
