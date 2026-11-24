@@ -33,9 +33,11 @@ DUP_CORR = 0.95
 TYPES_FILE = Path(__file__).parent / "assets" / "thematics_types.csv"
 THEME, THEME_CUT = "Theme", 0.70
 # proposed names of the theme clusters, keyed by one member (to be confirmed)
+# clusters split by hand (Florian, 24 Nov 2026): themes whose fine sub-group is listed leave the cluster under the new name
+SPLITS = {"TAN US Equity": ({"Batteries, lithium & rare earths", "Gold, precious metals & miners"}, "Batteries, metals & miners")}
 TOP_NAMES = {"IGE US Equity": "Natural resources, energy & agriculture", "IH2O SW Equity": "Infrastructure, water & environment",
              "IBB US Equity": "Biotech, genomics & ageing", "KWEB US Equity": "China technology, gaming & social media",
-             "TAN US Equity": "Clean energy, batteries & miners", "URA US Equity": "Uranium",
+             "TAN US Equity": "Clean energy – solar, wind, hydrogen", "URA US Equity": "Uranium",
              "FINX US Equity": "Digital consumer, fintech & travel", "SOXX US Equity": "Semiconductors, robotics & connected devices",
              "CLOU US Equity": "Software, cloud, cyber security & AI", "ARKK US Equity": "Disruptive innovation, IPOs & blockchain",
              "DTCR US Equity": "Data centres & digital infrastructure", "IDGT US Equity": "Data centres & digital infrastructure",
@@ -176,9 +178,21 @@ def build_review(prices_dir="data/prices_thematics", universe="data/universe_the
     for i in leaves:
         if lab[i] not in seen:
             seen.append(lab[i])
-    for k, c in enumerate(seen, start=1):
+    groups = []
+    for c in seen:
         m = [th_t[i] for i in leaves if lab[i] == c]
         nm = next((TOP_NAMES[t] for t in m if t in TOP_NAMES), info.loc[m[0], "name"])
+        anchor = next((t for t in m if t in SPLITS), None)
+        if anchor:                                      # manual split of one cluster in two
+            subs, new_name = SPLITS[anchor]
+            out = [t for t in m if info.loc[t, "sub"] in subs]
+            m = [t for t in m if t not in out]
+            groups.append((nm, m))
+            if out:
+                groups.append((new_name, out))
+        else:
+            groups.append((nm, m))
+    for k, (nm, m) in enumerate(groups, start=1):
         for t in m:
             cid_of[t], cname_of[t], single_of[t] = k, nm, len(m) == 1
     bench = prices.series(BENCH).dropna()
