@@ -323,7 +323,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     sect = df[df.sector_key.notna() & df.group.str.contains("Sectors", na=False)]
     ratios = df[df.group.str.endswith("Ratios", na=False)]
     drop_note = (" Left out: " + "; ".join(dropped) + ".") if dropped else ""
-    rs_note = "Rel. trend: the trend rule applied to index ÷ benchmark (Outperform / Neutral / Underperform); RS 3m: 3-month change in relative strength."
+    rs_note = "Rel. trend: direction of the 200-day average of index ÷ benchmark over 20 trading days (rising = Outperform, falling = Underperform); RS 3m: 3-month change in relative strength."
 
     # ── cover
     s = deck.slide(L_COVER)
@@ -517,7 +517,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     items = [("Trend", "Direction of the 200-day average over 20 trading days; support / resistance = last confirmed swing low / high "
                        "(1.5 × one-month-move reversal); a broken swing low stays the level until the resistance breaks."),
              ("Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
-             ("Relative strength", "The same rule applied to index ÷ benchmark: Outperform, Neutral or Underperform. RS 3m: its 3-month change. It informs, it does not change the absolute verdict."),
+             ("Relative strength", "Relative trend: is the 200-day average of index ÷ benchmark rising (Outperform) or falling (Underperform)? RS 3m: its 3-month change. It informs, it does not change the absolute verdict."),
              ("Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = numerator leads."),
              ("Rotation map", "x: relative strength vs its 200-day average; y: its 3-month change. Leading = above and rising; Weakening = above, falling; "
                               "Lagging = below, falling; Improving = below, rising.")]

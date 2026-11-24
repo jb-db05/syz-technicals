@@ -231,7 +231,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
     <div class="controls">
       <span id="d-chips" style="display:contents"></span>
       <select id="d-verdict" aria-label="Trend verdict"><option value="">All verdicts</option><option>Bullish</option><option value="Neutral">Neutral (all tilts)</option><option value="Bearish">Bearish</option></select>
-      <select id="d-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option value="Outperform">Outperform</option><option value="Neutral">Neutral</option><option value="Underperform">Underperform</option></select>
+      <select id="d-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option value="Outperform">Outperform</option><option value="Underperform">Underperform</option></select>
       <select id="d-list" aria-label="Syz list"><option value="">Syz list: all</option><option value="any">On a Syz list</option><option value="Focus List">Focus List</option><option value="Master list">Master list</option><option value="none">On no list</option></select>
       <input type="search" id="d-q" placeholder="Search stock or ticker" aria-label="Search">
       <span class="count-line" id="d-count"></span>
@@ -451,7 +451,7 @@ $("d-table").addEventListener("click", e => { const th = e.target.closest("th.so
   if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs", "lst"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
   const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
 $("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
-$("d-note").textContent = `Default order: trend verdict, then relative trend, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. Rel. trend: the trend rule (200-day slope, swing levels, 50-day vs 200-day) applied to stock ÷ ${B} – Outperform, Neutral or Underperform.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
+$("d-note").textContent = `Default order: trend verdict, then relative trend, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. Rel. trend: direction of the 200-day average of stock ÷ ${B} over 20 trading days – rising = Outperform, falling = Underperform.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
 drawDash();
 
 /* RS leaders / laggards */
@@ -471,8 +471,8 @@ drawDash();
   $("g-sub").textContent = `Trend verdict against relative trend versus the ${B}. Click a name for its chart.`;
   const chips = (v, rs) => { const x = ok.filter(s => (s.v === "Bearish_LM" ? "Bearish" : s.v) === v && s.rs === rs).sort((a, b) => a.n.localeCompare(b.n));
     return x.length ? x.map(s => `<span class="nchip" data-t="${esc(s.t)}" role="button" tabindex="0">${esc(s.n)}</span>`).join("") : `<span class="dim">${ND}</span>`; };
-  $("g-table").innerHTML = `<thead><tr><th>Trend</th><th>Outperform vs ${esc(B)}</th><th>Neutral</th><th>Underperform vs ${esc(B)}</th></tr></thead><tbody>`
-    + ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"].map(v => `<tr><td>${pill(v)}</td><td class="cell-out">${chips(v, "Outperform")}</td><td class="cell-neu">${chips(v, "Neutral")}</td><td class="cell-under">${chips(v, "Underperform")}</td></tr>`).join("") + "</tbody>";
+  $("g-table").innerHTML = `<thead><tr><th>Trend</th><th>Outperform vs ${esc(B)}</th><th>Underperform vs ${esc(B)}</th></tr></thead><tbody>`
+    + ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"].map(v => `<tr><td>${pill(v)}</td><td class="cell-out">${chips(v, "Outperform")}</td><td class="cell-under">${chips(v, "Underperform")}</td></tr>`).join("") + "</tbody>";
   $("g-table").onclick = e => { const c = e.target.closest(".nchip"); if (c) openOne(c.dataset.t); };
 })();
 
@@ -494,7 +494,7 @@ $("method-rows").innerHTML = [["Trend", "Direction of the 200-day moving average
   ["Structure", "Support = last confirmed swing low, resistance = last swing high (1.5 × one-month-move reversal). A support break stands until a resistance break."],
   ["Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."],
-  ["Relative strength", `The same rule applied to price ÷ ${B}: Outperform, Neutral or Underperform. The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.`]]
+  ["Relative strength", `Relative trend: is the 200-day average of price ÷ ${B} rising (Outperform) or falling (Underperform)? The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.`]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
 $("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: last confirmed swing low / high (1.5 × one-month-move reversal); no drawn charts for this list.${insuf}`;
 

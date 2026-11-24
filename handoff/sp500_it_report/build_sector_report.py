@@ -1043,22 +1043,21 @@ def evaluate(close: pd.Series, params: TrendParams = DEFAULT_PARAMS,
 # ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 FALLBACK_ORIGINS = ("52w", "swing")      # levels with these origins are recomputed at every run, never treated as drawn
 
-REL_STATE = {BULLISH: "Outperform", BEARISH: "Underperform", BEARISH_LM: "Underperform"}   # every Neutral shade -> Neutral
+REL_STATE = {"outperforming": "Outperform", "underperforming": "Underperform", "mixed": "Neutral"}
+
+REL_RULE = {"outperforming": "rs_ma200_rising", "underperforming": "rs_ma200_falling", "mixed": "rs_ma200_unchanged"}
 
 def relative_verdict(s: pd.Series, b: pd.Series, params: TrendParams = DEFAULT_PARAMS) -> dict:
-    """The trend rule in force applied to the relative-strength line (price ÷ benchmark), adopted 24 Nov 2026.
+    """Relative trend (rule of 25 Nov 2026): only the slope of the 200-day average of the relative-strength line.
 
-    Same swing levels (k = 1.5), same verdict table; no drawn levels on RS lines. rel_state is None when the RS line
-    is too short for a verdict (rel_missing names what is missing)."""
-    rs = relative_strength(s, b).dropna()
-    if not len(rs):
-        return {"rel_state": None, "rel_verdict": INSUFFICIENT, "rel_rule": "no_common_dates", "rel_missing": "no common dates with the benchmark"}
-    sup, res, so, ro, ss, rs_ = resolve_levels(rs, None, None, None, None)
-    r = evaluate(rs, params, sup, res, None, support_start=ss, resistance_start=rs_)
-    if r.verdict == INSUFFICIENT:
-        return {"rel_state": None, "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": r.missing}
-    return {"rel_state": REL_STATE.get(r.verdict, "Neutral"), "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": None,
-            "rel_support": sup, "rel_resistance": res, "rel_support_origin": so, "rel_resistance_origin": ro}
+    RS = price ÷ benchmark × 100; slope = its 200-day average today against 20 trading days ago. Rising = Outperform,
+    falling = Underperform, exactly unchanged = Neutral (no flat band). Needs more than 220 common closes; otherwise
+    rel_state is None and rel_missing says so. Nothing else (price structure, 50-day) enters."""
+    t = rs_summary(s, b).get("rs_trend")
+    if t is None:
+        return {"rel_state": None, "rel_rule": "rs_history_too_short",
+                "rel_missing": "fewer than 221 common closes with the benchmark for the 200-day average of relative strength"}
+    return {"rel_state": REL_STATE[t], "rel_rule": REL_RULE[t], "rel_missing": None}
 
 def _opt(x):
     return None if x is None or pd.isna(x) else float(x)
@@ -1156,6 +1155,8 @@ MINT, BLUEBERRY, MULBERRY = "#3BAF90", "#4B5F80", "#AC5D85"
 ORANGE, AMBER, NAVY = "#FF6C0E", "#FFA400", "#202945"
 
 GREY = "#B8BFCC"
+
+RS_RISING, RS_FALLING = "#2F6FDE", "#D8343F"     # relative-strength line: blue when its 200-day average rises, red when it falls (25 Nov 2026)
 
 VERDICT_COLOUR = {"Bullish": MINT, "Neutral+": BLUEBERRY, "Neutral": BLUEBERRY, "Neutral-": BLUEBERRY,
                   "Bearish_LM": MULBERRY, "Bearish": MULBERRY}
@@ -1404,8 +1405,17 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         rs_ma = sma(rs.dropna(), 200).reindex(close.index)
         base = rs.iloc[start:].dropna().iloc[0]
         rs, rs_ma = rs / base * 100, rs_ma / base * 100      # rebased: 100 at the start of the chart
-        rx.plot(x, rs.iloc[sl], color=MULBERRY, lw=1.1)
-        rx.plot(x, rs_ma.iloc[sl], color=GREY, lw=1.2)
+        # the RS line takes the colour of its 200-day average's direction (20-day change): rising blue, falling red
+        chg = (rs_ma / rs_ma.shift(20) - 1).iloc[sl].to_numpy()
+        yv = rs.iloc[sl].to_numpy(dtype=float)
+        col = np.where(np.isnan(chg), 0, np.where(chg > 0, 1, np.where(chg < 0, -1, 0)))
+        for state, colour in ((0, GREY), (1, RS_RISING), (-1, RS_FALLING)):
+            m = col[1:] == state                      # a segment takes the state of the bar it ends on
+            seg = np.full(len(yv), np.nan)
+            seg[1:][m] = yv[1:][m]
+            seg[:-1][m] = yv[:-1][m]
+            rx.plot(x, seg, color=colour, lw=1.2, solid_capstyle="round")
+        rx.plot(x, rs_ma.iloc[sl], color=NAVY, lw=1.0, alpha=0.55)
         rx.set_ylabel("")
         rx.yaxis.set_major_locator(plt.MaxNLocator(3))
         rx.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
@@ -1413,7 +1423,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         for s in ("top", "right"):
             rx.spines[s].set_visible(False)
         rx.grid(axis="y", color=GREY, alpha=0.35, lw=0.6)
-        rx.text(0.0, 1.08, f"Relative strength vs {benchmark_name}, rebased to 100 (grey: its 200-day)", transform=rx.transAxes,
+        rx.text(0.0, 1.08, f"Relative strength vs {benchmark_name}, rebased to 100 – blue: its 200-day average rising, red: falling (thin line: the 200-day)", transform=rx.transAxes,
                 fontsize=9, color=NAVY, fontweight="bold")
         plt.setp(ax.get_xticklabels(), visible=False)
         rx.set_xticks(yr)
@@ -1677,11 +1687,14 @@ def table(slide, x, y, w, header, rows, col_w, row_h=0.24, size=8.5, styles=None
             tf = c.text_frame
             tf.text = ""
             p = tf.paragraphs[0]
-            r = p.add_run()
-            r.text = str(val)
-            r.font.size = Pt(size)
-            r.font.bold = (i == 0) or st.get("bold", False)
-            r.font.color.rgb = rgb("FFFFFF" if i == 0 else st.get("color", R_NAVY))
+            for k, part in enumerate(str(val).split("\n")):       # "\n" = a real line break inside the cell
+                if k:
+                    p.add_line_break()
+                r = p.add_run()
+                r.text = part
+                r.font.size = Pt(size)
+                r.font.bold = (i == 0) or st.get("bold", False)
+                r.font.color.rgb = rgb("FFFFFF" if i == 0 else st.get("color", R_NAVY))
             p.alignment = st.get("align", PP_ALIGN.RIGHT if (i > 0 and j > 0 and NUMERIC.match(str(val))) else PP_ALIGN.LEFT)
             c.fill.solid()
             c.fill.fore_color.rgb = rgb(R_NAVY if i == 0 else st.get("fill", "FFFFFF" if i % 2 else "F6F7F9"))
@@ -1791,7 +1804,7 @@ REL_COL = {"Outperform": R_MINT, "Neutral": BLUEB, "Underperform": MULB}
 REL_FILL = {"Outperform": "E3F4EF", "Neutral": "E9ECF1", "Underperform": "F6E8EF"}
 
 def _rel(v):
-    """Relative trend (the trend rule on price ÷ benchmark): Outperform / Neutral / Underperform, en dash if no verdict."""
+    """Relative trend (slope of the 200-day average of price ÷ benchmark): Outperform / Underperform, en dash if none."""
     return v if v in REL_ORDER else EN_DASH
 
 def _relstyle(v):
@@ -2081,7 +2094,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
             part = x.iloc[p * per:(p + 1) * per]
             sfx = f" ({p + 1}/{pages})" if pages > 1 else ""
             momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} Outperform against the {bench}{sfx}", bench, asof,
-                               f"Sorted by trend verdict, then relative trend (the trend rule on price ÷ {bench}), then RS 3m. Changes on closing prices, total return not included. "
+                               f"Sorted by trend verdict, then relative trend (200-day average of price ÷ {bench}: rising = Outperform, falling = Underperform), then RS 3m. Changes on closing prices, total return not included. "
                                f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
                                f"not part of the verdict.{bench_note}" + (insuf_note if set(insufficient) & set(part.name) else ""))
 
@@ -2123,7 +2136,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     s = deck.titled(f"Trend × relative trend: {len(bull_lead)} stocks Bullish and Outperform, {len(bull_lag)} Bullish and Underperform",
                     f"Trend verdict against relative trend versus the {bench}")
     rows, st = [], {}
-    cols = list(REL_ORDER)
+    cols = ["Outperform", "Underperform"]
     for i, v in enumerate(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]):
         row = [f"{VGLYPH[v]} {VLABEL[v]}"]
         st[(i, 0)] = verdict_style(v)
@@ -2132,14 +2145,14 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
             row.append(", ".join(nm) or EN_DASH)
             st[(i, j)] = {"fill": REL_FILL[ct], "align": PP_ALIGN.LEFT}
         rows.append(row)
-    # row height follows the longest cell (about 62 characters per line at 8 pt in 2.94 in), 4.95 in in total
-    lines = [max(1, max(-(-len(c) // 62) for c in r[1:])) for r in rows]
+    # row height follows the longest cell (about 95 characters per line at 8 pt in 4.4 in), 4.95 in in total
+    lines = [max(1, max(-(-len(c) // 95) for c in r[1:])) for r in rows]
     unit = min(0.2, (4.95 - 0.3) / sum(l + 1 for l in lines))
-    gt = table(s, X0, 2.5, W, ["Trend", f"Outperform vs {bench}", "Neutral", f"Underperform vs {bench}"], rows,
-               [1.45, 2.94, 2.94, 2.95], row_h=0.3, size=8, styles=st)
+    gt = table(s, X0, 2.5, W, ["Trend", f"Outperform vs {bench}", f"Underperform vs {bench}"], rows,
+               [1.45, 4.4, 4.43], row_h=0.3, size=8, styles=st)
     for i, l in enumerate(lines, start=1):
         gt.rows[i].height = Inches(unit * (l + 1))
-    source(s, asof, f"Relative trend: the trend rule (200-day slope, swing levels, 50-day vs 200-day) applied to stock ÷ {bench}. "
+    source(s, asof, f"Relative trend: direction of the 200-day average of stock ÷ {bench} over 20 trading days – rising = Outperform, falling = Underperform. "
                     f"Stocks without a relative verdict are not shown." + insuf_note)
 
     # trigger watch
@@ -2167,7 +2180,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
                            "reversal). A support break stands until a resistance break."),
              ("Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
-             ("Relative strength", f"The same rule applied to price ÷ {bench}: Outperform, Neutral or Underperform. The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.")]
+             ("Relative strength", f"Relative trend: is the 200-day average of price ÷ {bench} rising (Outperform) or falling (Underperform)? The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.")]
     for k, (lab, body) in enumerate(items):
         y = 2.55 + k * 0.98
         box(s, X0, y, 2.2, 0.8, R_NAVY if k % 2 else R_ORANGE)
@@ -2479,7 +2492,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
     <div class="controls">
       <span id="d-chips" style="display:contents"></span>
       <select id="d-verdict" aria-label="Trend verdict"><option value="">All verdicts</option><option>Bullish</option><option value="Neutral">Neutral (all tilts)</option><option value="Bearish">Bearish</option></select>
-      <select id="d-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option value="Outperform">Outperform</option><option value="Neutral">Neutral</option><option value="Underperform">Underperform</option></select>
+      <select id="d-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option value="Outperform">Outperform</option><option value="Underperform">Underperform</option></select>
       <select id="d-list" aria-label="Syz list"><option value="">Syz list: all</option><option value="any">On a Syz list</option><option value="Focus List">Focus List</option><option value="Master list">Master list</option><option value="none">On no list</option></select>
       <input type="search" id="d-q" placeholder="Search stock or ticker" aria-label="Search">
       <span class="count-line" id="d-count"></span>
@@ -2699,7 +2712,7 @@ $("d-table").addEventListener("click", e => { const th = e.target.closest("th.so
   if (th) { const k = th.dataset.k; dState.dir = dState.key === k ? -dState.dir : (["n", "ish", "s200", "v", "rs", "lst"].includes(k) ? 1 : -1); dState.key = k; drawDash(); return; }
   const tr = e.target.closest("tr.click"); if (tr) openLB(dRows, +tr.dataset.i); });
 $("d-table").addEventListener("keydown", e => { if (e.key === "Enter") e.target.click(); });
-$("d-note").textContent = `Default order: trend verdict, then relative trend, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. Rel. trend: the trend rule (200-day slope, swing levels, 50-day vs 200-day) applied to stock ÷ ${B} – Outperform, Neutral or Underperform.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
+$("d-note").textContent = `Default order: trend verdict, then relative trend, then RS 3m. Changes on closing prices, dividends not included. vs 52w high in green when within 5%. Rel. trend: direction of the 200-day average of stock ÷ ${B} over 20 trading days – rising = Outperform, falling = Underperform.${BNOTE} Syz list: Focus List / Master list${D.lists_asof ? " (" + D.lists_asof + ")" : ""}, shown for information, not part of the verdict.${insuf}`;
 drawDash();
 
 /* RS leaders / laggards */
@@ -2719,8 +2732,8 @@ drawDash();
   $("g-sub").textContent = `Trend verdict against relative trend versus the ${B}. Click a name for its chart.`;
   const chips = (v, rs) => { const x = ok.filter(s => (s.v === "Bearish_LM" ? "Bearish" : s.v) === v && s.rs === rs).sort((a, b) => a.n.localeCompare(b.n));
     return x.length ? x.map(s => `<span class="nchip" data-t="${esc(s.t)}" role="button" tabindex="0">${esc(s.n)}</span>`).join("") : `<span class="dim">${ND}</span>`; };
-  $("g-table").innerHTML = `<thead><tr><th>Trend</th><th>Outperform vs ${esc(B)}</th><th>Neutral</th><th>Underperform vs ${esc(B)}</th></tr></thead><tbody>`
-    + ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"].map(v => `<tr><td>${pill(v)}</td><td class="cell-out">${chips(v, "Outperform")}</td><td class="cell-neu">${chips(v, "Neutral")}</td><td class="cell-under">${chips(v, "Underperform")}</td></tr>`).join("") + "</tbody>";
+  $("g-table").innerHTML = `<thead><tr><th>Trend</th><th>Outperform vs ${esc(B)}</th><th>Underperform vs ${esc(B)}</th></tr></thead><tbody>`
+    + ["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"].map(v => `<tr><td>${pill(v)}</td><td class="cell-out">${chips(v, "Outperform")}</td><td class="cell-under">${chips(v, "Underperform")}</td></tr>`).join("") + "</tbody>";
   $("g-table").onclick = e => { const c = e.target.closest(".nchip"); if (c) openOne(c.dataset.t); };
 })();
 
@@ -2742,7 +2755,7 @@ $("method-rows").innerHTML = [["Trend", "Direction of the 200-day moving average
   ["Structure", "Support = last confirmed swing low, resistance = last swing high (1.5 × one-month-move reversal). A support break stands until a resistance break."],
   ["Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."],
-  ["Relative strength", `The same rule applied to price ÷ ${B}: Outperform, Neutral or Underperform. The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.`]]
+  ["Relative strength", `Relative trend: is the 200-day average of price ÷ ${B} rising (Outperform) or falling (Underperform)? The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.`]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
 $("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. Levels: last confirmed swing low / high (1.5 × one-month-move reversal); no drawn charts for this list.${insuf}`;
 

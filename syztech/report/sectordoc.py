@@ -103,7 +103,7 @@ REL_FILL = {"Outperform": "E3F4EF", "Neutral": "E9ECF1", "Underperform": "F6E8EF
 
 
 def _rel(v):
-    """Relative trend (the trend rule on price ÷ benchmark): Outperform / Neutral / Underperform, en dash if no verdict."""
+    """Relative trend (slope of the 200-day average of price ÷ benchmark): Outperform / Underperform, en dash if none."""
     return v if v in REL_ORDER else EN_DASH
 
 
@@ -403,7 +403,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
             part = x.iloc[p * per:(p + 1) * per]
             sfx = f" ({p + 1}/{pages})" if pages > 1 else ""
             momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} Outperform against the {bench}{sfx}", bench, asof,
-                               f"Sorted by trend verdict, then relative trend (the trend rule on price ÷ {bench}), then RS 3m. Changes on closing prices, total return not included. "
+                               f"Sorted by trend verdict, then relative trend (200-day average of price ÷ {bench}: rising = Outperform, falling = Underperform), then RS 3m. Changes on closing prices, total return not included. "
                                f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
                                f"not part of the verdict.{bench_note}" + (insuf_note if set(insufficient) & set(part.name) else ""))
 
@@ -445,7 +445,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     s = deck.titled(f"Trend × relative trend: {len(bull_lead)} stocks Bullish and Outperform, {len(bull_lag)} Bullish and Underperform",
                     f"Trend verdict against relative trend versus the {bench}")
     rows, st = [], {}
-    cols = list(REL_ORDER)
+    cols = ["Outperform", "Underperform"]
     for i, v in enumerate(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]):
         row = [f"{VGLYPH[v]} {VLABEL[v]}"]
         st[(i, 0)] = verdict_style(v)
@@ -454,14 +454,14 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
             row.append(", ".join(nm) or EN_DASH)
             st[(i, j)] = {"fill": REL_FILL[ct], "align": PP_ALIGN.LEFT}
         rows.append(row)
-    # row height follows the longest cell (about 62 characters per line at 8 pt in 2.94 in), 4.95 in in total
-    lines = [max(1, max(-(-len(c) // 62) for c in r[1:])) for r in rows]
+    # row height follows the longest cell (about 95 characters per line at 8 pt in 4.4 in), 4.95 in in total
+    lines = [max(1, max(-(-len(c) // 95) for c in r[1:])) for r in rows]
     unit = min(0.2, (4.95 - 0.3) / sum(l + 1 for l in lines))
-    gt = table(s, X0, 2.5, W, ["Trend", f"Outperform vs {bench}", "Neutral", f"Underperform vs {bench}"], rows,
-               [1.45, 2.94, 2.94, 2.95], row_h=0.3, size=8, styles=st)
+    gt = table(s, X0, 2.5, W, ["Trend", f"Outperform vs {bench}", f"Underperform vs {bench}"], rows,
+               [1.45, 4.4, 4.43], row_h=0.3, size=8, styles=st)
     for i, l in enumerate(lines, start=1):
         gt.rows[i].height = Inches(unit * (l + 1))
-    source(s, asof, f"Relative trend: the trend rule (200-day slope, swing levels, 50-day vs 200-day) applied to stock ÷ {bench}. "
+    source(s, asof, f"Relative trend: direction of the 200-day average of stock ÷ {bench} over 20 trading days – rising = Outperform, falling = Underperform. "
                     f"Stocks without a relative verdict are not shown." + insuf_note)
 
     # trigger watch
@@ -489,7 +489,7 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
                            "reversal). A support break stands until a resistance break."),
              ("Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
-             ("Relative strength", f"The same rule applied to price ÷ {bench}: Outperform, Neutral or Underperform. The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.")]
+             ("Relative strength", f"Relative trend: is the 200-day average of price ÷ {bench} rising (Outperform) or falling (Underperform)? The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.")]
     for k, (lab, body) in enumerate(items):
         y = 2.55 + k * 0.98
         box(s, X0, y, 2.2, 0.8, NAVY if k % 2 else ORANGE)

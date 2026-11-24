@@ -308,7 +308,7 @@ const R = D.rows, byT = Object.fromEntries(R.map(r => [r.t, r]));
 const G = g => R.filter(r => r.g === g);
 const srt = a => a.slice().sort((p, q) => (VORD[p.v] ?? 9) - (VORD[q.v] ?? 9) || (RORD[p.rs] ?? 9) - (RORD[q.rs] ?? 9) || (q.rs3 ?? -9) - (p.rs3 ?? -9));
 const regT = {US: "MXUS Index", Europe: "MXEU Index", Japan: "MXJP Index", EM: "MXEF Index"};
-const RS_NOTE = "Rel. trend: the trend rule applied to index ÷ benchmark (Outperform / Neutral / Underperform); RS 3m: 3-month change in relative strength.";
+const RS_NOTE = "Rel. trend: direction of the 200-day average of index ÷ benchmark over 20 trading days (rising = Outperform, falling = Underperform); RS 3m: 3-month change in relative strength.";
 const DROP = D.dropped.length ? " Left out: " + D.dropped.join("; ") + "." : "";
 
 /* masthead */
@@ -413,7 +413,7 @@ let hv0 = "both"; try { const v = localStorage.getItem("ss-heat-view2"); if (HV[
 drawHeat(hv0);
 $("h-views").onclick = e => { const b = e.target.closest(".chip"); if (b) drawHeat(b.dataset.v); };
 $("h-table").onclick = e => { const c = e.target.closest("td.cell[data-t]"); if (c) openOne(c.dataset.t, sect); };
-$("h-note").textContent = "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. Rel. trend: the trend rule applied to index ÷ benchmark." + DROP;
+$("h-note").textContent = "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. Rel. trend: direction of the 200-day average of index ÷ benchmark (rising = Outperform, falling = Underperform)." + DROP;
 
 /* style & size ratios */
 const ratRows = D.ratios.map(x => R.find(r => r.n === x.name)).filter(Boolean);
@@ -458,7 +458,7 @@ $("gal").onclick = e => { const t = e.target.closest(".thumb"); if (t) openLB(ga
 /* method */
 $("method-rows").innerHTML = [["Trend", "Direction of the 200-day average over 20 trading days; support / resistance = last confirmed swing low / high (1.5 × one-month-move reversal); a broken swing low stays the level until the resistance breaks."],
   ["Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
-  ["Relative strength", "The same rule applied to index ÷ benchmark: Outperform, Neutral or Underperform. RS 3m: its 3-month change. It informs, it does not change the absolute verdict."],
+  ["Relative strength", "Relative trend: is the 200-day average of index ÷ benchmark rising (Outperform) or falling (Underperform)? RS 3m: its 3-month change. It informs, it does not change the absolute verdict."],
   ["Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = the numerator leads."],
   ["Rotation map", "x: relative strength vs its 200-day average; y: its 3-month change; tails: the last four weekly positions. Leading = above and rising; Weakening = above, falling; Lagging = below, falling; Improving = below, rising."]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");

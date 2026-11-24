@@ -3,31 +3,29 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..indicators.rs import relative_strength, rs_summary
+from ..indicators.rs import rs_summary
 from ..io.bloomberg_prices import LoadResult
-from .rules import BEARISH, BEARISH_LM, BULLISH, DEFAULT_PARAMS, INSUFFICIENT, NEUTRAL, TrendParams, evaluate
+from .rules import DEFAULT_PARAMS, INSUFFICIENT, NEUTRAL, TrendParams, evaluate
 from .swing_levels import swing_levels
 
 FALLBACK_ORIGINS = ("52w", "swing")      # levels with these origins are recomputed at every run, never treated as drawn
 
 
-REL_STATE = {BULLISH: "Outperform", BEARISH: "Underperform", BEARISH_LM: "Underperform"}   # every Neutral shade -> Neutral
+REL_STATE = {"outperforming": "Outperform", "underperforming": "Underperform", "mixed": "Neutral"}
+REL_RULE = {"outperforming": "rs_ma200_rising", "underperforming": "rs_ma200_falling", "mixed": "rs_ma200_unchanged"}
 
 
 def relative_verdict(s: pd.Series, b: pd.Series, params: TrendParams = DEFAULT_PARAMS) -> dict:
-    """The trend rule in force applied to the relative-strength line (price ÷ benchmark), adopted 24 Nov 2026.
+    """Relative trend (rule of 25 Nov 2026): only the slope of the 200-day average of the relative-strength line.
 
-    Same swing levels (k = 1.5), same verdict table; no drawn levels on RS lines. rel_state is None when the RS line
-    is too short for a verdict (rel_missing names what is missing)."""
-    rs = relative_strength(s, b).dropna()
-    if not len(rs):
-        return {"rel_state": None, "rel_verdict": INSUFFICIENT, "rel_rule": "no_common_dates", "rel_missing": "no common dates with the benchmark"}
-    sup, res, so, ro, ss, rs_ = resolve_levels(rs, None, None, None, None)
-    r = evaluate(rs, params, sup, res, None, support_start=ss, resistance_start=rs_)
-    if r.verdict == INSUFFICIENT:
-        return {"rel_state": None, "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": r.missing}
-    return {"rel_state": REL_STATE.get(r.verdict, "Neutral"), "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": None,
-            "rel_support": sup, "rel_resistance": res, "rel_support_origin": so, "rel_resistance_origin": ro}
+    RS = price ÷ benchmark × 100; slope = its 200-day average today against 20 trading days ago. Rising = Outperform,
+    falling = Underperform, exactly unchanged = Neutral (no flat band). Needs more than 220 common closes; otherwise
+    rel_state is None and rel_missing says so. Nothing else (price structure, 50-day) enters."""
+    t = rs_summary(s, b).get("rs_trend")
+    if t is None:
+        return {"rel_state": None, "rel_rule": "rs_history_too_short",
+                "rel_missing": "fewer than 221 common closes with the benchmark for the 200-day average of relative strength"}
+    return {"rel_state": REL_STATE[t], "rel_rule": REL_RULE[t], "rel_missing": None}
 
 
 def _opt(x):

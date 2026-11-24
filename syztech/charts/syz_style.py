@@ -7,6 +7,7 @@ FONT = "Nunito Sans"
 MINT, BLUEBERRY, MULBERRY = "#3BAF90", "#4B5F80", "#AC5D85"
 ORANGE, AMBER, NAVY = "#FF6C0E", "#FFA400", "#202945"
 GREY = "#B8BFCC"
+RS_RISING, RS_FALLING = "#2F6FDE", "#D8343F"     # relative-strength line: blue when its 200-day average rises, red when it falls (25 Nov 2026)
 VERDICT_COLOUR = {"Bullish": MINT, "Neutral+": BLUEBERRY, "Neutral": BLUEBERRY, "Neutral-": BLUEBERRY,
                   "Bearish_LM": MULBERRY, "Bearish": MULBERRY}
 VERDICT_GLYPH = {"Bullish": "▲", "Neutral+": "◆", "Neutral": "◆", "Neutral-": "◆", "Bearish_LM": "▼", "Bearish": "▼"}

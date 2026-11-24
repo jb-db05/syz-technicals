@@ -22,7 +22,7 @@ from ..fmt import num
 from ..indicators.bands import max_prior, min_prior
 from ..indicators.ma import sma
 from ..indicators.rs import relative_strength
-from .syz_style import (AMBER, BADGE_H, BADGE_W, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SOURCE_LINE,
+from .syz_style import (RS_FALLING, RS_RISING, AMBER, BADGE_H, BADGE_W, BLUEBERRY, GREY, MINT, MULBERRY, NAVY, ORANGE, SOURCE_LINE,
                         draw_verdict_badge, register_fonts)
 
 BARS_5Y = 5 * 252
@@ -200,8 +200,17 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         rs_ma = sma(rs.dropna(), 200).reindex(close.index)
         base = rs.iloc[start:].dropna().iloc[0]
         rs, rs_ma = rs / base * 100, rs_ma / base * 100      # rebased: 100 at the start of the chart
-        rx.plot(x, rs.iloc[sl], color=MULBERRY, lw=1.1)
-        rx.plot(x, rs_ma.iloc[sl], color=GREY, lw=1.2)
+        # the RS line takes the colour of its 200-day average's direction (20-day change): rising blue, falling red
+        chg = (rs_ma / rs_ma.shift(20) - 1).iloc[sl].to_numpy()
+        yv = rs.iloc[sl].to_numpy(dtype=float)
+        col = np.where(np.isnan(chg), 0, np.where(chg > 0, 1, np.where(chg < 0, -1, 0)))
+        for state, colour in ((0, GREY), (1, RS_RISING), (-1, RS_FALLING)):
+            m = col[1:] == state                      # a segment takes the state of the bar it ends on
+            seg = np.full(len(yv), np.nan)
+            seg[1:][m] = yv[1:][m]
+            seg[:-1][m] = yv[:-1][m]
+            rx.plot(x, seg, color=colour, lw=1.2, solid_capstyle="round")
+        rx.plot(x, rs_ma.iloc[sl], color=NAVY, lw=1.0, alpha=0.55)
         rx.set_ylabel("")
         rx.yaxis.set_major_locator(plt.MaxNLocator(3))
         rx.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
@@ -209,7 +218,7 @@ def deck_chart(close: pd.Series, row: dict, out: str | Path, *, badge: str | Non
         for s in ("top", "right"):
             rx.spines[s].set_visible(False)
         rx.grid(axis="y", color=GREY, alpha=0.35, lw=0.6)
-        rx.text(0.0, 1.08, f"Relative strength vs {benchmark_name}, rebased to 100 (grey: its 200-day)", transform=rx.transAxes,
+        rx.text(0.0, 1.08, f"Relative strength vs {benchmark_name}, rebased to 100 – blue: its 200-day average rising, red: falling (thin line: the 200-day)", transform=rx.transAxes,
                 fontsize=9, color=NAVY, fontweight="bold")
         plt.setp(ax.get_xticklabels(), visible=False)
         rx.set_xticks(yr)
