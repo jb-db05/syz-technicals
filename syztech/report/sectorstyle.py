@@ -55,6 +55,16 @@ RATIOS = [("US", "SGX Index", "SVX Index", "US Growth ÷ Value", "Growth", "Valu
           ("Japan", "TPXSM Index", "TPXC30 Index", "Japan Small ÷ Core 30", "Small caps", "Large caps"),
           ("Japan", "NKY Index", "TPX Index", "Nikkei 225 ÷ TOPIX", "Nikkei 225", "TOPIX"),
           ("EM", "MXEF000G Index", "MXEF000V Index", "EM Growth ÷ Value", "Growth", "Value")]
+# the style & size map: one row per kind of ratio, one column per region (display name of the ratio -> row)
+STYLE_ROWS = [("Growth ÷ Value", ["US Growth ÷ Value", "Europe Growth ÷ Value", "Japan Growth ÷ Value", "EM Growth ÷ Value"]),
+              ("Small ÷ Large caps", ["US Small ÷ Large caps", "Europe Small ÷ Stoxx 600", "Japan Small ÷ Core 30"]),
+              ("Mid ÷ Large caps", ["US Mid ÷ Large caps", "Europe Mid ÷ Stoxx 600"]),
+              ("Equal ÷ Cap weight", ["US Equal ÷ Cap weight"]),
+              ("Nasdaq 100 ÷ S&P 500", ["Nasdaq 100 ÷ S&P 500"]),
+              ("Quality ÷ S&P 500", ["US Quality ÷ S&P 500"]),
+              ("Momentum ÷ S&P 500", ["US Momentum ÷ S&P 500"]),
+              ("Min Vol ÷ S&P 500", ["US Min Vol ÷ S&P 500"]),
+              ("Nikkei 225 ÷ TOPIX", ["Nikkei 225 ÷ TOPIX"])]
 BENCH_NAMES = {"MXWD Index": "MSCI ACWI", "SPX Index": "S&P 500", "MXEU Index": "MSCI Europe", "MXJP Index": "MSCI Japan",
                "MXEF Index": "MSCI EM", "SXXP Index": "Stoxx 600", "TPX Index": "TOPIX"}
 MAP_LABELS = {"Capital Goods": "Capital goods", "Commercial & Professional Services": "Comm. & prof. services",
@@ -410,27 +420,33 @@ def _words(label):
     return {"3": "three", "6": "six", "9": "nine", "12": "twelve"}.get(n, n) + " " + rest
 
 
-def split_map_page(deck, sect, title, asof, note, subtitle=None):
-    """Sector × region map, each cell in two halves: 200-day direction (left) | relative trend (right).
-    `sect`: rows with group, sector_key, slope200, rel_state. Every separation is the same 1.5 pt white line."""
-    hdr, col_w = ["Sector"], [1.75]
+def split_map_page(deck, sect, title, asof, note, subtitle=None, *, keys=None, find=None, right=None, right_hdr=None,
+                   first="Sector", missing="n/a – series discontinued"):
+    """Region map, each cell in two halves: 200-day direction (left) | a second reading (right).
+    Default = the sector map: `sect` rows with group, sector_key, slope200, rel_state; right half = relative trend.
+    The style & size map passes its own row keys, lookup, right-half reading and header. Every separation is the same
+    1.5 pt white line."""
+    keys = keys or SECTOR_KEYS
+    find = find or (lambda key, R_: (lambda x: x.iloc[0] if len(x) else None)(sect[(sect.group == R_[3]) & (sect.sector_key == key)]))
+    right = right or (lambda r: _rel_cell(r.rel_state))
+    right_hdr = right_hdr or (lambda R_: f"vs {R_[2]}")
+    hdr, col_w = [first], [1.75]
     for r_ in REGIONS:
-        hdr += [REGION_NAME[r_[0]], f"vs {r_[2]}"]
+        hdr += [REGION_NAME[r_[0]], right_hdr(r_)]
         col_w += [0.88, 1.2]
     col_w = [w_ * W / sum(col_w) for w_ in col_w]
-    cell_of = lambda key, sg: (lambda x: x.iloc[0] if len(x) else None)(sect[(sect.group == sg) & (sect.sector_key == key)])
     rows, st, gone = [], {}, []
-    for i, (key, sname) in enumerate(SECTOR_KEYS):
+    for i, (key, sname) in enumerate(keys):
         row = [sname]
         st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
-        for k, (reg, bench, bname, sg, *_r) in enumerate(REGIONS):
-            r = cell_of(key, sg)
+        for k, R_ in enumerate(REGIONS):
+            r = find(key, R_)
             if r is None:
                 gone.append((i + 1, 1 + 2 * k))
-                row += ["n/a – series discontinued", ""]
+                row += [missing, ""]
                 st[(i, len(row) - 2)] = dict(_NA); st[(i, len(row) - 1)] = dict(_NA)
             else:
-                for txt, sty in (_slope_cell(r.slope200), _rel_cell(r.rel_state)):
+                for txt, sty in (_slope_cell(r.slope200), right(r)):
                     row.append(txt); st[(i, len(row) - 1)] = sty
         rows.append(row)
     s = deck.titled(title, subtitle or "In each region – left: momentum (direction of the 200-day average); right: relative trend "
@@ -613,28 +629,26 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
                        f"{int((old.rel_state == 'Outperform').sum())} Outperform", asof,
                        f"Same rules applied to the data to {d_.day} {d_:%B %Y}. " + map_note)
 
-    # ── style & size ratios
-    hdr = ["Ratio", "Ratio trend", "200-day", "vs 200d", "3m", "12m", "Leads (trend rule)"]
-    rows, st = [], {}
-    rt = ratios.copy()
-    rt["ord"] = rt.region.map({r[0]: i for i, r in enumerate(REGIONS)})
-    rt = rt.sort_values(["ord"], kind="stable")
-    for i, r in enumerate(rt.itertuples()):
-        spec = next(x for x in RATIOS if x[3] == r.name)
-        fam = _family(r.verdict)
-        lead = spec[4] if fam == "Bullish" else spec[5] if fam == "Bearish" else "No trend lead"
-        stxt, sst = _slope_cell(r.slope200)
-        rows.append([r.name, _vtxt(r.verdict), stxt, _p(r.vs200), _p(r.chg3m), _p(r.chg12m), lead])
-        st[(i, 1)] = _vstyle(r.verdict)
-        st[(i, 2)] = sst
-        for j, v in ((3, r.vs200), (4, r.chg3m), (5, r.chg12m)):
-            st[(i, j)] = _posneg(v)
-        st[(i, 6)] = {"bold": fam in ("Bullish", "Bearish"), "color": NAVY if fam in ("Bullish", "Bearish") else GREY}
-    s = deck.titled(f"Style & size: {sum(1 for r in rt.itertuples() if _family(r.verdict) in ('Bullish', 'Bearish'))} of {len(rt)} "
-                    f"ratios in a defined trend", "The trend rules applied to each ratio (numerator ÷ denominator, rebased to 100)")
-    table(s, X0, 2.5, W, hdr, rows, [2.9, 1.4, 0.95, 1.0, 0.95, 0.95, 2.13], row_h=min(0.3, 5.0 / (len(rows) + 1)), size=9, styles=st)
-    source(s, asof, "Bullish ratio: the numerator leads; Bearish: the denominator leads; Neutral: no trend lead. Quality, Momentum and "
-                    "Min Vol: iShares MSCI USA factor ETFs (prices). Ratio charts follow at the end of the document.")
+    # ── style & size ratios: same layout as the global sector map (momentum | ratio trend, one column per region)
+    ratio_region = {x[3]: x[0] for x in RATIOS}
+    by_name = {r.name: r for r in ratios.itertuples()}
+
+    def _ratio(key, R_):
+        for n_ in dict(STYLE_ROWS)[key]:
+            if ratio_region.get(n_) == R_[0] and n_ in by_name:
+                return by_name[n_]
+        return None
+
+    n_def = sum(1 for r in ratios.itertuples() if _family(r.verdict) in ("Bullish", "Bearish"))
+    split_map_page(deck, None, f"Style & size: {int((ratios.slope200 == 'rising').sum())} of {len(ratios)} ratios rising, {n_def} in a defined trend",
+                   asof, "Each ratio = first-named ÷ second-named, rebased to 100. Rising / Bullish: the first-named leads; falling / Bearish: "
+                         "the second-named leads. Small and mid caps: US vs S&P 500, Europe vs Stoxx 600, Japan small vs TOPIX Core 30. "
+                         "Quality, Momentum and Min Vol: iShares MSCI USA factor ETFs (prices). Grey: no such ratio in this document. "
+                         "Ratio charts follow at the end of the document.",
+                   "In each region – left: momentum (direction of the ratio's 200-day average); right: ratio trend (the trend rules on the ratio)",
+                   keys=[(k_, k_) for k_, _n in STYLE_ROWS], find=_ratio,
+                   right=lambda r: (_vtxt(r.verdict), verdict_style(r.verdict)) if _family(r.verdict) else ("n/a – history", dict(_NA)),
+                   right_hdr=lambda R_: "ratio trend", first="Ratio", missing=EN_DASH)
 
     # ── regions
     for reg, bench, bname, sg, ig, styg in REGIONS:
@@ -696,7 +710,9 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     order = list(regions.ticker)
     for reg, bench, bname, sg, ig, styg in REGIONS:
         order += [bench] + list(_sort(gl(sg)).ticker) + (list(_sort(gl(ig)).ticker) if ig else []) + list(_sort(gl(styg)).ticker)
-    order += list(rt.ticker)
+    rt = ratios.copy()                                 # ratio charts: by region, as before
+    rt["ord"] = rt.region.map({r_[0]: i_ for i_, r_ in enumerate(REGIONS)})
+    order += list(rt.sort_values(["ord"], kind="stable").ticker)
     seen = set()
     for t in order:
         if t in charts and t not in seen:

@@ -249,15 +249,14 @@ th.evo-d { cursor: pointer } th.evo-d.on { text-decoration: underline; text-unde
     <div class="chips" id="h-asof" role="group" aria-label="Date of the map" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div class="tw"><table class="heat" id="h-table"></table></div>
     <p class="note" id="h-note"></p>
-    <h3 id="e-title" style="margin:28px 0 4px"></h3>
-    <p class="note" style="margin:0 0 10px">Number of sector indices in each state; the same rules applied to the data available on each date. Click a date to see the map as it stood.</p>
+    <p class="note" style="margin:28px 0 10px">Number of sector indices in each state; the same rules applied to the data available on each date. Click a date to see the map as it stood.</p>
     <div class="tw"><table id="e-table"></table></div>
   </section>
 
   <section id="style">
-    <div class="sh"><span class="k">Style &amp; size</span><h2 id="s-title"></h2><p>The trend rules applied to each ratio (numerator ÷ denominator, rebased to 100): Bullish = the numerator leads, Bearish = the denominator leads.</p></div>
-    <div class="tw"><table id="s-table"></table></div>
-    <p class="note">Quality, Momentum and Min Vol: iShares MSCI USA factor ETFs (prices). Click a row for the ratio chart.</p>
+    <div class="sh"><span class="k">Style &amp; size</span><h2 id="s-title"></h2><p>In each region – left: momentum (direction of the ratio's 200-day average); right: ratio trend (the trend rules on the ratio). Click a cell for the ratio chart.</p></div>
+    <div class="tw"><table class="heat" id="s-table"></table></div>
+    <p class="note">Each ratio = first-named ÷ second-named, rebased to 100. Rising / Bullish: the first-named leads; falling / Bearish: the second-named leads. Small and mid caps: US vs S&amp;P 500, Europe vs Stoxx 600, Japan small vs TOPIX Core 30. Quality, Momentum and Min Vol: iShares MSCI USA factor ETFs (prices). Grey: no such ratio in this document.</p>
   </section>
 
   <div id="regsecs"></div>
@@ -458,13 +457,11 @@ function drawHeat(view, asofKey) {
   drawEvo();
 }
 function drawEvo() {
-  if (!HIST.length) { $("e-title").hidden = true; $("e-table").parentElement.hidden = true; $("h-asof").hidden = true; return; }
+  if (!HIST.length) { $("e-table").parentElement.hidden = true; $("h-asof").hidden = true; return; }
   const keys = [...HIST.map(h => h.k), ""], lab = k => k || "now";
   const M = [["Rising 200-day", s => s[0] === "rising", "var(--mint)"], ["Outperform", s => s[1] === "Outperform", "var(--orange)"], ["Bullish verdict", s => s[2] === "Bullish", "var(--navy)"]];
   const regs = [...D.regions.map(g => [g.name, sect.filter(r => r.g === g.sg)]), ["All four regions", sect]];
   const a = keys.map(k => cnt(k, M[0][1])), o = keys.map(k => cnt(k, M[1][1]));
-  const W3 = l => l.replace(/^(\d+)/, n => ({3: "three", 6: "six", 9: "nine", 12: "twelve"})[n] || n);
-  $("e-title").textContent = `Over time: ${a[a.length - 1]} of ${sect.length} with a rising 200-day today against ${a[0]} ${W3(HIST[0].label)}; ${o[o.length - 1]} Outperform against ${o[0]}`;
   $("e-table").innerHTML = `<thead><tr class="grp"><th colspan="2"></th>${M.map(m => `<th colspan="${keys.length}"><span style="background:${m[2]}">${m[0]}</span></th>`).join("")}</tr>
     <tr><th>Region</th><th class="c">Sectors</th>${M.map(() => keys.map(k => `<th class="c evo-d${k === hAsof ? " on" : ""}" data-k="${k}" tabindex="0" role="button">${lab(k)}</th>`).join("")).join("")}</tr></thead><tbody>`
     + regs.map(([n, rows], i) => `<tr class="${i === regs.length - 1 ? "total" : ""}"><td>${i === regs.length - 1 ? "<b>" + esc(n) + "</b>" : esc(n)}</td><td class="c dim">${rows.length}</td>`
@@ -489,12 +486,14 @@ $("h-note").textContent = "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe
 /* style & size ratios */
 const ratRows = D.ratios.map(x => R.find(r => r.n === x.name)).filter(Boolean);
 const defined = ratRows.filter(r => ["Bullish", "Bearish"].includes(fam(r.v)));
-$("s-title").textContent = `${defined.length} of ${ratRows.length} ratios in a defined trend`;
-$("s-table").innerHTML = `<thead><tr><th>Ratio</th><th class="c">Ratio trend</th><th>200-day</th><th class="r">vs 200d</th><th class="r">3m</th><th class="r">12m</th><th>Leads (trend rule)</th></tr></thead><tbody>`
-  + ratRows.map(r => { const sp = D.ratios.find(x => x.name === r.n), f = fam(r.v);
-      const lead = f === "Bullish" ? sp.num : f === "Bearish" ? sp.den : "No trend lead";
-      return `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td>${esc(r.n)}</td><td class="c">${pill(r.v)}</td><td class="c">${slope(r.s200)}</td><td class="r ${cls(r.vs200)}">${pct(r.vs200)}</td><td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.c12)}">${pct(r.c12)}</td><td class="${f === "Bullish" || f === "Bearish" ? "lead" : "dim"}">${esc(lead)}</td></tr>`; }).join("") + "</tbody>";
-$("s-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t, ratRows); };
+$("s-title").textContent = `${ratRows.filter(r => r.s200 === "rising").length} of ${ratRows.length} ratios rising, ${defined.length} in a defined trend`;
+$("s-table").innerHTML = `<thead><tr><th style="width:21%">Ratio</th>${D.regions.map(g => `<th class="reg split"><div><span>${esc(g.name)}</span><span class="vs">ratio trend</span></div></th>`).join("")}</tr></thead><tbody>`
+  + D.style_rows.map(([k, names]) => `<tr><td><b>${esc(k)}</b></td>` + D.regions.map(g => {
+      const sp = D.ratios.find(x => names.includes(x.name) && x.reg === g.reg), r = sp && ratRows.find(x => x.n === sp.name);
+      if (!r) return `<td class="cell na">${ND}</td>`;
+      const v = hasV(r.v) ? `<span class="f-${fam(r.v)}">${GLY[r.v] || ""} ${esc(D.vlabel[r.v])}</span>` : `<span class="na" style="background:var(--surface);color:var(--muted)">${ND}</span>`;
+      return `<td class="cell split" data-t="${esc(r.t)}" tabindex="0" title="${esc(r.n)}"><div>${half(SLO, r.s200)}${v}</div></td>`; }).join("") + "</tr>").join("") + "</tbody>";
+$("s-table").onclick = e => { const c = e.target.closest("td.cell[data-t]"); if (c) openOne(c.dataset.t, ratRows); };
 
 /* region sections */
 $("regsecs").innerHTML = D.regions.map(g => `<section id="reg-${g.reg}" class="regsec">

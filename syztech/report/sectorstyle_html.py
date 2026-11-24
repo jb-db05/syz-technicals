@@ -13,7 +13,7 @@ from pathlib import Path
 import pandas as pd
 from PIL import Image
 
-from .sectorstyle import BENCH_NAMES, MAP_LABELS, RATIOS, REGION_NAME, REGIONS, SECTOR_KEYS, key_readings, short_name
+from .sectorstyle import BENCH_NAMES, MAP_LABELS, RATIOS, STYLE_ROWS, REGION_NAME, REGIONS, SECTOR_KEYS, key_readings, short_name
 from .weekly import VLABEL
 
 ASSETS = Path(__file__).parent / "assets"
@@ -71,7 +71,7 @@ def build_sector_style_html(df: pd.DataFrame, charts: dict, points: dict, out_di
                       ib="SXXP Index" if reg == "Europe" else bench, ibn="Stoxx 600" if reg == "Europe" else bname,
                       ilabel="Stoxx 600 supersectors" if reg == "Europe" else "S&P 500 industry groups")
                  for reg, bench, bname, sg, ig, styg in REGIONS],
-        ratios=[dict(name=n, num=a, den=b) for _, _, _, n, a, b in RATIOS],
+        ratios=[dict(name=n, num=a, den=b, reg=rg) for rg, _, _, n, a, b in RATIOS], style_rows=[[k, v] for k, v in STYLE_ROWS],
         sector_keys=[[k, n] for k, n in SECTOR_KEYS],
     )
     html = (ASSETS / "sector_style.html").read_text(encoding="utf-8")
