@@ -145,6 +145,7 @@ def run_variants(P: pd.DataFrame, dates: list, bench: pd.Series) -> tuple[pd.Dat
     return M, {"meta": meta, "stats": res}
 
 
+_VERDICTS: dict = {}
 GRID = 7                                   # stop-loss check every 7 trading days (21 = 3 × 7, 126 = 18 × 7)
 BEAR = ("Bearish", "Bearish_LM")
 
@@ -164,7 +165,8 @@ def semi_annual(P: pd.DataFrame, rv, prices, hold: int = 126) -> dict:
     bp = b.loc[gd]
     by = {d: g for d, g in P.groupby("date")}
     first_k = gd.index(min(d for d, g in by.items() if len(_pick(g))))
-    cache = {}
+    cache = _VERDICTS                                   # shared between the six-monthly and the yearly runs
+    lab = "Six-monthly" if hold == 126 else "Yearly"
 
     def verdict(t, d):
         if (t, d) not in cache:
@@ -217,8 +219,8 @@ def semi_annual(P: pd.DataFrame, rv, prices, hold: int = 126) -> dict:
                     t=float(ex.mean() / (ex.std() / np.sqrt(len(ex)))) if ex.std() > 0 else None)
     offsets = [o for o in range(0, hold, 21)]
     out, curves = {}, {}
-    variants = [("Six-monthly, no stop", hold, False, "acwi"), ("Six-monthly, stop on Bearish – proceeds in the MSCI ACWI", hold, True, "acwi"),
-                ("Six-monthly, stop on Bearish – proceeds in cash", hold, True, "cash"), ("Monthly rebalancing (the rule as tested above)", 21, False, "acwi")]
+    variants = [(f"{lab}, no stop", hold, False, "acwi"), (f"{lab}, stop on Bearish – proceeds in the MSCI ACWI", hold, True, "acwi"),
+                (f"{lab}, stop on Bearish – proceeds in cash", hold, True, "cash"), ("Monthly rebalancing (the rule as tested above)", 21, False, "acwi")]
     for name, every, stop, park in variants:
         runs = []
         for o in (offsets if every == hold else [0]):
@@ -269,6 +271,7 @@ def main():
     out["years"] = {int(y): {k: float((1 + g[c]).prod() - 1) for k, c in (("acwi", "acwi"), ("themes", "all_themes"), ("base", "Base rule"), ("all3", "All three"))}
                     for y, g in M.groupby(M.index.year)}
     out["semi"] = semi_annual(P, rv, prices)
+    out["yearly"] = semi_annual(P, rv, prices, hold=252)
     (OUT / "backtest.json").write_text(json.dumps(out, indent=1))
     return out
 
@@ -283,10 +286,11 @@ if __name__ == "__main__":
             continue
         print(f"{k:34s} {s['ret']:7.1%} {s['vol']:6.1%} {s['dd']:7.1%} {s['rv']:6.2f} {s['excess']:7.1%} {s['hit']:5.0%} {s['t'] if s['t'] is not None else 0:5.2f} "
               + (f"{s['n']:5.1f} {s['empty']:6.0%} {s['turnover']:5.0%}" if "n" in s else ""))
-    sm = o["semi"]
-    print(f"\nsemi-annual test on a {GRID}-day grid, {sm['first']} to {sm['last']}, {sm['offsets']} starting months")
-    for k, v in sm["stats"].items():
-        print(f"{k:58s} ret {v['ret']:6.1%} vol {v['vol']:6.1%} dd {v['dd']:7.1%} excess {v['excess']:6.1%}"
+    for key in ("semi", "yearly"):
+      sm = o[key]
+      print(f"\n{key} test on a {GRID}-day grid, {sm['first']} to {sm['last']}, {sm['offsets']} starting months")
+      for k, v in sm["stats"].items():
+        print(f"  {k:58s} ret {v['ret']:6.1%} vol {v['vol']:6.1%} dd {v['dd']:7.1%} excess {v['excess']:6.1%}"
               + (f" | range {v['ret_min']:.1%}..{v['ret_max']:.1%} worst dd {v['dd_worst']:.1%} stops/yr {v['stops']:.1f} held {v['held']:.1f} runs {v['runs']}" if "runs" in v else ""))
     print("excess vs ACWI, first half :", {k: f"{v:+.1%}" for k, v in o["stats"]["_first_half"].items()})
     print("excess vs ACWI, second half:", {k: f"{v:+.1%}" for k, v in o["stats"]["_second_half"].items()})

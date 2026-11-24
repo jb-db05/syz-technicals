@@ -224,7 +224,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 tr.sub td { background: var(--surface) } tr.sub td:first-child { padding-left: 26px } tr.cl2 td:first-child { font-weight: 800 }
 tr.cl2 .car { display: inline-block; width: 14px; color: var(--muted); transition: transform .15s } tr.cl2.open .car { transform: rotate(90deg) }
 #c-table, #s-table, #w-table { font-size: 12.5px } #c-table th, #c-table td, #s-table th, #s-table td, #w-table th, #w-table td { padding-left: 5px; padding-right: 5px }
-#p-table, #p-semi { font-size: 12.5px } #p-table th, #p-table td, #p-semi th, #p-semi td { padding-left: 6px; padding-right: 6px } #p-table td:first-child, #p-semi td:first-child { white-space: normal; min-width: 200px } #p-semi th { white-space: normal; vertical-align: bottom }
+#p-table, #p-semi, #p-year { font-size: 12.5px } #p-table th, #p-table td, #p-semi th, #p-semi td, #p-year th, #p-year td { padding-left: 6px; padding-right: 6px } #p-table td:first-child, #p-semi td:first-child, #p-year td:first-child { white-space: normal; min-width: 200px } #p-semi th, #p-year th { white-space: normal; vertical-align: bottom }
 #a-table { font-size: 12.5px } #a-table th, #a-table td { padding-left: 5px; padding-right: 5px } #a-table td.nm { white-space: normal; min-width: 190px } #a-table .pill.sm { min-width: 84px; padding: 2px 5px }
 #s-table td.nm, #w-table td.nm { white-space: normal; min-width: 190px } #s-table td:nth-child(2), #w-table td:nth-child(2) { min-width: 150px; max-width: 200px; font-size: 12px }
 #c-table .pill.sm, #s-table .pill.sm, #w-table .pill.sm { min-width: 84px; padding: 2px 5px } .pill.sm { min-width: 92px }
@@ -283,6 +283,10 @@ tr.cl2 .car { display: inline-block; width: 14px; color: var(--muted); transitio
     <p class="note" id="h-semi-sub" style="margin:0 0 10px"></p>
     <div class="tw"><table id="p-semi"></table></div>
     <ul class="plain" id="p-semi-notes" style="margin:12px 0 0;padding-left:18px;font-size:14px"></ul>
+    <h3 id="h-year" style="margin:32px 0 4px;font-size:19px"></h3>
+    <p class="note" id="h-year-sub" style="margin:0 0 10px"></p>
+    <div class="tw"><table id="p-year" class="semi"></table></div>
+    <ul class="plain" id="p-year-notes" style="margin:12px 0 0;padding-left:18px;font-size:14px"></ul>
   </section>
   <section id="test">
     <div class="sh"><span class="k">Ranking test</span><h2 id="t-title"></h2><p id="t-sub"></p></div>
@@ -509,21 +513,23 @@ $("a-title").textContent = `${A.length} anchors: ${aok.filter(r => r.v === "Bull
   B.dates.forEach((d, i) => { if (i && d.slice(0, 4) !== B.dates[i - 1].slice(0, 4)) g += `<text x="${x(i)}" y="${H - 10}" font-size="10" text-anchor="middle">${d.slice(0, 4)}</text>`; });
   keys.forEach(([k, c, w, da]) => { g += `<polyline fill="none" stroke="${c}" stroke-width="${w}" stroke-dasharray="${da}" stroke-linejoin="round" points="${[[0, 1], ...E[k].map((v, i) => [i + 1, v])].map(([i, v]) => `${x(Math.min(i, n - 1)).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}"/>`; });
   g += keys.map(([k, c], i) => `<rect x="${L + 8}" y="${Tp + 4 + i * 16}" width="14" height="3" fill="${c}"/><text class="ink" x="${L + 28}" y="${Tp + 9 + i * 16}" font-size="11">${k === "Base rule" ? "Shortlist rule" : k}</text>`).join("");
-  const SM = B.semi;
-  if (SM) { const Q = SM.stats, kN = "Six-monthly, no stop", kS = "Six-monthly, stop on Bearish – proceeds in the MSCI ACWI", kC = "Six-monthly, stop on Bearish – proceeds in cash", kM = "Monthly rebalancing (the rule as tested above)";
-    $("h-semi").textContent = `Six-monthly rebalancing with a stop on Bearish: ${pu(Q[kS].ret)} a year, ${pp(Q[kS].excess)} against the MSCI ACWI`;
-    $("h-semi-sub").textContent = `The shortlist is bought in equal weights every 126 trading days and left alone. With the stop, a theme whose verdict turns Bearish at a check every 7 trading days is sold at that close; the proceeds wait in the MSCI ACWI, or in cash at 0%, until the next rebalance. Average of ${SM.offsets} runs, one for each possible starting month, ${mon(SM.first)} to ${mon(SM.last)}. No costs.`;
-    const r2 = (k, lab, cl = "") => { const q = Q[k]; return `<tr class="${cl}"><td>${lab}</td><td class="r">${pu(q.ret)}</td><td class="r dim">${q.runs > 1 ? pu(q.ret_min) + " to " + pu(q.ret_max) : ND}</td><td class="r">${pu(q.vol)}</td><td class="r neg">${pp(q.dd)}</td><td class="r neg">${q.runs > 1 ? pp(q.dd_worst) : ND}</td><td class="r ${k === "MSCI ACWI" ? "dim" : cls(q.excess)}">${k === "MSCI ACWI" ? ND : pp(q.excess)}</td><td class="r">${q.stops != null ? q.stops.toFixed(1) : ND}</td><td class="r">${q.held != null ? q.held.toFixed(1) : ND}</td></tr>`; };
-    $("p-semi").innerHTML = `<thead><tr><th>Portfolio</th><th class="r">Return a year</th><th class="r">Range over the starting months</th><th class="r">Volatility</th><th class="r">Worst drawdown, average</th><th class="r">Worst of the runs</th><th class="r">Excess vs ACWI a year</th><th class="r">Stops a year</th><th class="r">Themes held</th></tr></thead><tbody>`
-      + r2("MSCI ACWI", "MSCI ACWI") + r2("All themes, equal weight", "All themes, equal weight") + r2(kM, "Monthly rebalancing (the rule as tested above)") + r2(kN, "Six-monthly, no stop")
-      + r2(kS, "<b>Six-monthly, stop on Bearish</b> – proceeds in the MSCI ACWI", "total") + r2(kC, "Six-monthly, stop on Bearish – proceeds in cash") + "</tbody>";
-    $("p-semi-notes").innerHTML = [
-      `Rebalancing every six months gave up most of the rule's advantage: ${pp(Q[kN].excess)} a year over the ACWI against ${pp(Q[kM].excess)} with monthly rebalancing, measured the same way.`,
-      `The stop did not help. It fired about ${Q[kS].stops.toFixed(0)} times a year, lowered the return (${pu(Q[kS].ret)} against ${pu(Q[kN].ret)} without it) and did not reduce the worst drawdown (${pp(Q[kS].dd)} against ${pp(Q[kN].dd)}).`,
+  const block = (SM, lab, bars, ids) => {
+    if (!SM) { $(ids[0]).hidden = true; return; }
+    const Q = SM.stats, kN = `${lab}, no stop`, kS = `${lab}, stop on Bearish – proceeds in the MSCI ACWI`, kC = `${lab}, stop on Bearish – proceeds in cash`, kM = "Monthly rebalancing (the rule as tested above)";
+    $(ids[0]).textContent = `${lab} rebalancing with a stop on Bearish: ${pu(Q[kS].ret)} a year, ${pp(Q[kS].excess)} against the MSCI ACWI`;
+    $(ids[1]).textContent = `The shortlist is bought in equal weights every ${bars} trading days and left alone. With the stop, a theme whose verdict turns Bearish at a check every 7 trading days is sold at that close; the proceeds wait in the MSCI ACWI, or in cash at 0%, until the next rebalance. Average of ${SM.offsets} runs, one for each possible starting month, ${mon(SM.first)} to ${mon(SM.last)}. No costs.`;
+    const r2 = (k, l, cl = "") => { const q = Q[k]; return `<tr class="${cl}"><td>${l}</td><td class="r">${pu(q.ret)}</td><td class="r dim">${q.runs > 1 ? pu(q.ret_min) + " to " + pu(q.ret_max) : ND}</td><td class="r">${pu(q.vol)}</td><td class="r neg">${pp(q.dd)}</td><td class="r neg">${q.runs > 1 ? pp(q.dd_worst) : ND}</td><td class="r ${k === "MSCI ACWI" ? "dim" : cls(q.excess)}">${k === "MSCI ACWI" ? ND : pp(q.excess)}</td><td class="r">${q.stops != null ? q.stops.toFixed(1) : ND}</td><td class="r">${q.held != null ? q.held.toFixed(1) : ND}</td></tr>`; };
+    $(ids[2]).innerHTML = `<thead><tr><th>Portfolio</th><th class="r">Return a year</th><th class="r">Range over the starting months</th><th class="r">Volatility</th><th class="r">Worst drawdown, average</th><th class="r">Worst of the runs</th><th class="r">Excess vs ACWI a year</th><th class="r">Stops a year</th><th class="r">Themes held</th></tr></thead><tbody>`
+      + r2("MSCI ACWI", "MSCI ACWI") + r2("All themes, equal weight", "All themes, equal weight") + r2(kM, "Monthly rebalancing (the rule as tested above)") + r2(kN, `${lab}, no stop`)
+      + r2(kS, `<b>${lab}, stop on Bearish</b> – proceeds in the MSCI ACWI`, "total") + r2(kC, `${lab}, stop on Bearish – proceeds in cash`) + "</tbody>";
+    const better = Q[kS].ret > Q[kN].ret, ddBetter = Q[kS].dd > Q[kN].dd;
+    $(ids[3]).innerHTML = [
+      `${lab} rebalancing against monthly, measured the same way: ${pp(Q[kN].excess)} a year over the ACWI against ${pp(Q[kM].excess)}.`,
+      `The stop fired about ${Q[kS].stops.toFixed(0)} times a year. Return with it: ${pu(Q[kS].ret)}, against ${pu(Q[kN].ret)} without (${better ? "higher" : "lower"}). Worst drawdown: ${pp(Q[kS].dd)} against ${pp(Q[kN].dd)} (${ddBetter ? "smaller" : "not reduced"}). With the proceeds in cash: ${pu(Q[kC].ret)} a year, worst drawdown ${pp(Q[kC].dd)}.`,
       `The result depends on the starting month: from ${pu(Q[kS].ret_min)} to ${pu(Q[kS].ret_max)} a year with the stop.`,
-      `Excess is measured against the ACWI over each run's own window. The later starting months miss part of the 2020 rebound, which is why the average return of the six-monthly runs sits below the ACWI line while their average excess is positive.`,
-      `These figures are on a 7-day grid, so drawdowns are a little deeper than in the monthly table above. Same limits: seven years, clusters formed on 2023–26 data, only funds that exist today, no costs.`].map(x => `<li style="margin-bottom:6px">${x}</li>`).join(""); }
-  else { $("h-semi").hidden = true; }
+      `Excess is measured against the ACWI over each run's own window; later starting months miss part of the 2020 rebound, which lowers the average return of the runs. Figures on a 7-day grid. Same limits: seven years, clusters formed on 2023–26 data, only funds that exist today, no costs.`].map(x => `<li style="margin-bottom:6px">${x}</li>`).join(""); };
+  block(B.semi, "Six-monthly", 126, ["h-semi", "h-semi-sub", "p-semi", "p-semi-notes"]);
+  block(B.yearly, "Yearly", 252, ["h-year", "h-year-sub", "p-year", "p-year-notes"]);
   $("p-chart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Growth of 100: shortlist rule, all themes and the MSCI ACWI">${g}</svg><p class="note" style="margin:4px 8px">Growth of 100, log scale, 21-day steps.</p>`;
 })();
 
