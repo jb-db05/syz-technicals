@@ -195,6 +195,10 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 .heat td.cell small { display: block; font-weight: 600; opacity: .92; font-size: 11.5px }
 .heat td.split { padding: 0; background: transparent !important } .heat td.split > div { display: flex; gap: 2px } .heat td.split span { flex: 1 1 0; padding: 9px 4px; font-size: 12px; white-space: nowrap }
 .heat th.reg { border-left: 2px solid var(--bg); text-align: center } .heat th.split { padding-left: 0; padding-right: 0 } .heat th.split > div { display: flex; gap: 2px } .heat th.split span { flex: 1 1 0; text-align: center } .heat th.split .vs { font-weight: 600; color: #C9D1E2 }
+#h-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: clamp(11px, 3.05vw, 26px) }
+.heat thead th { height: 38px; padding-top: 0; padding-bottom: 0 } .heat tbody td { height: 38px; padding-top: 0; padding-bottom: 0 }
+.heat td.split > div { height: 36px } .heat td.split span { padding: 0 4px; display: flex; align-items: center; justify-content: center }
+#h-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: var(--orange); margin: 2px 0 2px }
 th.evo-d { cursor: pointer } th.evo-d.on { text-decoration: underline; text-underline-offset: 3px }
 .heat td.cell:hover { outline: 2px solid var(--orange); outline-offset: -2px }
 .heat td.na { background: var(--surface) !important; color: var(--muted); font-weight: 600; cursor: default }
@@ -240,7 +244,7 @@ th.evo-d { cursor: pointer } th.evo-d.on { text-decoration: underline; text-unde
   </section>
 
   <section id="map">
-    <div class="sh"><span class="k">Global sector map</span><h2 id="h-title"></h2><p id="h-sub"></p></div>
+    <div class="sh"><span class="k">Global sector map</span><h2 id="h-title"></h2><p id="h-date"></p><p id="h-sub"></p></div>
     <div class="chips" id="h-views" role="group" aria-label="Reading shown in the map" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="chip" data-v="both" aria-pressed="true">Momentum | Relative trend</button><button class="chip" data-v="momentum" aria-pressed="false">Momentum (200-day)</button><button class="chip" data-v="relative" aria-pressed="false">Relative trend</button><button class="chip" data-v="verdict" aria-pressed="false">Verdict</button></div>
     <div class="chips" id="h-asof" role="group" aria-label="Date of the map" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div class="tw"><table class="heat" id="h-table"></table></div>
@@ -393,25 +397,25 @@ const HIST = D.hist || [];
 let hView = "both", hAsof = "";                      // hAsof: "" = today, else "3m" / "6m" / "9m"
 const stOf = (r, k) => k ? ((r.h || {})[k] || [null, null, null]) : [r.s200, r.rs, r.v];
 const cnt = (k, f) => sect.filter(r => f(stOf(r, k))).length;
-const when = () => { const h = HIST.find(x => x.k === hAsof); return h ? ` – ${h.label} (data to ${h.date})` : ""; };
+const when = () => { const h = HIST.find(x => x.k === hAsof); return h ? `${h.label[0].toUpperCase()}${h.label.slice(1)} – data to ${h.date}` : `Today – data to ${D.asof}`; };
 const HV = {
-  both: { title: () => `${cnt(hAsof, s => s[0] === "rising")} of ${sect.length} sector indices with a rising 200-day, ${cnt(hAsof, s => s[1] === "Outperform")} Outperform their regional benchmark${when()}`,
+  both: { title: () => `${cnt(hAsof, s => s[0] === "rising")} of ${sect.length} sectors with a rising 200-day, ${cnt(hAsof, s => s[1] === "Outperform")} Outperform`,
     sub: "In each region – left: momentum (direction of the 200-day average); right: relative trend against the benchmark named above it. Click a cell for its chart.",
     html: (r, s) => `<td class="cell split" data-t="${esc(r.t)}" tabindex="0"><div>${half(SLO, s[0])}${half(REL, s[1])}</div></td>` },
-  momentum: { title: () => `Momentum: ${cnt(hAsof, s => s[0] === "rising")} of ${sect.length} sector indices with a rising 200-day average${when()}`,
+  momentum: { title: () => `Momentum: ${cnt(hAsof, s => s[0] === "rising")} of ${sect.length} sectors with a rising 200-day`,
     sub: "Direction of the 200-day average over 20 trading days. Click a cell for its chart.",
     cell: (r, s) => SLO[s[0]] ? [SLO[s[0]][2], `${SLO[s[0]][0]} ${SLO[s[0]][1]}`] : null },
-  relative: { title: () => `Relative trend: ${cnt(hAsof, s => s[1] === "Outperform")} of ${sect.length} sector indices Outperform their regional benchmark${when()}`,
+  relative: { title: () => `Relative trend: ${cnt(hAsof, s => s[1] === "Outperform")} of ${sect.length} sectors Outperform`,
     sub: "Relative trend against the regional benchmark. Click a cell for its chart.",
     cell: (r, s) => REL[s[1]] ? [REL[s[1]][2], `${REL[s[1]][0]} ${REL[s[1]][1]}`] : null },
-  verdict: { title: () => `Verdict: ${cnt(hAsof, s => s[2] === "Bullish")} of ${sect.length} sector indices Bullish${when()}`,
+  verdict: { title: () => `Verdict: ${cnt(hAsof, s => s[2] === "Bullish")} of ${sect.length} sectors Bullish`,
     sub: "Trend verdict per sector and region. Click a cell for its chart.",
     cell: (r, s) => hasV(s[2]) ? [fam(s[2]), `${GLY[s[2]] || ""} ${D.vlabel[s[2]]}`] : null } };
 function drawHeat(view, asofKey) {
   if (view != null) hView = view;
   if (asofKey != null) hAsof = asofKey;
   const V = HV[hView];
-  $("h-title").textContent = V.title(); $("h-sub").textContent = V.sub;
+  $("h-title").textContent = V.title(); $("h-sub").textContent = V.sub; $("h-date").textContent = when();
   document.querySelectorAll("#h-views .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === hView)));
   document.querySelectorAll("#h-asof .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === hAsof)));
   $("h-table").innerHTML = `<thead><tr><th style="width:21%">Sector</th>${D.regions.map(g => V.html
@@ -445,7 +449,13 @@ $("h-asof").innerHTML = [["", "Today"], ...HIST.slice().reverse().map(h => [h.k,
 $("h-asof").onclick = e => { const b = e.target.closest(".chip"); if (b) drawHeat(null, b.dataset.k); };
 $("e-table").onclick = e => { const th = e.target.closest("th.evo-d"); if (th) { drawHeat(null, th.dataset.k); $("map").scrollIntoView({ behavior: "smooth", block: "start" }); } };
 let hv0 = "both"; try { const v = localStorage.getItem("ss-heat-view2"); if (HV[v]) hv0 = v; } catch (e) {}
-drawHeat(hv0, "");
+function lockHeat() {                               // the map stays where it is whatever is clicked: reserve the tallest subtitle
+  const e = $("h-sub"), keep = e.textContent; e.style.minHeight = "";
+  let m = 0; for (const k in HV) { e.textContent = HV[k].sub; m = Math.max(m, e.offsetHeight); }
+  e.textContent = keep; e.style.minHeight = m + "px";
+}
+drawHeat(hv0, ""); lockHeat(); addEventListener("resize", lockHeat);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(lockHeat);
 $("h-views").onclick = e => { const b = e.target.closest(".chip"); if (b) drawHeat(b.dataset.v, null); };
 $("h-table").onclick = e => { const c = e.target.closest("td.cell[data-t]"); if (c) openOne(c.dataset.t, sect); };
 $("h-note").textContent = "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. Rel. trend: direction of the 200-day average of index ÷ benchmark (rising = Outperform, falling = Underperform)." + DROP;

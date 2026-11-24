@@ -416,8 +416,7 @@ def evolution_page(deck, sect, history, asof, note):
         rows.append(row)
     a = tot[("All", "Rising 200-day")]; o = tot[("All", "Outperform")]
     first = _words(history[0][0])
-    s = deck.titled(f"Sector map over time: {a[-1]} of {len(tick['All'])} with a rising 200-day today against {a[0]} {first}; "
-                    f"{o[-1]} Outperform against {o[0]}", "")
+    s = deck.titled(f"Sector map over time: rising 200-day {a[-1]} of {len(tick['All'])}, was {a[0]}", "")
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
     for m, (mname, _fn, colour) in enumerate(meas):
         a_, b_ = 2 + m * n_f, 1 + (m + 1) * n_f
@@ -428,7 +427,7 @@ def evolution_page(deck, sect, history, asof, note):
     for j in range(1, len(hdr)):
         gt.cell(0, j).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
     dates = "; ".join(f"{lab}: data to {d.day} {d:%B %Y}" for lab, d, _f in history)
-    source(s, asof, f"Number of sector indices in each state, same rules applied to the data available on each date ({dates}). "
+    source(s, asof, f"Title: today against {first}. Number of sector indices in each state, same rules applied to the data available on each date ({dates}). "
                     f"\"now\" in green when higher than three months ago, in purple when lower. " + note)
     return s
 
@@ -508,8 +507,8 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         x = sect[(sect.group == sg) & (sect.sector_key == key)]
         return x.iloc[0] if len(x) else None
 
-    split_map_page(deck, sect, f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day, "
-                   f"{int((sect.rel_state == 'Outperform').sum())} Outperform their regional benchmark", asof, map_note)
+    split_map_page(deck, sect, f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} rising 200-day, "
+                   f"{int((sect.rel_state == 'Outperform').sum())} Outperform", asof, map_note)
 
     # page 2: verdict
     hdr = ["Sector"] + [REGION_NAME[r_[0]] for r_ in REGIONS]
@@ -536,7 +535,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         evolution_page(deck, sect, history, asof, drop_note.strip())
         lab, d_, f_ = history[-1]                      # the map as it stood on the most recent comparison date
         old = sect[["ticker", "group", "sector_key"]].merge(f_, on="ticker", how="inner")
-        split_map_page(deck, old, f"Global sector map {_words(lab)}: {int((old.slope200 == 'rising').sum())} of {len(old)} with a rising 200-day, "
+        split_map_page(deck, old, f"{_words(lab).capitalize()}: {int((old.slope200 == 'rising').sum())} of {len(old)} rising 200-day, "
                        f"{int((old.rel_state == 'Outperform').sum())} Outperform", asof,
                        f"Same rules applied to the data to {d_.day} {d_:%B %Y}. " + map_note)
 
