@@ -199,7 +199,6 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 .heat thead th { height: 38px; padding-top: 0; padding-bottom: 0 } .heat tbody td { height: 38px; padding-top: 0; padding-bottom: 0 }
 .heat td.split > div { height: 36px } .heat td.split span { padding: 0 4px; display: flex; align-items: center; justify-content: center }
 #h-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: var(--orange); margin: 2px 0 2px }
-th.evo-d { cursor: pointer } th.evo-d.on { text-decoration: underline; text-underline-offset: 3px }
 .heat td.cell:hover { outline: 2px solid var(--orange); outline-offset: -2px }
 .heat td.na { background: var(--surface) !important; color: var(--muted); font-weight: 600; cursor: default }
 .f-Bullish { background: var(--mint) !important } .f-Neutral { background: var(--blueb) !important } .f-Bearish { background: var(--mulb) !important }
@@ -249,8 +248,6 @@ th.evo-d { cursor: pointer } th.evo-d.on { text-decoration: underline; text-unde
     <div class="chips" id="h-asof" role="group" aria-label="Date of the map" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
     <div class="tw"><table class="heat" id="h-table"></table></div>
     <p class="note" id="h-note"></p>
-    <p class="note" style="margin:28px 0 10px">Number of sector indices in each state; the same rules applied to the data available on each date. Click a date to see the map as it stood.</p>
-    <div class="tw"><table id="e-table"></table></div>
   </section>
 
   <section id="style">
@@ -454,23 +451,10 @@ function drawHeat(view, asofKey) {
         if (!c) return `<td class="cell na" data-t="${esc(r.t)}" tabindex="0">${ND}</td>`;
         return `<td class="cell f-${c[0]}" data-t="${esc(r.t)}" tabindex="0">${esc(c[1])}</td>`; }).join("") + "</tr>").join("") + "</tbody>";
   try { localStorage.setItem("ss-heat-view2", hView); } catch (e) {}
-  drawEvo();
 }
-function drawEvo() {
-  if (!HIST.length) { $("e-table").parentElement.hidden = true; $("h-asof").hidden = true; return; }
-  const keys = [...HIST.map(h => h.k), ""], lab = k => k || "now";
-  const M = [["Rising 200-day", s => s[0] === "rising", "var(--mint)"], ["Outperform", s => s[1] === "Outperform", "var(--orange)"], ["Bullish verdict", s => s[2] === "Bullish", "var(--navy)"]];
-  const regs = [...D.regions.map(g => [g.name, sect.filter(r => r.g === g.sg)]), ["All four regions", sect]];
-  const a = keys.map(k => cnt(k, M[0][1])), o = keys.map(k => cnt(k, M[1][1]));
-  $("e-table").innerHTML = `<thead><tr class="grp"><th colspan="2"></th>${M.map(m => `<th colspan="${keys.length}"><span style="background:${m[2]}">${m[0]}</span></th>`).join("")}</tr>
-    <tr><th>Region</th><th class="c">Sectors</th>${M.map(() => keys.map(k => `<th class="c evo-d${k === hAsof ? " on" : ""}" data-k="${k}" tabindex="0" role="button">${lab(k)}</th>`).join("")).join("")}</tr></thead><tbody>`
-    + regs.map(([n, rows], i) => `<tr class="${i === regs.length - 1 ? "total" : ""}"><td>${i === regs.length - 1 ? "<b>" + esc(n) + "</b>" : esc(n)}</td><td class="c dim">${rows.length}</td>`
-      + M.map(m => { const v = keys.map(k => rows.filter(r => m[1](stOf(r, k))).length);
-          return v.map((x, j) => { const last = j === v.length - 1; return `<td class="c ${last ? (x > v[j - 1] ? "pos" : x < v[j - 1] ? "neg" : "") : "dim"}"${last ? ' style="font-weight:800"' : ""}>${x}</td>`; }).join(""); }).join("") + "</tr>").join("") + "</tbody>";
-}
+$("h-asof").hidden = !HIST.length;
 $("h-asof").innerHTML = [["", "Today"], ...HIST.slice().reverse().map(h => [h.k, h.label])].map(([k, l]) => `<button class="chip" data-k="${k}" aria-pressed="${k === ""}">${l}</button>`).join("");
 $("h-asof").onclick = e => { const b = e.target.closest(".chip"); if (b) drawHeat(null, b.dataset.k); };
-$("e-table").onclick = e => { const th = e.target.closest("th.evo-d"); if (th) { drawHeat(null, th.dataset.k); $("map").scrollIntoView({ behavior: "smooth", block: "start" }); } };
 let hv0 = "both"; try { const v = localStorage.getItem("ss-heat-view2"); if (HV[v]) hv0 = v; } catch (e) {}
 function lockHeat() {                               // the map stays where it is whatever is clicked: reserve the tallest subtitle
   const e = $("h-sub"), keep = e.textContent; e.style.minHeight = "";
