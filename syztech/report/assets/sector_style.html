@@ -102,7 +102,7 @@ tr.click:hover td { background: var(--orange-soft) }
 .grp span { display: block; border-radius: 999px; color: #fff; text-align: center; font-size: 11px; padding: 3px 0; letter-spacing: .04em }
 .pill { display: inline-block; min-width: 96px; text-align: center; border-radius: 6px; padding: 2px 8px; font-weight: 700; font-size: 12px; color: #fff }
 .p-Bullish { background: var(--mint) } .p-Bearish, .p-Bearish_LM { background: var(--mulb) }
-.p-Neutral, .p-Neutral\+, .p-Neutral- { background: var(--blueb) } .p-na { background: var(--line); color: var(--muted) }
+.p-Neutral, .p-Neutral\+, .p-Neutral- { background: var(--blueb) } .pill.sm { min-width: 104px } .p-na { background: var(--line); color: var(--muted) }
 .rsm { font-weight: 800; white-space: nowrap; font-size: 12px } .rsm.neu { color: var(--blueb) }
 .lt { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 800; border: 1.5px solid; white-space: nowrap; margin-right: 3px }
 .lt-m { color: var(--orange); border-color: var(--orange) } .lt-f { color: var(--ink); border-color: var(--ink) }
@@ -237,7 +237,8 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
   </section>
 
   <section id="map">
-    <div class="sh"><span class="k">Global sector map</span><h2 id="h-title"></h2><p>Trend verdict per sector and region; relative trend and 3-month relative strength against the regional benchmark. Click a cell for its chart.</p></div>
+    <div class="sh"><span class="k">Global sector map</span><h2 id="h-title"></h2><p id="h-sub"></p></div>
+    <div class="chips" id="h-views" role="group" aria-label="Reading shown in the map" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="chip" data-v="momentum" aria-pressed="false">Momentum (200-day)</button><button class="chip" data-v="relative" aria-pressed="false">Relative trend</button><button class="chip" data-v="verdict" aria-pressed="true">Verdict</button></div>
     <div class="tw"><table class="heat" id="h-table"></table></div>
     <p class="note" id="h-note"></p>
   </section>
@@ -296,9 +297,12 @@ const cls = x => x == null ? "dim" : x >= 0 ? "pos" : "neg";
 const hasV = v => v in VORD;
 const fam = v => !hasV(v) ? "na" : v === "Bullish" ? "Bullish" : v.startsWith("Bearish") ? "Bearish" : "Neutral";
 const pill = v => hasV(v) ? `<span class="pill p-${v}">${GLY[v]} ${esc(D.vlabel[v])}</span>` : `<span class="pill p-na">n/a</span>`;
-const rsm = r => r === "Outperform" ? `<span class="rsm pos">Outperform</span>` : r === "Underperform" ? `<span class="rsm neg">Underperform</span>` : r === "Neutral" ? `<span class="rsm neu">Neutral</span>` : `<span class="dim">${ND}</span>`;
+const rsm = r => badge(REL, r);
 const rsTxt = r => r || ND;
-const slope = s => `<span class="${s === "rising" ? "pos" : s === "falling" ? "neg" : "flat"}">${esc(s || ND)}</span>`;
+const SLO = {rising: ["▲", "Rising", "Bullish"], flat: ["◆", "Flat", "Neutral"], falling: ["▼", "Falling", "Bearish"]};
+const REL = {Outperform: ["▲", "Outperform", "Bullish"], Neutral: ["◆", "Neutral", "Neutral"], Underperform: ["▼", "Underperform", "Bearish"]};
+const badge = (m, k) => m[k] ? `<span class="pill sm p-${m[k][2]}">${m[k][0]} ${m[k][1]}</span>` : `<span class="dim">${ND}</span>`;
+const slope = s => badge(SLO, s);
 const R = D.rows, byT = Object.fromEntries(R.map(r => [r.t, r]));
 const G = g => R.filter(r => r.g === g);
 const srt = a => a.slice().sort((p, q) => (VORD[p.v] ?? 9) - (VORD[q.v] ?? 9) || (RORD[p.rs] ?? 9) - (RORD[q.rs] ?? 9) || (q.rs3 ?? -9) - (p.rs3 ?? -9));
@@ -324,10 +328,10 @@ $("r-note").textContent = "Ratio trends: the trend rules applied to the ratio of
 
 /* index table */
 function idxTable(el, rows, bench, opt = {}) {
-  const cols = `<thead><tr class="grp"><th></th><th colspan="7"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs ${esc(bench)}</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>
-    <tr><th>Index</th><th class="r">Last</th><th>200-day</th><th class="r">vs 200d</th><th class="r">1m</th><th class="r">3m</th><th class="r">12m</th><th class="r">vs 52w high</th><th class="c">Rel. trend</th><th class="r">RS 3m</th><th class="c">Trend</th></tr></thead>`;
+  const cols = `<thead><tr class="grp"><th></th><th colspan="6"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs ${esc(bench)}</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>
+    <tr><th>Index</th><th class="c">200-day</th><th class="r">vs 200d</th><th class="r">1m</th><th class="r">3m</th><th class="r">12m</th><th class="r">vs 52w high</th><th class="c">Rel. trend</th><th class="r">RS 3m</th><th class="c">Trend</th></tr></thead>`;
   const body = rows.map((r, i) => { const b = opt.firstBench && i === 0;
-    return `<tr class="click${b ? " total" : ""}" data-t="${esc(r.t)}" tabindex="0"><td>${b ? "<b>" + esc(r.n) + "</b>" : esc(opt.full ? r.n : r.sn)}</td><td class="r">${num(r.c, r.d)}</td><td>${slope(r.s200)}</td>`
+    return `<tr class="click${b ? " total" : ""}" data-t="${esc(r.t)}" tabindex="0"><td>${b ? "<b>" + esc(r.n) + "</b>" : esc(opt.full ? r.n : r.sn)}</td><td class="c">${slope(r.s200)}</td>`
       + ["vs200", "c1", "c3", "c12"].map(k => `<td class="r ${cls(r[k])}">${pct(r[k])}</td>`).join("")
       + `<td class="r ${r.fh != null && r.fh >= -0.05 ? "pos" : ""}">${pct(r.fh)}</td><td class="c">${b ? ND : rsm(r.rs)}</td><td class="r ${b ? "dim" : cls(r.rs3)}">${b ? ND : pct(r.rs3)}</td><td class="c">${pill(r.v)}</td></tr>`; }).join("");
   el.innerHTML = `<table>${cols}<tbody>${body}</tbody></table>`;
@@ -377,11 +381,31 @@ idxTable($("g-table"), regRows, "MSCI ACWI", {firstBench: true, full: true});
 
 /* sector heatmap */
 const sect = R.filter(r => r.sk && /Sectors/.test(r.g));
-$("h-title").textContent = `${sect.filter(r => r.v === "Bullish").length} of ${sect.length} sector indices Bullish`;
-$("h-table").innerHTML = `<thead><tr><th style="width:21%">Sector</th>${D.regions.map(g => `<th>${esc(g.name)}<span class="tk" style="color:#C9D1E2">vs ${esc(g.bname)}</span></th>`).join("")}</tr></thead><tbody>`
-  + D.sector_keys.map(([k, n]) => `<tr><td><b>${esc(n)}</b></td>` + D.regions.map(g => { const r = sect.find(x => x.g === g.sg && x.sk === k);
-      if (!r) return `<td class="cell na">n/a – series discontinued</td>`;
-      return `<td class="cell f-${fam(r.v)}" data-t="${esc(r.t)}" tabindex="0">${GLY[r.v] || ""} ${esc(D.vlabel[r.v] || "n/a")}<small>${rsTxt(r.rs)} · ${pct(r.rs3)}</small></td>`; }).join("") + "</tr>").join("") + "</tbody>";
+const HV = {
+  momentum: { title: () => `Momentum: ${sect.filter(r => r.s200 === "rising").length} of ${sect.length} sector indices with a rising 200-day average`,
+    sub: "Direction of the 200-day average over 20 trading days (cell colour); second line: price against its 200-day average. Click a cell for its chart.",
+    cell: r => SLO[r.s200] ? [SLO[r.s200][2], `${SLO[r.s200][0]} ${SLO[r.s200][1]}`, `vs 200d ${pct(r.vs200)}`] : null },
+  relative: { title: () => `Relative trend: ${sect.filter(r => r.rs === "Outperform").length} of ${sect.length} sector indices Outperform their regional benchmark`,
+    sub: "Relative trend against the regional benchmark (cell colour); second line: 3-month change in relative strength. Click a cell for its chart.",
+    cell: r => REL[r.rs] ? [REL[r.rs][2], `${REL[r.rs][0]} ${REL[r.rs][1]}`, `RS 3m ${pct(r.rs3)}`] : null },
+  verdict: { title: () => `Verdict: ${sect.filter(r => r.v === "Bullish").length} of ${sect.length} sector indices Bullish`,
+    sub: "Trend verdict per sector and region. Click a cell for its chart.",
+    cell: r => hasV(r.v) ? [fam(r.v), `${GLY[r.v] || ""} ${D.vlabel[r.v]}`, ""] : null } };
+function drawHeat(view) {
+  const V = HV[view];
+  $("h-title").textContent = V.title(); $("h-sub").textContent = V.sub;
+  document.querySelectorAll("#h-views .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === view)));
+  $("h-table").innerHTML = `<thead><tr><th style="width:21%">Sector</th>${D.regions.map(g => `<th>${esc(g.name)}<span class="tk" style="color:#C9D1E2">vs ${esc(g.bname)}</span></th>`).join("")}</tr></thead><tbody>`
+    + D.sector_keys.map(([k, n]) => `<tr><td><b>${esc(n)}</b></td>` + D.regions.map(g => { const r = sect.find(x => x.g === g.sg && x.sk === k);
+        if (!r) return `<td class="cell na">n/a – series discontinued</td>`;
+        const c = V.cell(r);
+        if (!c) return `<td class="cell na" data-t="${esc(r.t)}" tabindex="0">${ND}</td>`;
+        return `<td class="cell f-${c[0]}" data-t="${esc(r.t)}" tabindex="0">${esc(c[1])}${c[2] ? `<small>${esc(c[2])}</small>` : ""}</td>`; }).join("") + "</tr>").join("") + "</tbody>";
+  try { localStorage.setItem("ss-heat-view", view); } catch (e) {}
+}
+let hv0 = "verdict"; try { const v = localStorage.getItem("ss-heat-view"); if (HV[v]) hv0 = v; } catch (e) {}
+drawHeat(hv0);
+$("h-views").onclick = e => { const b = e.target.closest(".chip"); if (b) drawHeat(b.dataset.v); };
 $("h-table").onclick = e => { const c = e.target.closest("td.cell[data-t]"); if (c) openOne(c.dataset.t, sect); };
 $("h-note").textContent = "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). " + RS_NOTE + DROP;
 
@@ -392,7 +416,7 @@ $("s-title").textContent = `${defined.length} of ${ratRows.length} ratios in a d
 $("s-table").innerHTML = `<thead><tr><th>Ratio</th><th class="c">Ratio trend</th><th>200-day</th><th class="r">vs 200d</th><th class="r">3m</th><th class="r">12m</th><th>Leads (trend rule)</th></tr></thead><tbody>`
   + ratRows.map(r => { const sp = D.ratios.find(x => x.name === r.n), f = fam(r.v);
       const lead = f === "Bullish" ? sp.num : f === "Bearish" ? sp.den : "No trend lead";
-      return `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td>${esc(r.n)}</td><td class="c">${pill(r.v)}</td><td>${slope(r.s200)}</td><td class="r ${cls(r.vs200)}">${pct(r.vs200)}</td><td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.c12)}">${pct(r.c12)}</td><td class="${f === "Bullish" || f === "Bearish" ? "lead" : "dim"}">${esc(lead)}</td></tr>`; }).join("") + "</tbody>";
+      return `<tr class="click" data-t="${esc(r.t)}" tabindex="0"><td>${esc(r.n)}</td><td class="c">${pill(r.v)}</td><td class="c">${slope(r.s200)}</td><td class="r ${cls(r.vs200)}">${pct(r.vs200)}</td><td class="r ${cls(r.c3)}">${pct(r.c3)}</td><td class="r ${cls(r.c12)}">${pct(r.c12)}</td><td class="${f === "Bullish" || f === "Bearish" ? "lead" : "dim"}">${esc(lead)}</td></tr>`; }).join("") + "</tbody>";
 $("s-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t, ratRows); };
 
 /* region sections */

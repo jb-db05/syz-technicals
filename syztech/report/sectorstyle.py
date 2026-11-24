@@ -213,17 +213,37 @@ def short_name(n: str) -> str:
     return n
 
 
+SLOPE_TXT = {"rising": "▲ Rising", "flat": "◆ Flat", "falling": "▼ Falling"}
+SLOPE_COL = {"rising": MINT, "flat": BLUEB, "falling": MULB}
+REL_TXT = {"Outperform": "▲ Outperform", "Neutral": "◆ Neutral", "Underperform": "▼ Underperform"}
+REL_COLOUR = {"Outperform": MINT, "Neutral": BLUEB, "Underperform": MULB}
+_NA = {"fill": "E9ECF1", "color": GREY, "align": PP_ALIGN.CENTER}
+
+
+def _badge(colour):
+    """Same look as the trend verdict cell: white bold text on the Syz colour."""
+    return {"fill": colour, "color": "FFFFFF", "bold": True, "align": PP_ALIGN.CENTER}
+
+
+def _slope_cell(v):
+    return (SLOPE_TXT[v], _badge(SLOPE_COL[v])) if v in SLOPE_TXT else (EN_DASH, _NA)
+
+
+def _rel_cell(v):
+    return (REL_TXT[v], _badge(REL_COLOUR[v])) if v in REL_TXT else (EN_DASH, _NA)
+
+
 def index_table(deck, df, title, subtitle, bench, asof, note, rs=True, first_is_bench=False, strip=True):
     """Index dashboard: absolute momentum, relative strength against `bench`, trend verdict. The subtitle goes to the
     footnote (the column-group labels sit where a subtitle would)."""
     s = deck.titled(title, "")
     note = f"{subtitle}. {note}" if subtitle else note
-    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high"] + (["Rel. trend", "RS 3m"] if rs else []) + ["Trend"]
-    col_w = [2.3, 0.85, 0.7, 0.7, 0.65, 0.65, 0.7, 0.85] + ([1.15, 0.7] if rs else []) + [1.1]
+    hdr = ["Index", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high"] + (["Rel. trend", "RS 3m"] if rs else []) + ["Trend"]
+    col_w = [2.6, 1.0, 0.75, 0.7, 0.7, 0.75, 0.9] + ([1.3, 0.75] if rs else []) + [1.15]
     k = sum(col_w)
     col_w = [w_ * W / k for w_ in col_w]
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
-    groups = [("Absolute momentum", 1, 7, NAVY)] + ([(f"vs {bench}", 8, 9, ORANGE)] if rs else []) + [("Verdict", len(hdr) - 1, len(hdr) - 1, BLUEB)]
+    groups = [("Absolute momentum", 1, 6, NAVY)] + ([(f"vs {bench}", 7, 8, ORANGE)] if rs else []) + [("Verdict", len(hdr) - 1, len(hdr) - 1, BLUEB)]
     for lab, a_, b_, col in groups:
         box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, col, radius=0.25)
         text(s, xs[a_], 2.2, xs[b_ + 1] - xs[a_], 0.24, lab, size=9, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER,
@@ -231,23 +251,25 @@ def index_table(deck, df, title, subtitle, bench, asof, note, rs=True, first_is_
     rows, st = [], {}
     for i, r in enumerate(df.itertuples()):
         is_b = first_is_bench and i == 0
-        row = [r.name if (is_b or not strip) else short_name(r.name), num(r.close, r.decimals), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
+        stxt, sst = _slope_cell(r.slope200)
+        rtxt, rst = _rel_cell(r.rel_state)
+        row = [r.name if (is_b or not strip) else short_name(r.name), stxt, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
                _p(r.from_hi52)]
         if rs:
-            row += [EN_DASH if is_b else _rel(r.rel_state), EN_DASH if is_b else _p(r.rs_chg63)]
+            row += [EN_DASH if is_b else rtxt, EN_DASH if is_b else _p(r.rs_chg63)]
         row.append(_vtxt(r.verdict))
         rows.append(row)
         st[(i, 0)] = {"bold": is_b, "align": PP_ALIGN.LEFT}
-        st[(i, 2)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
-        for j, v in ((3, r.vs200), (4, r.chg1m), (5, r.chg3m), (6, r.chg12m)):
+        for j, v in ((2, r.vs200), (3, r.chg1m), (4, r.chg3m), (5, r.chg12m)):
             st[(i, j)] = _posneg(v)
-        st[(i, 7)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
+        st[(i, 6)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
         if rs and not is_b:
-            st[(i, 8)] = _relstyle(r.rel_state)
-            st[(i, 9)] = _posneg(r.rs_chg63)
+            st[(i, 7)] = rst
+            st[(i, 8)] = _posneg(r.rs_chg63)
         if is_b:
             for j in range(len(hdr) - 1):
                 st[(i, j)] = {**st.get((i, j), {}), "fill": "FFE9D6"}
+        st[(i, 1)] = sst
         st[(i, len(hdr) - 1)] = _vstyle(r.verdict)
     rh = min(0.32, 5.0 / (len(rows) + 1))
     table(s, X0, 2.5, W, hdr, rows, col_w, row_h=rh, size=9.5 if rh >= 0.26 else 8, styles=st)
@@ -355,29 +377,42 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dots: weekly positions. "
                         "Colour: trend verdict of the index.")
 
-    # ── global sector heatmap
+    # ── global sector map: three readings (200-day momentum, relative trend, verdict), one page each
     hdr = ["Sector"] + [REGION_NAME[r[0]] for r in REGIONS]
-    rows, st = [], {}
-    for i, (key, sname) in enumerate(SECTOR_KEYS):
-        row = [sname]
-        st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
-        for j, (reg, bench, bname, sg, *_) in enumerate(REGIONS, start=1):
-            x = sect[(sect.group == sg) & (sect.sector_key == key)]
-            if not len(x):
-                row.append("n/a – series discontinued")
-                st[(i, j)] = {"fill": "E9ECF1", "color": GREY, "align": PP_ALIGN.CENTER}
-                continue
-            r = x.iloc[0]
-            fam = _family(r.verdict)
-            row.append(f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}\nrel. {_rel(r.rel_state)} · {_p(r.rs_chg63)}")
-            st[(i, j)] = {**(verdict_style(r.verdict) if fam else {"fill": "E9ECF1", "color": GREY}), "align": PP_ALIGN.CENTER}
-        rows.append(row)
-    nbull = int((sect.verdict == "Bullish").sum())
-    s = deck.titled(f"Global sector map: {nbull} of {len(sect)} sector indices Bullish",
-                    "Per sector and region: trend verdict (first line, cell colour); relative trend and 3-month relative strength against the regional benchmark (second line)")
-    table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=8.5, styles=st)
-    source(s, asof, "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index "
-                    "(USD). " + rs_note + drop_note)
+    n_sect = len(sect)
+    views = [
+        ("momentum", lambda r: (f"{SLOPE_TXT[r.slope200]}\nvs 200d {_p(r.vs200)}", _badge(SLOPE_COL[r.slope200])) if r.slope200 in SLOPE_TXT else (EN_DASH, _NA),
+         f"Global sector map – momentum: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day average",
+         "Direction of the 200-day average over 20 trading days (cell colour); second line: price against its 200-day average",
+         "Rising / flat / falling: 20-day change of the 200-day average above +0.20%, within ±0.20%, below −0.20%.".replace("−", EN_DASH)),
+        ("relative", lambda r: (f"{REL_TXT[r.rel_state]}\nRS 3m {_p(r.rs_chg63)}", _badge(REL_COLOUR[r.rel_state])) if r.rel_state in REL_TXT else (EN_DASH, _NA),
+         f"Global sector map – relative trend: {int((sect.rel_state == 'Outperform').sum())} of {n_sect} sector indices Outperform their regional benchmark",
+         "Relative trend against the regional benchmark (cell colour); second line: 3-month change in relative strength",
+         rs_note),
+        ("verdict", lambda r: (_vtxt(r.verdict), verdict_style(r.verdict)) if _family(r.verdict) else ("n/a – history", _NA),
+         f"Global sector map – verdict: {int((sect.verdict == 'Bullish').sum())} of {n_sect} sector indices Bullish",
+         "Trend verdict per sector and region",
+         "Verdict: rising 200-day + intact support + 50-day above the 200-day = Bullish; falling 200-day + broken support = Bearish; in between Neutral with a tilt."),
+    ]
+    for _, cell, title_, sub_, note_ in views:
+        rows, st = [], {}
+        for i, (key, sname) in enumerate(SECTOR_KEYS):
+            row = [sname]
+            st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
+            for j, (reg, bench, bname, sg, *_r) in enumerate(REGIONS, start=1):
+                x = sect[(sect.group == sg) & (sect.sector_key == key)]
+                if not len(x):
+                    row.append("n/a – series discontinued")
+                    st[(i, j)] = dict(_NA)
+                    continue
+                txt, sty = cell(x.iloc[0])
+                row.append(txt)
+                st[(i, j)] = sty
+            rows.append(row)
+        s = deck.titled(title_, sub_)
+        table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=9, styles=st)
+        source(s, asof, "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index "
+                        "(USD). " + note_ + drop_note)
 
     # ── style & size ratios
     hdr = ["Ratio", "Ratio trend", "200-day", "vs 200d", "3m", "12m", "Leads (trend rule)"]
@@ -389,9 +424,10 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         spec = next(x for x in RATIOS if x[3] == r.name)
         fam = _family(r.verdict)
         lead = spec[4] if fam == "Bullish" else spec[5] if fam == "Bearish" else "No trend lead"
-        rows.append([r.name, _vtxt(r.verdict), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg3m), _p(r.chg12m), lead])
+        stxt, sst = _slope_cell(r.slope200)
+        rows.append([r.name, _vtxt(r.verdict), stxt, _p(r.vs200), _p(r.chg3m), _p(r.chg12m), lead])
         st[(i, 1)] = _vstyle(r.verdict)
-        st[(i, 2)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
+        st[(i, 2)] = sst
         for j, v in ((3, r.vs200), (4, r.chg3m), (5, r.chg12m)):
             st[(i, j)] = _posneg(v)
         st[(i, 6)] = {"bold": fam in ("Bullish", "Bearish"), "color": NAVY if fam in ("Bullish", "Bearish") else GREY}

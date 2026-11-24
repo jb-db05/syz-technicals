@@ -211,11 +211,14 @@ def table(slide, x, y, w, header, rows, col_w, row_h=0.24, size=8.5, styles=None
             tf = c.text_frame
             tf.text = ""
             p = tf.paragraphs[0]
-            r = p.add_run()
-            r.text = str(val)
-            r.font.size = Pt(size)
-            r.font.bold = (i == 0) or st.get("bold", False)
-            r.font.color.rgb = rgb("FFFFFF" if i == 0 else st.get("color", NAVY))
+            for k, part in enumerate(str(val).split("\n")):       # "\n" = a real line break inside the cell
+                if k:
+                    p.add_line_break()
+                r = p.add_run()
+                r.text = part
+                r.font.size = Pt(size)
+                r.font.bold = (i == 0) or st.get("bold", False)
+                r.font.color.rgb = rgb("FFFFFF" if i == 0 else st.get("color", NAVY))
             p.alignment = st.get("align", PP_ALIGN.RIGHT if (i > 0 and j > 0 and NUMERIC.match(str(val))) else PP_ALIGN.LEFT)
             c.fill.solid()
             c.fill.fore_color.rgb = rgb(NAVY if i == 0 else st.get("fill", "FFFFFF" if i % 2 else "F6F7F9"))
