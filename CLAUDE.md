@@ -15,6 +15,7 @@ Florian Marini, CFA, CMT – Head of Research, Syz Private Banking. Senior techn
 - Commit small, descriptive commits. Branch names `feat/trend-engine`, `feat/ledger`, `feat/regime`.
 
 ## Trend rule in force (adopted 22 Nov 2026 – BUILD_SPEC §2.2 / §3.2, code `syztech/trend/swing_levels.py`)
+- **Hierarchy (24 Nov 2026)**: (1) the 200-day slope sets the regime and caps the verdict on its side – a falling 200-day is never Bullish; (2) price structure confirms or denies – a denial alone gives Neutral with a tilt; (3) the 50-day vs the 200-day arbitrates – going against the regime needs both a structure break and the 50-day on the wrong side. One signal never overturns the slope, two confirmations do; the override works downward only. Full slope dominance was rejected (the 200-day lags after parabolas).
 - **Direction**: 200-day average over 20 trading days – rising / flat / falling (0.20% band). Unchanged.
 - **Support / resistance**, per side, in priority order: (1) Florian's drawn levels (text, then chart); (2) **swing levels** – last confirmed swing low / swing high; (3) 52-week low / high only where no swing is confirmed yet or the series has values ≤ 0 (negative yields).
 - **Swing**: confirmed when the close reverses **k = 1.5 × the median one-month move of the past year** from the extreme (one-month move = stdev of daily log returns over 100 days × √20; median over 252 bars – robust threshold adopted 23 Nov 2026 so a parabola or crash cannot inflate it). Closes only, nothing filled.

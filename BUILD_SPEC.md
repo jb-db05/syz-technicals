@@ -125,6 +125,14 @@ Robust threshold (23 Nov 2026): 68 / 80 published calls matched, 14 / 17 Bearish
 
 ### 3.3 Verdict rules (apply in order; first match wins)
 
+**Governing hierarchy (written down 24 Nov 2026 – describes the rules below, changes no verdict):**
+
+1. **The 200-day slope sets the regime** – rising, flat or falling. It caps the verdict on its own side: a falling 200-day can never be Bullish.
+2. **Price structure confirms or denies it** – support intact or broken (drawn levels first, else swing levels, §3.2). A denial alone moves the verdict to Neutral with a tilt, never straight to the opposite side.
+3. **The 50-day against the 200-day arbitrates** – going against the regime takes both a structure break and the 50-day on the wrong side of the 200-day. This is the only path to Bearish under a rising 200-day (`rising_support_broken_death_cross`), and Bullish needs the 50-day above the 200-day (variant B).
+
+One signal alone never overturns the slope; two independent confirmations do. The override works downward only (decision kept 24 Nov 2026): under a falling 200-day the best verdict is Neutral, after a resistance break – bottoms take longer to confirm than tops. Full dominance of the slope was considered and rejected: the 200-day lags after a parabolic run (Teradyne: still rising at −58% from its high), and it would turn 20 of 451 Bearish readings (Teradyne, AMAT, ON, KOSPI …) back to Neutral.
+
 ```
 insufficient_data            if history < 320 bars
 
