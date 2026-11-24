@@ -104,6 +104,8 @@ def build(out_dir: Path = OUT, charts: bool = True, edition: str = "") -> Path:
                 window=[f"{x.day} {x:%B %Y}" for x in rv.window],
                 test=dict(dates=test["dates"], first=f"{test['first']:%B %Y}", last=f"{test['last']:%B %Y}",
                           f1={k: _f(v, 5) for k, v in test["f1"].items()}, f3={k: _f(v, 5) for k, v in test["f3"].items()}))
+    bt = Path("output/thematics/backtest.json")               # written by syztech.research.theme_backtest (about three minutes)
+    data["bt"] = json.loads(bt.read_text()) if bt.exists() else None
     html = (ASSETS / "thematic.html").read_text(encoding="utf-8").replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False))
     (out_dir / "index.html").write_text(html, encoding="utf-8")
     print(f"written: {out_dir / 'index.html'} – {len(themes)} themes, {len(anchors)} anchors, {len(clusters)} clusters, {len(img)} charts, shortlist {len(a)}, watch {len(w)}")
