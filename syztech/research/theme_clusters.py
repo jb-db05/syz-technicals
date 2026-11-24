@@ -68,7 +68,8 @@ def weekly(prices, tickers) -> pd.DataFrame:
     return px
 
 
-def run(prices_dir="data/prices_thematics", universe="data/universe_thematics.csv"):
+def run(prices_dir="data/prices_thematics", universe="data/universe_thematics.csv", neutral=("MXWD Index",)):
+    """neutral: series whose effect is removed before clustering – the market, optionally the dollar ("DXY Curncy")."""
     p = load_prices(prices_dir)
     u = pd.read_csv(universe)
     ref = load_reference(prices_dir).set_index("ticker")
@@ -88,8 +89,11 @@ def run(prices_dir="data/prices_thematics", universe="data/universe_thematics.cs
             rows.append(dict(ticker=t, weeks=int(ok.sum()), note="history too short for the clustering"))
             continue
         b = np.cov(r[ok], m[ok])[0, 1] / m[ok].var()
-        a = r[ok].mean() - b * m[ok].mean()
-        e = (r - a - b * m)
+        X = lr[list(neutral)]
+        okx = ok & X.notna().all(axis=1)
+        A = np.column_stack([np.ones(int(okx.sum())), X[okx].to_numpy()])
+        coef = np.linalg.lstsq(A, r[okx].to_numpy(), rcond=None)[0]
+        e = r - coef[0] - X.to_numpy() @ coef[1:]
         resid[t] = e
         rows.append(dict(ticker=t, weeks=int(ok.sum()), beta=b, corr_mkt=np.corrcoef(r[ok], m[ok])[0, 1],
                          vol=r[ok].std() * np.sqrt(52), resid_vol=e[ok].std() * np.sqrt(52)))
