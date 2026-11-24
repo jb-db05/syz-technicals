@@ -351,6 +351,14 @@ function idxTable(el, rows, bench, opt = {}) {
 }
 
 /* rotation map (SVG) */
+function curve(xy, per = 10) {                       // Catmull-Rom through the anchors, ends exactly on the last one
+  if (xy.length < 3) return xy;
+  const p = [xy[0], ...xy, xy[xy.length - 1]], out = [];
+  for (let i = 1; i < p.length - 2; i++) { const [a, b, c, d] = [p[i - 1], p[i], p[i + 1], p[i + 2]];
+    for (let k = 0; k < per; k++) { const t = k / per, f = j => 0.5 * (2 * b[j] + (-a[j] + c[j]) * t + (2 * a[j] - 5 * b[j] + 4 * c[j] - d[j]) * t * t + (-a[j] + 3 * b[j] - 3 * c[j] + d[j]) * t * t * t);
+      out.push([f(0), f(1)]); } }
+  out.push(xy[xy.length - 1]); return out;
+}
 function rotation(card, key) {
   const m = D.maps[key]; if (!m) { card.hidden = true; return; }
   const W = 640, H = 460, L = 46, Rr = 14, T = 14, B = 40;
@@ -369,11 +377,29 @@ function rotation(card, key) {
   s += `<text x="${(L + W - Rr) / 2}" y="${H - 6}" font-size="11" text-anchor="middle">RS vs its 200-day average, % (against the ${esc(m.bench)})</text>`
      + `<text transform="translate(12 ${(T + H - B) / 2}) rotate(-90)" font-size="11" text-anchor="middle">RS, 3-month change, %</text>`;
   const col = v => fam(v) === "Bullish" ? "var(--mint)" : fam(v) === "Bearish" ? "var(--mulb)" : "var(--blueb)";
+  const heads = m.series.map(se => { const l = se.xy[se.xy.length - 1]; return [sx(l[0]), sy(l[1])]; }), boxes = [];
+  const lab = (hx, hy, t) => {                        // first of eight positions that hits no label, no other dot, and stays inside
+    const w = t.length * 5.9 + 2, h = 12, C = [[8, -6], [8, 13], [-8 - w, -6], [-8 - w, 13], [-w / 2, -11], [-w / 2, 19], [12, 3.5], [-12 - w, 3.5],
+      [10, -20], [10, 27], [-10 - w, -20], [-10 - w, 27], [14, -34], [14, 41], [-14 - w, -34], [-14 - w, 41], [-w / 2, -40], [-w / 2, 48], [30, -48], [-30 - w, 55]];
+    let pick = null;
+    for (const [dx, dy] of C) { const b = [hx + dx, hy + dy - h + 2, hx + dx + w, hy + dy + 2];
+      if (b[0] < L + 2 || b[2] > W - Rr - 2 || b[1] < T + 2 || b[3] > H - B - 2) continue;
+      if (boxes.some(o => !(b[2] < o[0] || b[0] > o[2] || b[3] < o[1] || b[1] > o[3]))) continue;
+      if (heads.some(([px, py]) => (px !== hx || py !== hy) && px > b[0] - 5 && px < b[2] + 5 && py > b[1] - 5 && py < b[3] + 5)) continue;
+      pick = [b, dx, dy]; break; }
+    if (!pick) { const dx = hx + 8 + w > W - Rr ? -8 - w : 8; pick = [[hx + dx, hy - 16, hx + dx + w, hy - 4], dx, -6]; }
+    boxes.push(pick[0]);
+    const far = Math.abs(pick[2]) > 16, b = pick[0];
+    return (far ? `<line x1="${hx.toFixed(1)}" y1="${hy.toFixed(1)}" x2="${((b[0] + b[2]) / 2).toFixed(1)}" y2="${(pick[2] < 0 ? b[3] : b[1]).toFixed(1)}" stroke="var(--muted)" stroke-width=".6" opacity=".7"/>` : "")
+      + `<text class="ink" x="${(hx + pick[1]).toFixed(1)}" y="${(hy + pick[2]).toFixed(1)}" font-size="10.5">${esc(t)}</text>`; };
   m.series.forEach(se => { const r = byT[se.t] || {}; const c = col(r.v); const p = se.xy, last = p[p.length - 1];
-    s += `<g class="pt" data-t="${esc(se.t)}" style="cursor:pointer"><polyline points="${p.map(q_ => sx(q_[0]) + "," + sy(q_[1])).join(" ")}" fill="none" stroke="${c}" stroke-width="1.3" opacity=".45"/>`
-      + p.slice(0, -1).map(q_ => `<circle cx="${sx(q_[0])}" cy="${sy(q_[1])}" r="2.2" fill="${c}" opacity=".45"/>`).join("")
+    const P = curve(p.map(q_ => [sx(q_[0]), sy(q_[1])])), n = P.length - 1;
+    let tr = "";                                        // smoothed trail: thinner and paler towards the past
+    for (let i = 0; i < n; i++) { const f = n > 1 ? i / (n - 1) : 1;
+      tr += `<line x1="${P[i][0].toFixed(1)}" y1="${P[i][1].toFixed(1)}" x2="${P[i + 1][0].toFixed(1)}" y2="${P[i + 1][1].toFixed(1)}" stroke="${c}" stroke-width="${(0.7 + 2.6 * f).toFixed(2)}" stroke-linecap="round" opacity="${(0.12 + 0.7 * f).toFixed(2)}"/>`; }
+    s += `<g class="pt" data-t="${esc(se.t)}" style="cursor:pointer">${tr}`
       + `<circle cx="${sx(last[0])}" cy="${sy(last[1])}" r="6" fill="${c}" stroke="var(--bg)" stroke-width="1.5"/>`
-      + `<text class="ink" x="${sx(last[0]) + 8}" y="${sy(last[1]) - 6}" font-size="10.5">${esc(r.ml || se.t)}</text></g>`; });
+      + lab(sx(last[0]), sy(last[1]), r.ml || se.t) + `</g>`; });
   card.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Rotation map against the ${esc(m.bench)}">${s}</svg><div class="tip" hidden></div>`;
   const svg = card.querySelector("svg"), tip = card.querySelector(".tip");
   svg.addEventListener("mousemove", e => { const g = e.target.closest(".pt"); if (!g) { tip.hidden = true; return; }
@@ -505,7 +531,7 @@ $("method-rows").innerHTML = [["Trend", "Direction of the 200-day average over 2
   ["Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Relative strength", "Relative trend: is the 200-day average of index ÷ benchmark rising (Outperform) or falling (Underperform)? RS 3m: its 3-month change. It informs, it does not change the absolute verdict."],
   ["Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = the numerator leads."],
-  ["Rotation map", "x: relative strength vs its 200-day average; y: its 3-month change; tails: the last four weekly positions. Leading = above and rising; Weakening = above, falling; Lagging = below, falling; Improving = below, rising."]]
+  ["Rotation map", "x: relative strength vs its 200-day average; y: its 3-month change; dot: today's actual position; trail: the last 20 trading days, smoothed, thinner and paler towards the past. Leading = above and rising; Weakening = above, falling; Lagging = below, falling; Improving = below, rising."]]
   .map(([l, t]) => `<div class="mrow"><b>${esc(l)}</b><span>${esc(t)}</span></div>`).join("");
 $("f-src").textContent = `Sources : Syz Research, Bloomberg. Data to ${D.asof}. MSCI indices converted to USD by Bloomberg; S&P, Stoxx and TOPIX / Nikkei in local currency.${DROP}`;
 

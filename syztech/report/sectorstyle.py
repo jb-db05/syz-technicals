@@ -143,41 +143,113 @@ def build_universe(base: pd.DataFrame, prices, asof) -> tuple[pd.DataFrame, list
     return u, dropped
 
 
-def rotation_points(prices, tickers: list[str], bench: str, tail: int = 4, step: int = 5) -> pd.DataFrame:
-    """x = RS vs its 200-day average (%), y = 3-month change in RS (%), now and `tail` weekly steps back."""
+def rotation_points(prices, tickers: list[str], bench: str, tail: int = 20, step: int = 4, smooth: int = 5) -> pd.DataFrame:
+    """x = RS vs its 200-day average (%), y = 3-month change in RS (%): today and an anchor every `step` bars back to
+    `tail` bars (k = bars back).
+
+    The trail is smoothed, the latest point is not: each past anchor is the average of the raw daily points within
+    min(`smooth`, k) bars on either side, so k = 0 is today's actual position (xr, yr keep the raw values). The maps
+    join the anchors with a curve. Nothing is filled: only common dates of the two series enter."""
     out = []
     b = prices.series(bench)
     for t in tickers:
         rs = relative_strength(prices.series(t), b)
-        if len(rs) < 200 + 63 + tail * step + 1:
+        if len(rs) < 200 + 63 + tail + smooth + 1:
             continue
         ma = sma(rs, 200)
-        for k in range(tail, -1, -1):
-            i = len(rs) - 1 - k * step
-            out.append(dict(ticker=t, k=k, x=(rs.iloc[i] / ma.iloc[i] - 1) * 100, y=(rs.iloc[i] / rs.iloc[i - 63] - 1) * 100))
+        x = ((rs / ma - 1) * 100).to_numpy()
+        y = ((rs / rs.shift(63) - 1) * 100).to_numpy()
+        n = len(rs)
+        for k in range(tail, -1, -step):
+            i, h = n - 1 - k, min(smooth, k)
+            out.append(dict(ticker=t, k=k, x=float(x[i - h:i + h + 1].mean()), y=float(y[i - h:i + h + 1].mean()),
+                            xr=float(x[i]), yr=float(y[i])))
     return pd.DataFrame(out)
 
 
+def _curve(xy: np.ndarray, per: int = 14) -> np.ndarray:
+    """Catmull-Rom curve through the anchor points (passes through every anchor, ends exactly on the last)."""
+    if len(xy) < 3:
+        return xy
+    p = np.vstack([xy[0], xy, xy[-1]])
+    out = []
+    for i in range(1, len(p) - 2):
+        p0, p1, p2, p3 = p[i - 1], p[i], p[i + 1], p[i + 2]
+        for t in np.linspace(0, 1, per, endpoint=False):
+            out.append(0.5 * ((2 * p1) + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t ** 3))
+    out.append(xy[-1])
+    return np.array(out)
+
+
+def _place_labels(ax, fig, items, fontsize=7):
+    """Greedy label placement: for each head (largest moves first) the first of eight offsets that overlaps no other
+    label and no other head; a thin leader line when the label had to move away."""
+    fig.canvas.draw()
+    to_px = ax.transData.transform
+    heads = [to_px((it["x"], it["y"])) for it in items]
+    cw, ch = fontsize * 0.58 * fig.dpi / 72, fontsize * 1.25 * fig.dpi / 72
+    cand = [(1, 1), (1, -1), (-1, 1), (-1, -1), (0, 1.6), (0, -1.6), (2.2, 0), (-2.2, 0),
+            (1.8, 2.2), (-1.8, 2.2), (1.8, -2.2), (-1.8, -2.2)]
+    boxes = []
+    (x0, y0), (x1, y1) = ax.transData.transform([(ax.get_xlim()[0], ax.get_ylim()[0]), (ax.get_xlim()[1], ax.get_ylim()[1])])
+    for n_, it in enumerate(items):
+        hx, hy = heads[n_]
+        w = cw * len(it["label"])
+        best = None
+        for dx, dy in cand:
+            g = 7 * fig.dpi / 72
+            bx = hx + dx * g if dx > 0 else hx + dx * g - w if dx < 0 else hx - w / 2
+            by = hy + dy * g * 0.8 - (ch if dy < 0 else 0) + (0 if dy else -ch / 2)
+            box = (bx, by, bx + w, by + ch)
+            if box[0] < x0 or box[2] > x1 or box[1] < y0 or box[3] > y1:
+                continue
+            hit = any(not (box[2] < o[0] or box[0] > o[2] or box[3] < o[1] or box[1] > o[3]) for o in boxes)
+            hit = hit or any(m != n_ and box[0] - 4 < px < box[2] + 4 and box[1] - 4 < py < box[3] + 4 for m, (px, py) in enumerate(heads))
+            if not hit:
+                best = (box, (dx, dy)); break
+        if best is None:
+            g = 7 * fig.dpi / 72
+            best = ((hx + g, hy + g * 0.8, hx + g + w, hy + g * 0.8 + ch), (1, 1))
+        box, (dx, dy) = best
+        boxes.append(box)
+        inv = ax.transData.inverted().transform
+        tx, ty = inv((box[0], box[1]))
+        ax.text(tx, ty, it["label"], fontsize=fontsize, color="#202945", ha="left", va="bottom", zorder=5)
+        if abs(dx) > 1.2 or abs(dy) > 1.2:
+            lx, ly = inv(((box[0] + box[2]) / 2, box[1] if dy > 0 else box[3]))
+            ax.plot([it["x"], lx], [it["y"], ly], color="#B8BFCC", lw=0.5, zorder=2.5)
+
+
 def rotation_map(pts: pd.DataFrame, labels: dict, verdicts: dict, out: Path, bench_name: str, size=(10.28, 4.95)) -> Path:
-    """Rotation map: relative trend (x) against relative momentum (y), with a four-week tail."""
+    """Rotation map: relative trend (x) against relative momentum (y). Head = today's actual position; the four-week
+    trail is smoothed and fades and thins towards the past, so the direction of travel reads at a glance."""
+    from matplotlib.collections import LineCollection
     register_fonts()
     plt.rcParams["font.family"] = FONT
     col = {"Bullish": "#3BAF90", "Bearish": "#AC5D85", "Bearish_LM": "#AC5D85"}
     fig, ax = plt.subplots(figsize=size, dpi=200)
-    ax.axhline(0, color="#B8BFCC", lw=0.9)
-    ax.axvline(0, color="#B8BFCC", lw=0.9)
+    items = []
     for t, g in pts.groupby("ticker"):
         g = g.sort_values("k", ascending=False)
         c = col.get(verdicts.get(t), "#4B5F80")
-        ax.plot(g.x, g.y, color=c, lw=1.0, alpha=0.45, zorder=2)
-        ax.scatter(g.x.iloc[:-1], g.y.iloc[:-1], s=8, color=c, alpha=0.35, zorder=2)
-        ax.scatter(g.x.iloc[-1:], g.y.iloc[-1:], s=46, color=c, edgecolors="white", linewidths=0.8, zorder=3)
-        ax.annotate(labels.get(t, t), (g.x.iloc[-1], g.y.iloc[-1]), xytext=(4, 4), textcoords="offset points", fontsize=7,
-                    color="#202945")
+        xy = _curve(g[["x", "y"]].to_numpy())
+        n = len(xy) - 1
+        segs = [xy[i:i + 2] for i in range(n)]
+        f = np.linspace(0.0, 1.0, n) if n > 1 else np.array([1.0])        # 0 = oldest, 1 = newest segment
+        rgba = [matplotlib.colors.to_rgba(c, 0.12 + 0.68 * v) for v in f]
+        ax.add_collection(LineCollection(segs, colors=rgba, linewidths=0.6 + 2.0 * f, capstyle="round", joinstyle="round", zorder=2))
+        ax.scatter(xy[-1:, 0], xy[-1:, 1], s=58, color=c, edgecolors="white", linewidths=0.9, zorder=4)
+        items.append(dict(x=float(xy[-1, 0]), y=float(xy[-1, 1]), label=labels.get(t, t),
+                          move=float(np.hypot(*(xy[-1] - xy[0])))))
+    ax.autoscale_view()
     xl, yl = ax.get_xlim(), ax.get_ylim()
-    m = max(abs(xl[0]), abs(xl[1])) * 1.05, max(abs(yl[0]), abs(yl[1])) * 1.05
+    m = max(abs(xl[0]), abs(xl[1])) * 1.08, max(abs(yl[0]), abs(yl[1])) * 1.08
     ax.set_xlim(-m[0], m[0])
     ax.set_ylim(-m[1], m[1])
+    for (qx, qy), qc in (((1, 1), "#3BAF90"), ((-1, -1), "#AC5D85")):                # light tint: leading and lagging quadrants
+        ax.fill_between([0, qx * m[0]], 0, qy * m[1], color=qc, alpha=0.045, lw=0, zorder=0)
+    ax.axhline(0, color="#B8BFCC", lw=0.9, zorder=1)
+    ax.axvline(0, color="#B8BFCC", lw=0.9, zorder=1)
     kw = dict(fontsize=9, fontweight="bold", alpha=0.9)
     ax.text(m[0], m[1], "Leading", ha="right", va="top", color="#3BAF90", **kw)
     ax.text(m[0], -m[1], "Weakening", ha="right", va="bottom", color="#4B5F80", **kw)
@@ -191,6 +263,7 @@ def rotation_map(pts: pd.DataFrame, labels: dict, verdicts: dict, out: Path, ben
     for sp in ("left", "bottom"):
         ax.spines[sp].set_color("#B8BFCC")
     fig.tight_layout()
+    _place_labels(ax, fig, sorted(items, key=lambda it: -it["move"]))
     fig.savefig(out)
     plt.close(fig)
     return out
@@ -492,9 +565,10 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     index_table(deck, reg_df, f"Regions: {len(out_reg)} of 4 Outperform against the MSCI ACWI",
                 "MSCI indices in USD; relative strength against the MSCI ACWI", "MSCI ACWI", asof, rs_note, first_is_bench=True)
     if "regions" in maps:
-        s = deck.titled("Rotation of the regions against the MSCI ACWI", "Relative trend (x) against relative momentum (y); tails: last four weeks")
+        s = deck.titled("Rotation of the regions against the MSCI ACWI", "Relative trend (x) against relative momentum (y); trail: last four weeks, smoothed; dot: today")
         chart_image(s, maps["regions"], X0, 2.4, W)
-        source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dots: weekly positions. "
+        source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dot: today's actual "
+                        "position; trail: the last 20 trading days, smoothed (11-day centred average, curve through 5 points), thinner and paler towards the past. "
                         "Colour: trend verdict of the index.")
 
     # ── global sector map: momentum | relative trend side by side in each cell, the verdict, then the evolution
@@ -574,9 +648,10 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
                     f"{bname} and its sectors{' (USD)' if reg != 'US' else ''}", bname, asof, rs_note + drop_note, first_is_bench=b is not None)
         if f"{reg}_sectors" in maps:
             s = deck.titled(f"{REGION_NAME[reg]}: sector rotation against the {bname}",
-                            "Relative trend (x) against relative momentum (y); tails: last four weeks")
+                            "Relative trend (x) against relative momentum (y); trail: last four weeks, smoothed; dot: today")
             chart_image(s, maps[f"{reg}_sectors"], X0, 2.4, W)
-            source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Colour: trend verdict.")
+            source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dot: today's actual position; "
+                            "trail: the last 20 trading days, smoothed, thinner and paler towards the past. Colour: trend verdict.")
         if ig and len(gl(ig)):
             ib = "SXXP Index" if reg == "Europe" else bench
             ibn = BENCH_NAMES.get(ib, ib)
@@ -590,9 +665,10 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
                         f"{'EUR' if reg == 'Europe' else 'USD'}; sorted by trend verdict, then relative trend, then RS 3m", ibn, asof, rs_note,
                         first_is_bench=len(head) > 0)
             if f"{reg}_industries" in maps:
-                s = deck.titled(f"{label}: rotation against the {ibn}", "Relative trend (x) against relative momentum (y); tails: last four weeks")
+                s = deck.titled(f"{label}: rotation against the {ibn}", "Relative trend (x) against relative momentum (y); trail: last four weeks, smoothed; dot: today")
                 chart_image(s, maps[f"{reg}_industries"], X0, 2.4, W)
-                source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Colour: trend verdict.")
+                source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dot: today's actual position; "
+                            "trail: the last 20 trading days, smoothed, thinner and paler towards the past. Colour: trend verdict.")
         z = gl(styg)
         z = z[~z.ticker.isin([bench])]
         if len(z):
