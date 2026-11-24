@@ -145,10 +145,117 @@ def run_variants(P: pd.DataFrame, dates: list, bench: pd.Series) -> tuple[pd.Dat
     return M, {"meta": meta, "stats": res}
 
 
+GRID = 7                                   # stop-loss check every 7 trading days (21 = 3 × 7, 126 = 18 × 7)
+BEAR = ("Bearish", "Bearish_LM")
+
+
+def semi_annual(P: pd.DataFrame, rv, prices, hold: int = 126) -> dict:
+    """Six-monthly rebalancing with a stop: the shortlist is bought in equal weights every `hold` bars and left alone,
+    except that a theme whose verdict turns Bearish at a 7-day check is sold at that close. The proceeds wait in the
+    MSCI ACWI (or in cash at 0%) until the next rebalance. Run from each of the six possible starting months, because a
+    six-month schedule depends on where it starts. Compared on the same 7-day grid with no stop, with the monthly rule,
+    with all themes and with the MSCI ACWI."""
+    b = prices.series(BENCH).dropna()
+    b = b[b.index <= rv.asof]
+    bars = list(range(320, len(b), GRID))
+    gd = [b.index[i] for i in bars]
+    S = {t: prices.series(t).dropna() for t in rv.themes.ticker}
+    px = pd.DataFrame({t: s.reindex(b.index, method="ffill", limit=5) for t, s in S.items()}).loc[gd]   # valuation: last close within 5 days
+    bp = b.loc[gd]
+    by = {d: g for d, g in P.groupby("date")}
+    first_k = gd.index(min(d for d, g in by.items() if len(_pick(g))))
+    cache = {}
+
+    def verdict(t, d):
+        if (t, d) not in cache:
+            sd = S[t][S[t].index <= d]
+            st = state(sd, b[b.index <= d]) if len(sd) and (d - sd.index[-1]).days <= 7 else None
+            cache[(t, d)] = st["v"] if st else None
+        return cache[(t, d)]
+
+    def simulate(every: int, offset: int, stop: bool, park: str):
+        val, hold_w, parked, k_reb = 1.0, {}, 1.0, None      # starts parked until the first date with a shortlist
+        eq, n_stop, n_hold, trades = [], 0, [], 0.0
+        start = first_k + offset // GRID                # first date on which the review can be run, plus the offset
+        for k in range(start, len(gd)):
+            d = gd[k]
+            if k > start:                                   # value moves from the previous checkpoint
+                prev = gd[k - 1]
+                tot = parked * ((bp[d] / bp[prev]) if park == "acwi" else 1.0)
+                new_w = {}
+                for t, w in hold_w.items():
+                    r = px.at[d, t] / px.at[prev, t]
+                    new_w[t] = w * (r if np.isfinite(r) else 1.0)
+                    tot += new_w[t]
+                hold_w, parked, val = new_w, parked * ((bp[d] / bp[prev]) if park == "acwi" else 1.0), tot
+            eq.append(val)
+            if (k - start) % (every // GRID) == 0 and d in by:       # rebalance: equal weights in today's shortlist
+                picks = [t for t in _pick(by[d]) if np.isfinite(px.at[d, t])]
+                old = {t: w / val for t, w in hold_w.items()}
+                if picks:
+                    hold_w, parked = {t: val / len(picks) for t in picks}, 0.0
+                else:
+                    hold_w, parked = {}, val
+                new = {t: w / val for t, w in hold_w.items()}
+                trades += sum(abs(new.get(t, 0) - old.get(t, 0)) for t in set(new) | set(old)) / 2
+            elif stop:
+                for t in list(hold_w):
+                    if verdict(t, d) in BEAR:
+                        parked += hold_w.pop(t)
+                        n_stop += 1
+                        trades += 0  # counted below as a sale
+            n_hold.append(len(hold_w))
+        e = pd.Series(eq, index=gd[start:])
+        return e, n_stop, float(np.mean(n_hold)), trades
+
+    def stats(e: pd.Series, ref: pd.Series) -> dict:
+        r, rr = e.pct_change().dropna(), ref.reindex(e.index).pct_change().dropna()
+        yrs = (e.index[-1] - e.index[0]).days / 365.25
+        ex = r - rr
+        return dict(ret=float(e.iloc[-1] ** (1 / yrs) - 1), vol=float(r.std() * np.sqrt(252 / GRID)), dd=float((e / e.cummax() - 1).min()),
+                    excess=float((e.iloc[-1] ** (1 / yrs) - 1) - ((ref.reindex(e.index).iloc[-1] / ref.reindex(e.index).iloc[0]) ** (1 / yrs) - 1)),
+                    t=float(ex.mean() / (ex.std() / np.sqrt(len(ex)))) if ex.std() > 0 else None)
+    offsets = [o for o in range(0, hold, 21)]
+    out, curves = {}, {}
+    variants = [("Six-monthly, no stop", hold, False, "acwi"), ("Six-monthly, stop on Bearish – proceeds in the MSCI ACWI", hold, True, "acwi"),
+                ("Six-monthly, stop on Bearish – proceeds in cash", hold, True, "cash"), ("Monthly rebalancing (the rule as tested above)", 21, False, "acwi")]
+    for name, every, stop, park in variants:
+        runs = []
+        for o in (offsets if every == hold else [0]):
+            e, ns, nh, tr = simulate(every, o, stop, park)
+            st = stats(e, bp)
+            yrs = (e.index[-1] - e.index[0]).days / 365.25
+            st.update(stops=ns / yrs, held=nh, trades=tr / yrs)
+            runs.append(st)
+            if o == 0:
+                curves[name] = e
+        R = pd.DataFrame(runs)
+        out[name] = {c: float(R[c].mean()) for c in R.columns}
+        out[name].update(ret_min=float(R.ret.min()), ret_max=float(R.ret.max()), dd_worst=float(R["dd"].min()), runs=len(R))
+    e_b = (bp / bp.iloc[first_k]).iloc[first_k:]
+    allr = px.pct_change().mean(axis=1, skipna=True).fillna(0).iloc[first_k:]
+    allr.iloc[0] = 0.0
+    e_all = (1 + allr).cumprod()
+    out["MSCI ACWI"] = stats(e_b, bp)
+    out["All themes, equal weight"] = stats(e_all, bp)
+    return dict(stats=out, first=str(gd[first_k].date()), last=str(gd[-1].date()), offsets=len(offsets),
+                equity={k: [round(float(v), 4) for v in c] for k, c in list(curves.items())[:2]} | {"MSCI ACWI": [round(float(v), 4) for v in e_b]},
+                dates=[str(d.date()) for d in gd[first_k:]])
+
+
 def main():
     rv = build_review()
     prices = load_prices("data/prices_thematics")
-    P, dates, x = panel(rv, prices)
+    cached = OUT / "panel.csv"                               # the monthly readings take three minutes: reused if they end on the same day
+    P = pd.read_csv(cached, parse_dates=["date"]) if cached.exists() else None
+    b = prices.series(BENCH).dropna()
+    b = b[b.index <= rv.asof]
+    dates = [b.index[i] for i in range(320, len(b), STEP)]
+    if P is None or P.date.max() != dates[-1] or set(P.ticker) - set(rv.themes.ticker):
+        P, dates, _x = panel(rv, prices)
+        OUT.mkdir(parents=True, exist_ok=True)
+        P.to_csv(cached, index=False)
+    x = {"bench": b}
     M, out = run_variants(P, dates, x["bench"])
     OUT.mkdir(parents=True, exist_ok=True)
     M.to_csv(OUT / "backtest_monthly.csv")
@@ -161,6 +268,7 @@ def main():
         out["vs_themes"][n] = dict(excess=float(ex.mean() * 252 / STEP), t=float(ex.mean() / (ex.std() / np.sqrt(len(ex)))), hit=float((ex > 0).mean()))
     out["years"] = {int(y): {k: float((1 + g[c]).prod() - 1) for k, c in (("acwi", "acwi"), ("themes", "all_themes"), ("base", "Base rule"), ("all3", "All three"))}
                     for y, g in M.groupby(M.index.year)}
+    out["semi"] = semi_annual(P, rv, prices)
     (OUT / "backtest.json").write_text(json.dumps(out, indent=1))
     return out
 
@@ -175,5 +283,10 @@ if __name__ == "__main__":
             continue
         print(f"{k:34s} {s['ret']:7.1%} {s['vol']:6.1%} {s['dd']:7.1%} {s['rv']:6.2f} {s['excess']:7.1%} {s['hit']:5.0%} {s['t'] if s['t'] is not None else 0:5.2f} "
               + (f"{s['n']:5.1f} {s['empty']:6.0%} {s['turnover']:5.0%}" if "n" in s else ""))
+    sm = o["semi"]
+    print(f"\nsemi-annual test on a {GRID}-day grid, {sm['first']} to {sm['last']}, {sm['offsets']} starting months")
+    for k, v in sm["stats"].items():
+        print(f"{k:58s} ret {v['ret']:6.1%} vol {v['vol']:6.1%} dd {v['dd']:7.1%} excess {v['excess']:6.1%}"
+              + (f" | range {v['ret_min']:.1%}..{v['ret_max']:.1%} worst dd {v['dd_worst']:.1%} stops/yr {v['stops']:.1f} held {v['held']:.1f} runs {v['runs']}" if "runs" in v else ""))
     print("excess vs ACWI, first half :", {k: f"{v:+.1%}" for k, v in o["stats"]["_first_half"].items()})
     print("excess vs ACWI, second half:", {k: f"{v:+.1%}" for k, v in o["stats"]["_second_half"].items()})
