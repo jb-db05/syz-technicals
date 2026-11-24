@@ -194,6 +194,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 .heat td.cell { cursor: pointer; text-align: center; color: #fff; font-weight: 700; font-size: 12.5px; border: 2px solid var(--bg); border-radius: 0 }
 .heat td.cell small { display: block; font-weight: 600; opacity: .92; font-size: 11.5px }
 .heat td.split { padding: 0; background: transparent !important } .heat td.split > div { display: flex; gap: 2px } .heat td.split span { flex: 1 1 0; padding: 9px 4px; font-size: 12px; white-space: nowrap }
+.heat th.reg { border-left: 3px solid var(--bg); text-align: center } .heat th.split { padding-left: 0; padding-right: 0 } .heat th.split > div { display: flex; gap: 2px } .heat th.split span { flex: 1 1 0; text-align: center } .heat th.split .vs { font-weight: 600; color: #C9D1E2 }
 .heat td.cell:hover { outline: 2px solid var(--orange); outline-offset: -2px }
 .heat td.na { background: var(--surface) !important; color: var(--muted); font-weight: 600; cursor: default }
 .f-Bullish { background: var(--mint) !important } .f-Neutral { background: var(--blueb) !important } .f-Bearish { background: var(--mulb) !important }
@@ -400,7 +401,9 @@ function drawHeat(view) {
   const V = HV[view];
   $("h-title").textContent = V.title(); $("h-sub").textContent = V.sub;
   document.querySelectorAll("#h-views .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === view)));
-  $("h-table").innerHTML = `<thead><tr><th style="width:21%">Sector</th>${D.regions.map(g => `<th>${esc(g.name)}<span class="tk" style="color:#C9D1E2">vs ${esc(g.bname)}</span></th>`).join("")}</tr></thead><tbody>`
+  $("h-table").innerHTML = `<thead><tr><th style="width:21%">Sector</th>${D.regions.map(g => V.html
+      ? `<th class="reg split"><div><span>${esc(g.name)}</span><span class="vs">vs ${esc(g.bname)}</span></div></th>`
+      : `<th class="reg">${esc(g.name)}<span class="tk" style="color:#C9D1E2">vs ${esc(g.bname)}</span></th>`).join("")}</tr></thead><tbody>`
     + D.sector_keys.map(([k, n]) => `<tr><td><b>${esc(n)}</b></td>` + D.regions.map(g => { const r = sect.find(x => x.g === g.sg && x.sk === k);
         if (!r) return `<td class="cell na">n/a – series discontinued</td>`;
         if (V.html) return V.html(r);

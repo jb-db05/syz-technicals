@@ -388,7 +388,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     # page 1: each region = two half-cells (200-day direction | relative trend), a thin gap between regions
     hdr, col_w, spacers = ["Sector"], [1.75], []
     for k, r_ in enumerate(REGIONS):
-        hdr += [REGION_NAME[r_[0]], ""]
+        hdr += [REGION_NAME[r_[0]], f"vs {r_[2]}"]
         col_w += [0.85, 1.2]
         if k < len(REGIONS) - 1:
             spacers.append(len(hdr)); hdr.append(""); col_w.append(0.07)
@@ -410,12 +410,13 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         rows.append(row)
     s = deck.titled(f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day, "
                     f"{int((sect.rel_state == 'Outperform').sum())} Outperform their regional benchmark",
-                    "In each region – left: momentum (direction of the 200-day average); right: relative trend against the regional benchmark")
+                    "In each region – left: momentum (direction of the 200-day average); right: relative trend against the benchmark named above it")
     gt = table(s, X0, 2.5, W, hdr, rows, col_w, row_h=0.41, size=8, styles=st)
     c0 = 1
-    for k in range(len(REGIONS)):                      # region name centred over its two half-cells
-        gt.cell(0, c0).merge(gt.cell(0, c0 + 1))
-        gt.cell(0, c0).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    for k in range(len(REGIONS)):                      # region over the momentum half, its benchmark over the relative half
+        for c in (c0, c0 + 1):
+            gt.cell(0, c).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        gt.cell(0, c0 + 1).text_frame.paragraphs[0].runs[0].font.bold = False
         c0 += 3
     for c in spacers:
         gt.cell(0, c).fill.solid(); gt.cell(0, c).fill.fore_color.rgb = rgb("FFFFFF")
