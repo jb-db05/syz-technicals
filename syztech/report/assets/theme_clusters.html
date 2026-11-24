@@ -349,7 +349,7 @@ $("d-table").innerHTML = `<thead><tr><th style="width:38%">Keep one of</th><th>T
   `<tr><td><b>${esc(D.names[d.t[0]])}</b></td><td style="white-space:normal">${d.t.map(t => `<span class="chipx" title="${esc(D.names[t])}">${esc(t.replace(/ (Equity|Index|Curncy)$/, ""))}</span>`).join(" ")}</td><td class="r">${d.c.toFixed(2)}</td></tr>`).join("") + "</tbody>";
 const all = D.clusters.flatMap(c => c.members), chk = [];
 all.filter(m => m.b < 0).forEach(m => chk.push(`<b>${esc(m.t)}</b> (${esc(m.n)}): beta ${sg(m.b)} – an inverse product, not a theme.`));
-all.filter(m => /\b(corp|plc|ag-reg|inc)\b/i.test(m.n) && !/etf|ucits|trust|fund/i.test(m.n)).forEach(m => chk.push(`<b>${esc(m.t)}</b> (${esc(m.n)}): looks like a single company, not a fund or an index.`));
+all.filter(m => /\b(corp|plc|ag-reg|inc)\b/i.test(m.n) && !/etf|ucits|trust|fund/i.test(m.n) && !(D.keep || []).includes(m.t)).forEach(m => chk.push(`<b>${esc(m.t)}</b> (${esc(m.n)}): looks like a single company, not a fund or an index.`));
 all.filter(m => m.w < 120).forEach(m => chk.push(`<b>${esc(m.t)}</b> (${esc(m.n)}): only ${m.w} weeks of history in the three-year window.`));
 $("k-list").innerHTML = chk.map(t => `<li>${t}</li>`).join("") || "<li>Nothing to flag.</li>";
 $("f-src").textContent = `Sources : Syz Research, Bloomberg. Weekly closes in USD, ${D.d0} to ${D.d1}; a week counts only where both Fridays have a close.`;

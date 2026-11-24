@@ -41,6 +41,10 @@ NAMES = {
     "S5RETL Index": "US consumer discretionary", "S5MEDA Index": "US media & communication services"}
 
 
+# single listed companies kept on purpose as theme proxies (Florian, 24 Nov 2026): biotech and uranium
+KEEP_COMPANIES = ["BION SW Equity", "YCA LN Equity"]
+
+
 def _f(x, d=2):
     return None if x is None or pd.isna(x) else round(float(x), d)
 
@@ -101,7 +105,7 @@ def build():
             sub = M[np.ix_(ix, ix)]
             dup.append(dict(t=g, c=round(float(sub[np.triu_indices(len(g), 1)].min()), 2)))
     dup.sort(key=lambda d: -len(d["t"]))
-    data = dict(d0=f"{d0.day} {d0:%B %Y}", d1=f"{d1.day} {d1:%B %Y}", n=len(ok), k=len(clusters),
+    data = dict(keep=KEEP_COMPANIES, d0=f"{d0.day} {d0:%B %Y}", d1=f"{d1.day} {d1:%B %Y}", n=len(ok), k=len(clusters),
                 multi=sum(1 for c in clusters if not c["single"]), singles=sum(1 for c in clusters if c["single"]),
                 beta_med=_f(ok.beta.median()), corr_med=_f(ok.corr_mkt.median()), clusters=clusters, dup=dup,
                 names={t: (str(n).title() if str(n).isupper() else str(n)) for t, n in zip(ok.index, ok.name)})
