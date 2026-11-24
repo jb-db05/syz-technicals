@@ -339,3 +339,40 @@ def test_parabola_then_crash_below_last_swing_low_is_not_bullish():
     sup, res, so, ro, ss, rs_ = resolve_levels(s, None, None, None, None)
     r = evaluate(s, support=sup, resistance=res, support_start=ss, resistance_start=rs_)
     assert s.iloc[-1] < sup and r.verdict != "Bullish"
+
+
+# ── relative trend: the same rule on price ÷ benchmark (adopted 24 Nov 2026) ─────────────────────────────────────────
+
+def _flat_bench(s):
+    import pandas as pd
+    return pd.Series(100.0, index=s.index)
+
+
+def test_relative_verdict_outperform_is_the_bullish_rule_on_the_rs_line():
+    from syztech.trend.score import relative_verdict
+    up = _legs(1.3, 0.92, 1.3, 0.92, 1.3, 0.95, 1.1, n=80)
+    r = relative_verdict(up, _flat_bench(up))                # flat benchmark: the RS line is the price line
+    assert (r["rel_state"], r["rel_verdict"], r["rel_rule"]) == ("Outperform", BULLISH, "rising_support_intact")
+
+
+def test_relative_verdict_underperform_and_neutral_shades():
+    from syztech.trend.score import relative_verdict
+    down = _legs(0.8, 1.08, 0.8, 1.08, 0.8, 1.05, 0.9, n=80)
+    r = relative_verdict(down, _flat_bench(down))
+    assert r["rel_state"] == "Underperform" and r["rel_verdict"] in (BEARISH, BEARISH_LM)
+    s, _ = fx.rising_ma_support_intact_ma50_below()          # Neutral+ on the line -> Neutral relative trend
+    r = relative_verdict(s, _flat_bench(s))
+    assert (r["rel_state"], r["rel_verdict"]) == ("Neutral", NEUTRAL_POS)
+
+
+def test_relative_verdict_same_series_as_benchmark_is_never_outperform():
+    from syztech.trend.score import relative_verdict
+    up = _legs(1.3, 0.92, 1.3, 0.92, 1.3, 0.95, 1.1, n=80)
+    assert relative_verdict(up, up)["rel_state"] != "Outperform"   # RS line constant at 100: flat, no trend
+
+
+def test_relative_verdict_short_history_gives_no_state():
+    from syztech.trend.score import relative_verdict
+    up = _legs(1.3, 0.92, 1.3, n=40)
+    r = relative_verdict(up, _flat_bench(up))
+    assert r["rel_state"] is None and r["rel_verdict"] == INSUFFICIENT and r["rel_missing"]

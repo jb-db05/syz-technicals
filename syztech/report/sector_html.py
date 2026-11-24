@@ -35,7 +35,7 @@ def _row(r, charts):
     return dict(t=r.ticker, n=_s(nm), ind=_s(getattr(r, "industry", None)), ish=SHORT_IND.get(_s(getattr(r, "industry", None)), _s(getattr(r, "industry", None))),
                 b=_s(getattr(r, "bucket", None)), c=_f(r.close), d=int(r.decimals), s200=_s(r.slope200),
                 vs200=_f(r.vs200), c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52),
-                rs=_s(r.rs_trend), rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
+                rs=_s(getattr(r, "rel_state", None)), rsmom=_s(r.rs_trend), rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
                 hi52=_f(r.hi52), lo52=_f(r.lo52), hi100=_f(r.hi100), lo100=_f(r.lo100),
                 img=f"charts/{_slug(r.ticker)}.jpg" if r.ticker in charts else None,
                 lists=[x.strip() for x in _s(getattr(r, "syz_lists", None)).split(";") if x.strip()])

@@ -7,6 +7,20 @@ Version of 22 November 2026 (trend levels: swing rule adopted 22 Nov 2026). The 
 
 `build_sector_report.py` implements this spec exactly. Under the rule in force until 21 November 2026 (52-week levels), running it on the reference inputs reproduced both outputs pixel for pixel and part for part (only the save timestamps of three embedded workbooks differed). Since 22 November 2026 levels come from swings (§1.2), so the same inputs give the edition under the current rule.
 
+## Amendments of 23–24 November 2026 (they override the sections below; `build_sector_report.py` already implements them)
+
+1. **Swing threshold (23 Nov):** θ = 1.5 × the median one-month move of the past 252 bars (at least 120), not the current one-month move.
+2. **Variant B (23 Nov):** Bullish needs a rising 200-day, intact support **and the 50-day at or above the 200-day**. With the 50-day below: Neutral+ (rule `rising_support_intact_ma50_below`).
+3. **Breadth page and breakdown table (23 Nov):** only Bullish / Neutral / Bearish. Breadth page: three share boxes (% of stocks with a verdict) and a stacked column chart by sub-sector (Mint / Blueberry / Mulberry). Breakdown table columns: group · Stocks · ▲ Bullish · ◆ Neutral · ▼ Bearish · Median 3m · Median RS 3m.
+4. **Relative trend replaces RS Mom + / − (24 Nov):**
+   - Definition: the trend rule, unchanged, applied to the RS line (price ÷ benchmark × 100); swing levels only. Bullish on the line = **Outperform**, any Neutral shade = **Neutral**, Bearish or Bearish losing momentum = **Underperform**; no verdict = en dash.
+   - Fields: `rel_state`, `rel_verdict`, `rel_rule`. RS Mom (`rs_trend`) is still computed but no longer printed.
+   - Dashboard: column "Rel. trend" (bold, centred; Mint / Blueberry / Mulberry) in place of "RS Mom"; column widths 1.55, 0.64, 1.57, 0.6, 0.6, 0.58, 0.54, 0.54, 0.58, 0.64, 0.92, 0.58, 0.9 in. Sort: trend verdict, relative trend (Outperform, Neutral, Underperform), RS 3m. Title: "<bucket>: X of n Bullish, Y Outperform against the S&P 500".
+   - Sector page: title "S&P 500 IT: <label> trend, <relative trend> against the S&P 500"; tile "Relative trend vs S&P 500"; the footnote names both rules fired.
+   - Trend × relative grid: three columns (Outperform, fill E3F4EF · Neutral, E9ECF1 · Underperform, F6E8EF), widths 1.45, 2.94, 2.94, 2.95 in; title "Trend × relative trend: X stocks Bullish and Outperform, Y Bullish and Underperform".
+   - HTML: same wording; the filter offers Outperform / Neutral / Underperform; JSON key `rs` carries the relative trend, `rsmom` the old RS Mom.
+   - RS 3m is unchanged.
+
 Notation used throughout:
 
 - **x / y / w / h:** inches from the top-left of the slide.

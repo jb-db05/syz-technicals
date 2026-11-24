@@ -27,7 +27,7 @@ from .weekly import (AMBER, BLUEB, GREY, L_COVER, L_DISCLAIMER, L_FINAL, MINT, M
 
 MINUS = "−"
 SHORT_IND = {"Technology Hardware, Storage & Peripherals": "Hardware, storage & periph.",
-             "Semiconductor Materials & Equipment": "Semi materials & equipment",
+             "Semiconductor Materials & Equipment": "Semi mat. & equipment",
              "Internet Services & Infrastructure": "Internet services & infra.",
              "Electronic Equipment & Instruments": "Electronic equipment",
              "Electronic Manufacturing Services": "Electronic manufacturing",
@@ -97,8 +97,18 @@ def _vstyle(v):
     return verdict_style(v) if v in VGLYPH else {"fill": "E9ECF1", "color": GREY, "align": PP_ALIGN.CENTER}
 
 
-def _rs(v):
-    return {"outperforming": "+", "underperforming": MINUS}.get(v, EN_DASH)
+REL_ORDER = {"Outperform": 0, "Neutral": 1, "Underperform": 2}
+REL_COL = {"Outperform": MINT, "Neutral": BLUEB, "Underperform": MULB}
+REL_FILL = {"Outperform": "E3F4EF", "Neutral": "E9ECF1", "Underperform": "F6E8EF"}
+
+
+def _rel(v):
+    """Relative trend (the trend rule on price ÷ benchmark): Outperform / Neutral / Underperform, en dash if no verdict."""
+    return v if v in REL_ORDER else EN_DASH
+
+
+def _relstyle(v):
+    return {"color": REL_COL.get(v, GREY), "bold": True, "align": PP_ALIGN.CENTER}
 
 
 def _p(x, d=1):
@@ -112,15 +122,15 @@ def _posneg(x):
 def _sort(df):
     df = df.copy()
     df["vo"] = df.verdict.map(V_ORDER).fillna(9)
-    df["ro"] = df.rs_trend.map(RS_ORDER).fillna(9)
+    df["ro"] = df.rel_state.map(REL_ORDER).fillna(9)
     return df.sort_values(["vo", "ro", "rs_chg63"], ascending=[True, True, False])
 
 
 def momentum_dashboard(deck, df, title, bench, asof, footnote):
     s = deck.titled(title, "")
-    hdr = ["Stock", "Syz list", "Sub-industry", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", "RS Mom", "RS 3m",
+    hdr = ["Stock", "Syz list", "Sub-industry", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", "Rel. trend", "RS 3m",
            "Trend"]
-    col_w = [1.6, 0.66, 1.62, 0.64, 0.6, 0.6, 0.56, 0.56, 0.6, 0.68, 0.55, 0.6, 1.01]
+    col_w = [1.55, 0.64, 1.57, 0.6, 0.6, 0.58, 0.54, 0.54, 0.58, 0.64, 0.92, 0.58, 0.9]
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
     for lab, a_, b_, col in (("Absolute momentum", 3, 9, NAVY), (f"vs {bench}", 10, 11, ORANGE), ("Verdict", 12, 12, BLUEB)):
         box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, col, radius=0.25)
@@ -130,7 +140,7 @@ def momentum_dashboard(deck, df, title, bench, asof, footnote):
     for i, r in enumerate(df.itertuples()):
         lt = list_tag(getattr(r, "syz_lists", ""))
         rows.append([r.name, lt or EN_DASH, SHORT_IND.get(r.industry, r.industry or ""), num(r.close, r.decimals), r.slope200 or EN_DASH,
-                     _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m), _p(r.from_hi52), _rs(r.rs_trend), _p(r.rs_chg63),
+                     _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m), _p(r.from_hi52), _rel(r.rel_state), _p(r.rs_chg63),
                      _vtxt(r.verdict)])
         if lt:
             st[(i, 1)] = {"fill": "FFE9D6" if "Master" in lt else "E4E8F0", "color": ORANGE if lt == "★ Master" else NAVY,
@@ -142,8 +152,7 @@ def momentum_dashboard(deck, df, title, bench, asof, footnote):
         for j, v in ((5, r.vs200), (6, r.chg1m), (7, r.chg3m), (8, r.chg12m), (11, r.rs_chg63)):
             st[(i, j)] = _posneg(v)
         st[(i, 9)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
-        st[(i, 10)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
-                       "align": PP_ALIGN.CENTER}
+        st[(i, 10)] = _relstyle(r.rel_state)
         st[(i, 12)] = _vstyle(r.verdict)
     n = len(rows)
     rh = min(0.30, 5.0 / (n + 1))
@@ -201,8 +210,8 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
     counts = ok.verdict.map(_bucket).value_counts()
     nb = int(counts.get("Bullish", 0))
     above = int((df.vs200 > 0).sum())
-    out_n = int((df.rs_trend == "outperforming").sum())
-    under_n = int((df.rs_trend == "underperforming").sum())
+    out_n = int((df.rel_state == "Outperform").sum())
+    under_n = int((df.rel_state == "Underperform").sum())
     near_hi = int((df.from_hi52 >= -0.05).sum())
     insuf_note = (f" Insufficient history for a verdict: {', '.join(insufficient)}." if insufficient else "")
 
@@ -242,7 +251,7 @@ def build_sector_doc(df: pd.DataFrame, sector: pd.Series, charts: dict, out: Pat
 def sector_page(deck, sector, charts, bench, asof, sector_name):
     # sector against the market
     sv = sector.verdict
-    s = deck.titled(f"{sector_name}: {VLABEL.get(sv, sv)} trend, RS Mom {_rs(sector.rs_trend)} against the {bench}",
+    s = deck.titled(f"{sector_name}: {VLABEL.get(sv, sv)} trend, {_rel(sector.rel_state)} against the {bench}",
                     f"Sector index: absolute momentum and relative strength against the {bench}")
     tiles = [("Trend verdict", _vtxt(sv), MINT if sv == "Bullish" else MULB if str(sv).startswith("Bearish") else BLUEB),
              ("200-day average", sector.slope200 or EN_DASH, {"rising": MINT, "falling": MULB}.get(sector.slope200, BLUEB)),
@@ -251,7 +260,7 @@ def sector_page(deck, sector, charts, bench, asof, sector_name):
              ("1-month change", _p(sector.chg1m), MINT if sector.chg1m >= 0 else MULB),
              ("3-month change", _p(sector.chg3m), MINT if sector.chg3m >= 0 else MULB),
              ("12-month change", _p(sector.chg12m), MINT if sector.chg12m >= 0 else MULB),
-             (f"RS Mom vs {bench}", _rs(sector.rs_trend), {"outperforming": MINT, "underperforming": MULB}.get(sector.rs_trend, GREY)),
+             (f"Relative trend vs {bench}", _rel(sector.rel_state), REL_COL.get(sector.rel_state, GREY)),
              (f"RS 3m vs {bench}", _p(sector.rs_chg63), MINT if sector.rs_chg63 >= 0 else MULB)]
     for k, (lab, val, col) in enumerate(tiles):
         cx, cy = X0 + (k % 3) * 3.47, 2.55 + (k // 3) * 1.6
@@ -260,7 +269,7 @@ def sector_page(deck, sector, charts, bench, asof, sector_name):
         text(s, cx + 0.25, cy + 0.14, 2.9, 0.3, lab, size=10, color=BLUEB)
         text(s, cx + 0.25, cy + 0.5, 2.9, 0.7, val, size=24, color=col, bold=True, anchor=MSO_ANCHOR.MIDDLE)
     source(s, asof, f"Last close {num(sector.close, sector.decimals)}. 52-week low {num(sector.lo52, sector.decimals)}, "
-                    f"high {num(sector.hi52, sector.decimals)}. Rule fired: {sector.rule}. Chart on the next page; its lower panel: share of "
+                    f"high {num(sector.hi52, sector.decimals)}. Rule fired: {sector.rule}; on relative strength: {sector.rel_rule}. Chart on the next page; its lower panel: share of "
                     f"today's constituents with a rising 200-day average, each counted once it has 220 closes (survivorship applies).")
     if sector.ticker in charts:
         full_page_chart(deck, charts[sector.ticker])
@@ -270,23 +279,22 @@ def index_page(deck, sector, indices, charts, bench, asof, bench_note="", headin
     """The market index and the other indices against it: one table, then every index chart."""
     rows_df = pd.concat([sector.to_frame().T, indices], ignore_index=True)
     parts = [f"{VLABEL.get(sector.verdict, sector.verdict)} trend for the {sector['name']}"]
-    parts += [f"{r.name} RS Mom {_rs(r.rs_trend)}" for r in indices.itertuples()]
+    parts += [f"{r.name} {_rel(r.rel_state)}" for r in indices.itertuples()]
     s = deck.titled(f"{heading}: {parts[0]}; " + ", ".join(parts[1:]) + f" against the {bench}",
                     f"Absolute momentum of each index and relative strength against the {bench}")
-    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", f"RS Mom vs {bench}", f"RS 3m vs {bench}", "Trend"]
-    col_w = [1.6, 0.95, 0.75, 0.8, 0.75, 0.75, 0.8, 0.95, 1.05, 1.0, 0.88]
+    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high", f"Rel. trend vs {bench}", f"RS 3m vs {bench}", "Trend"]
+    col_w = [1.45, 0.95, 0.75, 0.8, 0.7, 0.7, 0.75, 0.95, 1.35, 1.0, 0.88]
     rows, st = [], {}
     for i, r in enumerate(rows_df.itertuples()):
         rows.append([r.name, num(r.close, r.decimals), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
-                     _p(r.from_hi52), _rs(r.rs_trend) if i else EN_DASH, _p(r.rs_chg63) if i else EN_DASH, _vtxt(r.verdict)])
+                     _p(r.from_hi52), _rel(r.rel_state) if i else EN_DASH, _p(r.rs_chg63) if i else EN_DASH, _vtxt(r.verdict)])
         st[(i, 0)] = {"bold": True}
         st[(i, 2)] = {"color": {"rising": MINT, "falling": MULB}.get(r.slope200, BLUEB), "align": PP_ALIGN.LEFT}
         for j, v in ((3, r.vs200), (4, r.chg1m), (5, r.chg3m), (6, r.chg12m)):
             st[(i, j)] = _posneg(v)
         st[(i, 7)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
         if i:
-            st[(i, 8)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
-                          "align": PP_ALIGN.CENTER}
+            st[(i, 8)] = _relstyle(r.rel_state)
             st[(i, 9)] = _posneg(r.rs_chg63)
         st[(i, 10)] = _vstyle(r.verdict)
     table(s, X0, 2.6, W, hdr, rows, col_w, row_h=0.42, size=10, styles=st)
@@ -388,14 +396,14 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     for b in bk:
         x = _sort(g[b])
         xb = int((x.verdict == "Bullish").sum())
-        xo = int((x.rs_trend == "outperforming").sum())
+        xo = int((x.rel_state == "Outperform").sum())
         pages = max(1, -(-len(x) // max_rows))
         per = -(-len(x) // pages)
         for p in range(pages):
             part = x.iloc[p * per:(p + 1) * per]
             sfx = f" ({p + 1}/{pages})" if pages > 1 else ""
-            momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} with RS Mom + against the {bench}{sfx}", bench, asof,
-                               f"Sorted by trend verdict, then RS Mom, then RS 3m. Changes on closing prices, total return not included. "
+            momentum_dashboard(deck, part, f"{b}: {xb} of {len(x)} Bullish, {xo} Outperform against the {bench}{sfx}", bench, asof,
+                               f"Sorted by trend verdict, then relative trend (the trend rule on price ÷ {bench}), then RS 3m. Changes on closing prices, total return not included. "
                                f"vs 52w high in green when within 5%. Syz list: Focus List / Master list{lists_asof}, shown for information, "
                                f"not part of the verdict.{bench_note}" + (insuf_note if set(insufficient) & set(part.name) else ""))
 
@@ -432,27 +440,29 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     source(s, asof, f"Median of all constituents: {_p(rk.rs_chg63.median())}.{bench_note}")
 
     # trend × RS grid
-    bull_lag = ok[(ok.verdict == "Bullish") & (ok.rs_trend == "underperforming")]
-    s = deck.titled(f"{len(bull_lag)} stocks are in an uptrend while their relative-strength trend points down",
-                    f"Trend verdict against relative strength versus the {bench}")
+    bull_lag = ok[(ok.verdict == "Bullish") & (ok.rel_state == "Underperform")]
+    bull_lead = ok[(ok.verdict == "Bullish") & (ok.rel_state == "Outperform")]
+    s = deck.titled(f"Trend × relative trend: {len(bull_lead)} stocks Bullish and Outperform, {len(bull_lag)} Bullish and Underperform",
+                    f"Trend verdict against relative trend versus the {bench}")
     rows, st = [], {}
-    cols = ["outperforming", "underperforming"]
+    cols = list(REL_ORDER)
     for i, v in enumerate(["Bullish", "Neutral+", "Neutral", "Neutral-", "Bearish"]):
         row = [f"{VGLYPH[v]} {VLABEL[v]}"]
         st[(i, 0)] = verdict_style(v)
         for j, ct in enumerate(cols, start=1):
-            nm = ok[(ok.verdict.replace("Bearish_LM", "Bearish") == v) & (ok.rs_trend == ct)].sort_values("name").name.tolist()
+            nm = ok[(ok.verdict.replace("Bearish_LM", "Bearish") == v) & (ok.rel_state == ct)].sort_values("name").name.tolist()
             row.append(", ".join(nm) or EN_DASH)
-            st[(i, j)] = {"fill": {"outperforming": "E3F4EF", "underperforming": "F6E8EF"}[ct], "align": PP_ALIGN.LEFT}
+            st[(i, j)] = {"fill": REL_FILL[ct], "align": PP_ALIGN.LEFT}
         rows.append(row)
-    # row height follows the longest cell (about 95 characters per line at 8 pt in 4.4 in), 4.95 in in total
-    lines = [max(1, max(-(-len(c) // 95) for c in r[1:])) for r in rows]
+    # row height follows the longest cell (about 62 characters per line at 8 pt in 2.94 in), 4.95 in in total
+    lines = [max(1, max(-(-len(c) // 62) for c in r[1:])) for r in rows]
     unit = min(0.2, (4.95 - 0.3) / sum(l + 1 for l in lines))
-    gt = table(s, X0, 2.5, W, ["Trend", f"RS Mom + (gaining on the {bench})", f"RS Mom − (losing to the {bench})"], rows,
-               [1.45, 4.4, 4.43], row_h=0.3, size=8, styles=st)
+    gt = table(s, X0, 2.5, W, ["Trend", f"Outperform vs {bench}", "Neutral", f"Underperform vs {bench}"], rows,
+               [1.45, 2.94, 2.94, 2.95], row_h=0.3, size=8, styles=st)
     for i, l in enumerate(lines, start=1):
         gt.rows[i].height = Inches(unit * (l + 1))
-    source(s, asof, f"RS Mom: direction of the 200-day average of relative strength (stock ÷ {bench}) over 20 trading days." + insuf_note)
+    source(s, asof, f"Relative trend: the trend rule (200-day slope, swing levels, 50-day vs 200-day) applied to stock ÷ {bench}. "
+                    f"Stocks without a relative verdict are not shown." + insuf_note)
 
     # trigger watch
     tw = trigger_watch(df)
@@ -477,9 +487,9 @@ def _rest(deck, df, ok, n, n_ok, counts, nb, above, out_n, near_hi, insuf_note, 
     items = [("Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."),
              ("Structure", "Support = last confirmed swing low, resistance = last swing high (a swing needs a 1.5 × one-month-move "
                            "reversal). A support break stands until a resistance break."),
-             ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
+             ("Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
              ("Absolute momentum", "Price against its 200-day average; 1-, 3- and 12-month price change; distance from the 52-week high."),
-             ("Relative strength", f"RS Mom: is the 200-day average of price ÷ {bench} rising (+) or falling (−)? The 3-month change is the early warning. It informs, it does not change the verdict.")]
+             ("Relative strength", f"The same rule applied to price ÷ {bench}: Outperform, Neutral or Underperform. The 3-month change in relative strength is the early warning. It informs, it does not change the absolute verdict.")]
     for k, (lab, body) in enumerate(items):
         y = 2.55 + k * 0.98
         box(s, X0, y, 2.2, 0.8, NAVY if k % 2 else ORANGE)

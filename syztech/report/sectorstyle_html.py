@@ -47,7 +47,7 @@ def build_sector_style_html(df: pd.DataFrame, charts: dict, points: dict, out_di
         sn = short_name(_s(r.name))
         rows.append(dict(t=r.ticker, n=_s(r.name), sn=sn, ml=MAP_LABELS.get(sn, sn), g=_s(r.group), reg=_s(r.region),
                          sk=_s(r.sector_key), c=_f(r.close), d=int(r.decimals), s200=_s(r.slope200), vs200=_f(r.vs200),
-                         c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52), rs=_s(r.rs_trend),
+                         c1=_f(r.chg1m), c3=_f(r.chg3m), c12=_f(r.chg12m), fh=_f(r.from_hi52), rs=_s(getattr(r, "rel_state", None)), rsmom=_s(r.rs_trend),
                          rs3=_f(r.rs_chg63), v=_s(r.verdict), rule=_s(getattr(r, "rule", None)),
                          b=BENCH_NAMES.get(_s(r.benchmark), _s(r.benchmark)), img=img.get(r.ticker)))
     maps = {}

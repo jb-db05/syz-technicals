@@ -3,12 +3,31 @@ from __future__ import annotations
 
 import pandas as pd
 
-from ..indicators.rs import rs_summary
+from ..indicators.rs import relative_strength, rs_summary
 from ..io.bloomberg_prices import LoadResult
-from .rules import DEFAULT_PARAMS, INSUFFICIENT, NEUTRAL, TrendParams, evaluate
+from .rules import BEARISH, BEARISH_LM, BULLISH, DEFAULT_PARAMS, INSUFFICIENT, NEUTRAL, TrendParams, evaluate
 from .swing_levels import swing_levels
 
 FALLBACK_ORIGINS = ("52w", "swing")      # levels with these origins are recomputed at every run, never treated as drawn
+
+
+REL_STATE = {BULLISH: "Outperform", BEARISH: "Underperform", BEARISH_LM: "Underperform"}   # every Neutral shade -> Neutral
+
+
+def relative_verdict(s: pd.Series, b: pd.Series, params: TrendParams = DEFAULT_PARAMS) -> dict:
+    """The trend rule in force applied to the relative-strength line (price ÷ benchmark), adopted 24 Nov 2026.
+
+    Same swing levels (k = 1.5), same verdict table; no drawn levels on RS lines. rel_state is None when the RS line
+    is too short for a verdict (rel_missing names what is missing)."""
+    rs = relative_strength(s, b).dropna()
+    if not len(rs):
+        return {"rel_state": None, "rel_verdict": INSUFFICIENT, "rel_rule": "no_common_dates", "rel_missing": "no common dates with the benchmark"}
+    sup, res, so, ro, ss, rs_ = resolve_levels(rs, None, None, None, None)
+    r = evaluate(rs, params, sup, res, None, support_start=ss, resistance_start=rs_)
+    if r.verdict == INSUFFICIENT:
+        return {"rel_state": None, "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": r.missing}
+    return {"rel_state": REL_STATE.get(r.verdict, "Neutral"), "rel_verdict": r.verdict, "rel_rule": r.rule, "rel_missing": None,
+            "rel_support": sup, "rel_resistance": res, "rel_support_origin": so, "rel_resistance_origin": ro}
 
 
 def _opt(x):
@@ -90,7 +109,9 @@ def score_universe(prices: LoadResult, universe: pd.DataFrame, asof=None,
             if isinstance(bench, str) and bench:
                 if bench in prices.reports:
                     b = prices.series(bench)
-                    row.update(rs_summary(s, b[b.index <= s.index[-1]]))
+                    b = b[b.index <= s.index[-1]]
+                    row.update(rs_summary(s, b))
+                    row.update(relative_verdict(s, b, params))
                 else:
                     row["rs_note"] = f"benchmark {bench} not in export"
         rows.append(row)

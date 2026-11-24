@@ -88,6 +88,7 @@ def instrument_table(scores: pd.DataFrame, universe: pd.DataFrame, prices, trend
             published=pub, mechanical=r.verdict, lt_view=r.get("lt_view"),
             verdict=pub or r.verdict, verdict_kind="published" if pub else "rules-based",
             rs_trend=r.get("rs_trend"), rs_chg63=r.get("rs_chg63"), benchmark=ur.get("benchmark"),
+            rel_state=r.get("rel_state"), rel_rule=r.get("rel_rule"),
             last_date=end,
         ))
     return pd.DataFrame(rows)

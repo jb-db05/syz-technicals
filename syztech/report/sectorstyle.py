@@ -23,8 +23,8 @@ from ..fmt import EN_DASH, num
 from ..indicators.ma import sma
 from ..indicators.rs import relative_strength
 from ..io.bloomberg_prices import SeriesReport
-from .listdoc import RS_ORDER, V_ORDER
-from .sectordoc import _p, _posneg, _rs, _vstyle, _vtxt
+from .listdoc import V_ORDER
+from .sectordoc import REL_ORDER, _p, _posneg, _rel, _relstyle, _vstyle, _vtxt
 from .weekly import (AMBER, BLUEB, GREY, L_COVER, L_DISCLAIMER, L_FINAL, MINT, MULB, NAVY, ORANGE, SKY, VGLYPH, VLABEL, W, X0,
                      Deck, box, chart_image, full_page_chart, source, table, text, verdict_style)
 
@@ -199,7 +199,7 @@ def rotation_map(pts: pd.DataFrame, labels: dict, verdicts: dict, out: Path, ben
 def _sort(df):
     df = df.copy()
     df["vo"] = df.verdict.map(V_ORDER).fillna(9)
-    df["ro"] = df.rs_trend.map(RS_ORDER).fillna(9)
+    df["ro"] = df.rel_state.map(REL_ORDER).fillna(9)
     return df.sort_values(["vo", "ro", "rs_chg63"], ascending=[True, True, False])
 
 
@@ -218,8 +218,8 @@ def index_table(deck, df, title, subtitle, bench, asof, note, rs=True, first_is_
     footnote (the column-group labels sit where a subtitle would)."""
     s = deck.titled(title, "")
     note = f"{subtitle}. {note}" if subtitle else note
-    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high"] + (["RS Mom", "RS 3m"] if rs else []) + ["Trend"]
-    col_w = [2.6, 0.85, 0.7, 0.7, 0.65, 0.65, 0.7, 0.85] + ([0.65, 0.75] if rs else []) + [1.18]
+    hdr = ["Index", "Last", "200-day", "vs 200d", "1m", "3m", "12m", "vs 52w high"] + (["Rel. trend", "RS 3m"] if rs else []) + ["Trend"]
+    col_w = [2.3, 0.85, 0.7, 0.7, 0.65, 0.65, 0.7, 0.85] + ([1.15, 0.7] if rs else []) + [1.1]
     k = sum(col_w)
     col_w = [w_ * W / k for w_ in col_w]
     xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
@@ -234,7 +234,7 @@ def index_table(deck, df, title, subtitle, bench, asof, note, rs=True, first_is_
         row = [r.name if (is_b or not strip) else short_name(r.name), num(r.close, r.decimals), r.slope200 or EN_DASH, _p(r.vs200), _p(r.chg1m), _p(r.chg3m), _p(r.chg12m),
                _p(r.from_hi52)]
         if rs:
-            row += [EN_DASH if is_b else _rs(r.rs_trend), EN_DASH if is_b else _p(r.rs_chg63)]
+            row += [EN_DASH if is_b else _rel(r.rel_state), EN_DASH if is_b else _p(r.rs_chg63)]
         row.append(_vtxt(r.verdict))
         rows.append(row)
         st[(i, 0)] = {"bold": is_b, "align": PP_ALIGN.LEFT}
@@ -243,8 +243,7 @@ def index_table(deck, df, title, subtitle, bench, asof, note, rs=True, first_is_
             st[(i, j)] = _posneg(v)
         st[(i, 7)] = {"color": MINT if (pd.notna(r.from_hi52) and r.from_hi52 >= -0.05) else NAVY, "align": PP_ALIGN.RIGHT}
         if rs and not is_b:
-            st[(i, 8)] = {"color": {"outperforming": MINT, "underperforming": MULB}.get(r.rs_trend, GREY), "bold": True,
-                          "align": PP_ALIGN.CENTER}
+            st[(i, 8)] = _relstyle(r.rel_state)
             st[(i, 9)] = _posneg(r.rs_chg63)
         if is_b:
             for j in range(len(hdr) - 1):
@@ -261,15 +260,15 @@ def _family(v):
 
 
 def key_readings(df: pd.DataFrame):
-    """Facts for the key-readings page: Bullish regions, regions with RS Mom +, and three columns of bullet lines."""
+    """Facts for the key-readings page: Bullish regions, regions that Outperform, and three columns of bullet lines."""
     by_t = df.set_index("ticker")
     sect = df[df.sector_key.notna() & df.group.str.contains("Sectors", na=False)]
     ratios = df[df.group.str.endswith("Ratios", na=False)]
     acwi = by_t.loc["MXWD Index"] if "MXWD Index" in by_t.index else None
     reg_t = (("US", "MXUS Index"), ("Europe", "MXEU Index"), ("Japan", "MXJP Index"), ("EM", "MXEF Index"))
     nb_reg = [REGION_NAME[r] for r, t in reg_t if t in by_t.index and by_t.loc[t].verdict == "Bullish"]
-    out_reg = [REGION_NAME[r] for r, t in reg_t if t in by_t.index and by_t.loc[t].rs_trend == "outperforming"]
-    cols = [("Regions", [f"Bullish: {', '.join(nb_reg) or 'none'}.", f"RS Mom + against the ACWI: {', '.join(out_reg) or 'none'}."]
+    out_reg = [REGION_NAME[r] for r, t in reg_t if t in by_t.index and by_t.loc[t].rel_state == "Outperform"]
+    cols = [("Regions", [f"Bullish: {', '.join(nb_reg) or 'none'}.", f"Outperform against the ACWI: {', '.join(out_reg) or 'none'}."]
              + ([f"MSCI ACWI: {VLABEL.get(acwi.verdict, acwi.verdict)}, {_p(acwi.vs200)} vs its 200-day."] if acwi is not None else []))]
     lines = []
     for reg, bench, bname, sg, *_ in REGIONS:
@@ -302,7 +301,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     sect = df[df.sector_key.notna() & df.group.str.contains("Sectors", na=False)]
     ratios = df[df.group.str.endswith("Ratios", na=False)]
     drop_note = (" Left out: " + "; ".join(dropped) + ".") if dropped else ""
-    rs_note = "RS Mom: direction of the 200-day average of relative strength over 20 trading days; RS 3m: its 3-month change."
+    rs_note = "Rel. trend: the trend rule applied to index ÷ benchmark (Outperform / Neutral / Underperform); RS 3m: 3-month change in relative strength."
 
     # ── cover
     s = deck.slide(L_COVER)
@@ -326,7 +325,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         y = 2.35 + k * 1.05
         text(s, 6.45, y, 2.6, 0.5, REGION_NAME[reg], size=16, color="FFFFFF", bold=True)
         text(s, 6.45, y + 0.42, 4.6, 0.4, [[(f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}", {"color": col, "bold": True}),
-                                           (f"   RS Mom {_rs(r.rs_trend)} · RS 3m {_p(r.rs_chg63)}", {"color": "C9D1E2"})]], size=11)
+                                           (f"   {_rel(r.rel_state)} · RS 3m {_p(r.rs_chg63)}", {"color": "C9D1E2"})]], size=11)
     text(s, 6.45, 6.75, 4.6, 0.3, f"{len(sect)} sector indices · {len(ratios)} style & size ratios", size=10, color=GREY)
     text(s, 0.73, 7.45, 4.8, 0.3, "Florian Marini, CFA, CMT – Head of Research", size=10, color=BLUEB)
     if draft:
@@ -334,7 +333,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
 
     # ── key readings (facts only)
     nb_reg, out_reg, cols = key_readings(df)
-    s = deck.titled(f"Key readings: {len(nb_reg)} of 4 regions Bullish, {len(out_reg)} with RS Mom + against the MSCI ACWI",
+    s = deck.titled(f"Key readings: {len(nb_reg)} of 4 regions Bullish, {len(out_reg)} Outperform against the MSCI ACWI",
                     "Rules-based facts from the trend engine; no published view")
     est = max(sum(-(-len(l) // 44) for l in ls) for _, ls in cols)        # wrapped lines at 10 pt in 3.0 in
     bh = min(4.45, 0.3 + est * 0.19)
@@ -348,7 +347,7 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
 
     # ── regions against the ACWI
     reg_df = pd.concat([regions[regions.ticker == "MXWD Index"], _sort(regions[regions.ticker != "MXWD Index"])])
-    index_table(deck, reg_df, f"Regions: {len(out_reg)} of 4 with RS Mom + against the MSCI ACWI",
+    index_table(deck, reg_df, f"Regions: {len(out_reg)} of 4 Outperform against the MSCI ACWI",
                 "MSCI indices in USD; relative strength against the MSCI ACWI", "MSCI ACWI", asof, rs_note, first_is_bench=True)
     if "regions" in maps:
         s = deck.titled("Rotation of the regions against the MSCI ACWI", "Relative trend (x) against relative momentum (y); tails: last four weeks")
@@ -370,13 +369,13 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
                 continue
             r = x.iloc[0]
             fam = _family(r.verdict)
-            row.append(f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}   RS {_rs(r.rs_trend)}  {_p(r.rs_chg63)}")
+            row.append(f"{VGLYPH.get(r.verdict, '')} {VLABEL.get(r.verdict, r.verdict)}\nrel. {_rel(r.rel_state)} · {_p(r.rs_chg63)}")
             st[(i, j)] = {**(verdict_style(r.verdict) if fam else {"fill": "E9ECF1", "color": GREY}), "align": PP_ALIGN.CENTER}
         rows.append(row)
     nbull = int((sect.verdict == "Bullish").sum())
     s = deck.titled(f"Global sector map: {nbull} of {len(sect)} sector indices Bullish",
-                    "Trend verdict per sector and region; RS Mom and 3-month relative strength against the regional benchmark")
-    table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.4, size=9, styles=st)
+                    "Per sector and region: trend verdict (first line, cell colour); relative trend and 3-month relative strength against the regional benchmark (second line)")
+    table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=8.5, styles=st)
     source(s, asof, "Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index "
                     "(USD). " + rs_note + drop_note)
 
@@ -409,8 +408,8 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         if b is not None:
             x = pd.concat([df[df.ticker == bench], x])
         nb = int((gl(sg).verdict == "Bullish").sum())
-        no = int((gl(sg).rs_trend == "outperforming").sum())
-        index_table(deck, x, f"{REGION_NAME[reg]}: {nb} of {len(gl(sg))} sectors Bullish, {no} with RS Mom + against the {bname}",
+        no = int((gl(sg).rel_state == "Outperform").sum())
+        index_table(deck, x, f"{REGION_NAME[reg]}: {nb} of {len(gl(sg))} sectors Bullish, {no} Outperform against the {bname}",
                     f"{bname} and its sectors{' (USD)' if reg != 'US' else ''}", bname, asof, rs_note + drop_note, first_is_bench=b is not None)
         if f"{reg}_sectors" in maps:
             s = deck.titled(f"{REGION_NAME[reg]}: sector rotation against the {bname}",
@@ -426,8 +425,8 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
             label = "Stoxx 600 supersectors" if reg == "Europe" else "S&P 500 industry groups"
             index_table(deck, pd.concat([head, y]) if len(head) else y,
                         f"{label}: {int((y.verdict == 'Bullish').sum())} of {len(y)} Bullish, "
-                        f"{int((y.rs_trend == 'outperforming').sum())} with RS Mom + against the {ibn}",
-                        f"{'EUR' if reg == 'Europe' else 'USD'}; sorted by trend verdict, then RS Mom, then RS 3m", ibn, asof, rs_note,
+                        f"{int((y.rel_state == 'Outperform').sum())} Outperform against the {ibn}",
+                        f"{'EUR' if reg == 'Europe' else 'USD'}; sorted by trend verdict, then relative trend, then RS 3m", ibn, asof, rs_note,
                         first_is_bench=len(head) > 0)
             if f"{reg}_industries" in maps:
                 s = deck.titled(f"{label}: rotation against the {ibn}", "Relative trend (x) against relative momentum (y); tails: last four weeks")
@@ -444,8 +443,8 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     s = deck.titled("How to read this document", "One rule set, applied to every index and ratio")
     items = [("Trend", "Direction of the 200-day average over 20 trading days; support / resistance = last confirmed swing low / high "
                        "(1.5 × one-month-move reversal); a broken swing low stays the level until the resistance breaks."),
-             ("Verdict", "Rising trend + intact support = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
-             ("Relative strength", "Index ÷ benchmark. RS Mom: direction of its 200-day average; RS 3m: its 3-month change. It informs, it does not change the verdict."),
+             ("Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."),
+             ("Relative strength", "The same rule applied to index ÷ benchmark: Outperform, Neutral or Underperform. RS 3m: its 3-month change. It informs, it does not change the absolute verdict."),
              ("Ratios", "Style and size as ratios (e.g. Growth ÷ Value, rebased to 100), read with the same trend rules: Bullish = numerator leads."),
              ("Rotation map", "x: relative strength vs its 200-day average; y: its 3-month change. Leading = above and rising; Weakening = above, falling; "
                               "Lagging = below, falling; Improving = below, rising.")]
