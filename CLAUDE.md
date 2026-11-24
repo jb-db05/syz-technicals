@@ -27,6 +27,13 @@ Florian Marini, CFA, CMT – Head of Research, Syz Private Banking. Senior techn
 - **Charts, relative-strength panel (24 Nov 2026)**: the RS line is blue (`#2F6FDE`) while its 200-day average is rising and red (`#D8343F`) while it is falling, bar by bar; grey before the average exists; the 200-day of RS is a thin navy line. These two colours are outside the Syz palette, at Florian's request.
 - Never change the trend rule or k without a new study and Florian's decision.
 
+## Thematic Technical Review (started 24 Nov 2026 – draft, HTML only so far)
+- Data: `data/prices_thematics`, `data/universe_thematics.csv` (315 themes + 14 factor series; SARK US and NUCL US removed; BION SW and YCA LN kept as the biotech and uranium proxies). Everything in USD, dividend-adjusted.
+- Stage 1, clusters (`syztech/research/theme_clusters.py`, review page `theme_cluster_page.py`): three years of weekly returns, MSCI ACWI beta removed, average-linkage clustering on the residual correlations (cut 0.55). Cluster names in `theme_cluster_page.NAMES` are confirmed by Florian. Removing the dollar as well was tested and not adopted (the Europe block stays whole); instead the Europe block is split one level down (cut 0.30, names in `thematic.SUB_NAMES`). Broad market and country funds stay as an anchor.
+- Duplicates: one line per set of series with residual correlation ≥ 0.95 – a fund before an index, then the longest history.
+- Stage 2 (`syztech/report/thematic.py`, page `thematic_html.py`): each theme and each equal-weight cluster composite is read with the trend engine in force and the relative trend against the MSCI ACWI. Momentum score (ranking only): average over 3 / 6 / 12 months of return minus ACWI, divided by own volatility. Shortlist = Bullish + rising 200-day + Outperform, at most 2 per cluster; watch list = Neutral + rising + Outperform.
+- The momentum ranking was tested on the cluster composites (monthly, Feb 2020 – Oct 2026): top third minus bottom third +0.09% over one month, +0.46% over three, not significant. It orders the shortlist; it is never presented as a forecast.
+
 ## Style conventions (outputs, charts, text)
 - Nunito Sans everywhere; Syz colours: Mint `#3BAF90` bullish, Blueberry `#4B5F80` neutral, Mulberry `#AC5D85` bearish, orange `#FF6C0E → #FFA400`, navy `#202945`.
 - En dashes only (U+2013). Decimals: 1 for equities/commodities/crypto, 2 for FX and yields, 4 where `universe.csv` says so.
