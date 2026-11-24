@@ -58,7 +58,8 @@ def build(out_dir: Path = OUT, charts: bool = True, edition: str = "") -> Path:
     work.mkdir(parents=True, exist_ok=True)
     shutil.copy(ASSETS / "syz_logo.png", out_dir / "syz_logo.png")
     img = {}
-    items = [(r.ticker, r.name, r) for r in rv.themes.itertuples()] + [(r.key, f"{r.cluster} – cluster composite", r) for r in rv.clusters.itertuples() if r.n > 1]
+    items = ([(r.ticker, r.name, r) for r in rv.themes.itertuples()] + [(r.ticker, r.name, r) for r in rv.anchors.itertuples()]
+             + [(r.key, f"{r.cluster} – cluster composite", r) for r in rv.clusters.itertuples() if r.n > 1])
     if charts:
         for key, name, r in items:
             s = rv.series[key]
@@ -80,8 +81,9 @@ def build(out_dir: Path = OUT, charts: bool = True, edition: str = "") -> Path:
             p = out_dir / "charts" / f"{_slug(key)}.jpg"
             if p.exists():
                 img[key] = f"charts/{p.name}"
-    themes = [dict(t=r.ticker, n=r.name, cid=int(r.cid), dups=_s(r.dups), **_row(r, img.get(r.ticker))) for r in rv.themes.itertuples()]
-    clusters = [dict(t=r.key, cid=int(r.cid), n=r.cluster, parent=_s(r.parent), size=int(r.n), nb=int(r.n_bull), nr=int(r.n_rising),
+    themes = [dict(t=r.ticker, n=r.name, cid=int(r.cid), sub=_s(r.sub), dups=_s(r.dups), **_row(r, img.get(r.ticker))) for r in rv.themes.itertuples()]
+    anchors = [dict(t=r.ticker, n=r.name, type=r.type, dups=_s(r.dups), **_row(r, img.get(r.ticker))) for r in rv.anchors.itertuples()]
+    clusters = [dict(t=r.key, cid=int(r.cid), n=r.cluster, parent=_s(r.parent), single=bool(r.single), size=int(r.n), nb=int(r.n_bull), nr=int(r.n_rising),
                      no=int(r.n_out), nok=int(r.n_ok), **_row(r, img.get(r.key))) for r in rv.clusters.itertuples()]
     a, w = shortlist(rv)
     multi = [r.key for r in rv.clusters.itertuples() if r.n > 1]
@@ -95,16 +97,16 @@ def build(out_dir: Path = OUT, charts: bool = True, edition: str = "") -> Path:
     from .thematic import read
     acwi = read(bn, None)
     d = rv.asof
-    data = dict(asof=f"{d.day} {d:%B %Y}", edition=edition or f"{d.day} {d:%B %Y}", vlabel=VLABEL, themes=themes, clusters=clusters,
+    data = dict(asof=f"{d.day} {d:%B %Y}", edition=edition or f"{d.day} {d:%B %Y}", vlabel=VLABEL, themes=themes, clusters=clusters, anchors=anchors,
                 short=list(a.ticker), watch=list(w.ticker), cap=MAX_PER_CLUSTER, rot=rot,
                 acwi=dict(v=acwi["verdict"], s200=acwi.get("slope200"), vs200=_f(acwi.get("vs200")), c3=_f(acwi.get("chg3m")), c12=_f(acwi.get("chg12m"))),
-                n_all=len(rv.themes) + sum(len(v) for v in rv.dropped.values()), n_dup=sum(len(v) for v in rv.dropped.values()),
+                n_all=len(rv.themes) + len(rv.anchors) + sum(len(v) for v in rv.dropped.values()), n_dup=sum(len(v) for v in rv.dropped.values()),
                 window=[f"{x.day} {x:%B %Y}" for x in rv.window],
                 test=dict(dates=test["dates"], first=f"{test['first']:%B %Y}", last=f"{test['last']:%B %Y}",
                           f1={k: _f(v, 5) for k, v in test["f1"].items()}, f3={k: _f(v, 5) for k, v in test["f3"].items()}))
     html = (ASSETS / "thematic.html").read_text(encoding="utf-8").replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False))
     (out_dir / "index.html").write_text(html, encoding="utf-8")
-    print(f"written: {out_dir / 'index.html'} – {len(themes)} themes, {len(clusters)} clusters, {len(img)} charts, shortlist {len(a)}, watch {len(w)}")
+    print(f"written: {out_dir / 'index.html'} – {len(themes)} themes, {len(anchors)} anchors, {len(clusters)} clusters, {len(img)} charts, shortlist {len(a)}, watch {len(w)}")
     return out_dir / "index.html"
 
 

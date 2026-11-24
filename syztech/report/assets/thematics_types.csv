@@ -1,0 +1,251 @@
+ticker,name,type
+CMOD LN Equity,Invesco Bloomberg Commodity,Commodity
+GSG US Equity,Ishares S&P Gsci Commodity I,Commodity
+IGLN LN Equity,Ishares Physical Gold Etc,Commodity
+ISLN LN Equity,Ishares Physical Silver Etc,Commodity
+SLV US Equity,Ishares Silver Trust,Commodity
+PHPD LN Equity,Wt Physical Palladium,Commodity
+PHPT LN Equity,Wt Physical Platinum,Commodity
+ALUM LN Equity,Wt Aluminium,Commodity
+COPA LN Equity,Wt Copper,Commodity
+AIGI LN Equity,Wt Industrial Metals,Commodity
+U-U CN Equity,Sprott Physical Uranium Tr,Theme
+HOGS LN Equity,Wt Lean Hogs,Commodity
+BOLDUSD SW Equity,21Shares Bitcoin Gold Etp,Crypto
+HODL SW Equity,21Shares Crypto Basket Etp,Crypto
+AETH SW Equity,21Shares Ethereum Staking Et,Crypto
+ASOL SW Equity,21Shares Solana Staking Etp,Crypto
+EQQQ SW Equity,Invesco Nasdaq-100 Dist,Market / country / size
+CHIQ US Equity,Global X Msci China Consumer,Market / country / size
+3067 HK Equity,Ishares Hang Seng Tech E-Hkd,Theme
+CNYA LN Equity,Ishares Msci China A,Market / country / size
+EMMV LN Equity,Ishares Edge Msci Em Min Vol,Style / factor
+CEMA LN Equity,Ishares Msci Em Asia Acc,Market / country / size
+EXCH NA Equity,Ishares Msci Em Xchina,Market / country / size
+EEM US Equity,Ishares Msci Emerging Market,Market / country / size
+EMXC US Equity,Ishares Msci Emr Mrk Ex Chna,Market / country / size
+IKOR SW Equity,Ishares Msci Korea,Market / country / size
+CAC FP Equity,Amundi Cac 40,Market / country / size
+ITAMID IM Equity,Amundi Ftse Italia Pmi Pir 2,Market / country / size
+EUSRI FP Equity,Amundi Msci Europe Sri P-A,Style / factor
+IEQU IM Equity,Ish Edge Msci Erp Quality,Style / factor
+DAXEX GY Equity,Ishares Core Dax De Eur Acc,Market / country / size
+EUN2 GY Equity,Ishares Core Euro Stoxx 50,Market / country / size
+IEVL LN Equity,Ishares Edge Msci Erp Value,Style / factor
+DJSC IM Equity,Ishares Euro Stoxx Small Cap,Market / country / size
+MDAXEX GY Equity,Ishares Mdax Ucits De Eur A,Market / country / size
+EUMD LN Equity,Ishares Msci Erp Mid Cap-Acc,Market / country / size
+IEUX NA Equity,Ishares Msci Europe Ex-Uk,Market / country / size
+XXSC GY Equity,X Msci Europe Small Cap 1C,Market / country / size
+LYXIB SM Equity,Amundi Ibex 35 Ucits Etf,Market / country / size
+SX7EEX GY Equity,Ishares Euro Stoxx Banks 30-,Sector
+IWDA LN Equity,Ishares Core Msci World,Market / country / size
+CSPX LN Equity,Ishares Core S&P 500,Market / country / size
+IUQA LN Equity,Ishares Edge Msci Usa Qly,Style / factor
+SUWS LN Equity,Ishares Msci World Sri-Usd-D,Style / factor
+SUAS LN Equity,Ishares Sust Msci Usa Sri,Style / factor
+ISFD LN Equity,Ishares Cor Ftse 100-Usd H-A,Market / country / size
+NDIA LN Equity,Ishares Msci India Ucits Etf,Market / country / size
+IKSA LN Equity,Ishares Msci Saudi Capd Usda,Market / country / size
+SJPD NA Equity,Ishares Core Jp Imi Usd-Dist,Market / country / size
+DXJ LN Equity,Wisdmtre Jpn Eq Ucits E-Usdh,Market / country / size
+EMIF US Equity,Ishares Emerging Markets Inf,Theme
+4BRZ GY Equity,Ishares Msci Brazil Ucits De,Market / country / size
+DLTM LN Equity,Ishares Msci Em Latam,Market / country / size
+CMEX NA Equity,Ishares Msci Mex Capped Usd,Market / country / size
+NAFTRAC MM Equity,Ishares Naftrac - Ishrs,Market / country / size
+CPXJ LN Equity,Ishares Core Msci Pacif X-Jp,Market / country / size
+IAUS LN Equity,Ishares Msci Australia,Market / country / size
+CCAU LN Equity,Ishares Msci Canada Acc,Market / country / size
+MVEU LN Equity,Ishares Edge Msci Erp Minvol,Style / factor
+CSSMIM SW Equity,Ishares Smim Etf Ch,Market / country / size
+SDVY LN Equity,Ft Smid Ris Div Ac Ucits Etf,Style / factor
+CIND LN Equity,Ishares Dow Jones Indus Avrg,Market / country / size
+R2US LN Equity,Ss Spdr Russell 2000 Us Smal,Market / country / size
+SPY4 LN Equity,Ss Spdr S&P 400 Us Mid Cap U,Market / country / size
+XDEW LN Equity,X S&P 500 Ew 1C,Market / country / size
+CSD US Equity,Invesco S&P Spin-Off Etf,Theme
+XLG US Equity,Invesco S&P 500 Top 50 Etf,Market / country / size
+ESGU US Equity,Ishares Esg Aware Msci Usa,Style / factor
+ISF LN Equity,Ishares Core Ftse 100,Market / country / size
+CUKS LN Equity,Ishares Msci Uk Sml Cap Acc,Market / country / size
+XDN0 GY Equity,X Msci Nordic 1D,Market / country / size
+IUIT LN Equity,Ishares S&P 500 It Sector,Sector
+S5SSEQX Index,S&P 500 Semi & Semi Eqp,Sector
+IUHC LN Equity,Ishares S&P Health Care,Sector
+SXDPEX GY Equity,Ishr Eur 600 Health Care(De),Sector
+S5PHRM Index,S&P 500 Phrm Bio & Lf Sc,Sector
+S5HOTR Index,S&P 500 Cons Srv Idx,Sector
+IUES LN Equity,Ishares S&P 500 Energy,Sector
+SXEPEX GY Equity,Ishr Europe600 Oil & Gas De,Sector
+SX8PEX GY Equity,Ishr Stoxx Eur 600 Tech De,Sector
+SXTPEX GY Equity,Ishr Eur 600 Travel&Leis De,Sector
+SXNPEX GY Equity,Ishr Eur600 Ind Gds&Serv(De),Sector
+SX4P Index,STXE 600 Chemicals EUR,Sector
+SXOP Index,STXE 600 Constr&Mtr EUR,Sector
+ESIF GY Equity,Ishares Europe Financl Eur A,Sector
+SX3PEX GY Equity,Ish Eur600 Food&Beverage De,Sector
+S600PDP Index,Stxe 600 Pcd&Gs Eur P,Sector
+SXIPEX GY Equity,Ishares Eur600 Insurance(De),Sector
+SXPPEX GY Equity,Ish Eur600 Basicresource De,Sector
+IUMS LN Equity,Ish S&P500 Materials,Sector
+S5MATRX Index,S&P 500 Materials Index,Sector
+WMAT LN Equity,Ss Spdr Msci World Materials,Sector
+S5AUCO Index,S&P 500 Auto & Comp Idx,Sector
+S5CODU Index,S&P 500 Con Dur&Ap Index,Sector
+S5TECH Index,S&P 500 Tech Hw & Eqp Ix,Sector
+SXAP Index,STXE 600 Auto&Parts EUR,Sector
+SXFP Index,STXE 600 FinanServc EUR,Sector
+SXMP Index,STXE 600 Media (EUR) Pr,Sector
+SXRP Index,STXE 600 Retail (EUR) Pr,Sector
+S5SFTW Index,S&P 500 Sftw & Svcs Indx,Sector
+S600CPP Index,Stxe 600 Cp&S Eur P,Sector
+SXKPEX GY Equity,Ishares Eur 600 Telecoms De,Sector
+S5TELSX Index,S&P 500 Telecomm Svcs Ix,Sector
+IUFS LN Equity,Ishares S&P 500 Financials,Sector
+BNKS LN Equity,Ishares S&P Us Banks Ucits,Sector
+S5BANKX Index,S&P 500 Banks Index,Sector
+S5DIVF Index,S&P 500 Div Financial Ix,Sector
+KBE US Equity,Ss Spdr S&P Bank Etf,Sector
+XDWF LN Equity,X Msci World Financials,Sector
+S5RETL Index,S&P 500 Cons Discr,Sector
+IUCS LN Equity,Ish S&P500 Consumer Staples,Sector
+S5FDBT Index,S&P 500 Fd Bev & Tob Idx,Sector
+S5FDSR Index,S&P 500 Food/Stpl Retail,Sector
+S5HOUS Index,S&P 500 Hh & Pr Pdts Idx,Sector
+XLP US Equity,Ss Consumer Staples Sel Sect,Sector
+S5CPGS Index,S&P 500 Capital Gds Idx,Sector
+SXLI LN Equity,Ss Sp Us Ind Sel Sect Ucits,Sector
+S5COMS Index,S&P 500 Comm & Prof Serv,Sector
+S5HCES Index,S&P 500 Hc Equip&Svc Idx,Sector
+S5INSU Index,S&P 500 Insurance Index,Sector
+IUCM LN Equity,Ishares S&P500 Communication,Sector
+S5MEDA Index,S&P 500 Media & Ent,Sector
+TRAN Index,Dow Jones Trans. Avg,Sector
+S5TRAN Index,S&P 500 Transptn Index,Sector
+IUUS LN Equity,Ish S&P500 Ut Sec Ucit Etf,Sector
+S5REAL Index,S&P 500 Equity Real Est,Sector
+SX6P Index,STXE 600 Utilities EUR,Sector
+GOAI FP Equity,Amundi Ms R&Ai Esg Ucits Etf,Theme
+SD3EEX GY Equity,Ishare Eur Stoxx Seldiv30 De,Style / factor
+SPYW GY Equity,Ss Spd S&P Eur Dvd Ari Uc-Ei,Style / factor
+IWQU LN Equity,Ishr Edge Msci Wrld Qly Fctr,Style / factor
+VGWD GY Equity,Vang Ftse Hdy Usdd,Style / factor
+IWVL LN Equity,Ishares Edge Msci Wrld Value,Style / factor
+EUNY GY Equity,Ishares Em Dividend,Style / factor
+MVOL LN Equity,Ish Edg Msci Wld Mnvl Usd A,Style / factor
+SPMV LN Equity,Ishares Edge S&P500 Min Vol,Style / factor
+CHDVD SW Equity,Ishares Swiss Dividend Ch,Style / factor
+UDVD LN Equity,Ss Sp Us Dvd Ars Uct Etf-Uud,Style / factor
+SNPE US Equity,Xtrckr S&P 500 Scor&Scrn Etf,Style / factor
+IUKD LN Equity,Ishares Uk Dividend,Style / factor
+AIQ US Equity,Global X Art Intel & Tech,Theme
+RBOT LN Equity,Ishares Automation&Robotic-A,Theme
+SEMI NA Equity,Ishares Msci Glb Semicndct A,Theme
+SOXX US Equity,Ishares Semiconductor Etf,Theme
+AIAI LN Equity,L&G Artificial Intelligence,Theme
+WTAI LN Equity,Wt Art Intelligence -Usd Acc,Theme
+XAIX GY Equity,X Artificial Intel Big Da 1C,Theme
+ARKX US Equity,Ark Space & Defense Innovati,Theme
+NATO LN Equity,Future Of Defence Ucits Etf,Theme
+ITA US Equity,Ishares U.S. Aerospace & Def,Theme
+MVSPCTR Index,MVIS Space Industry NTR,Theme
+XAR US Equity,Ss Spdr S&P Aerospace Def,Theme
+ROKT US Equity,Ss Spdr S&P Kensho Ff Etf,Theme
+DFNS LN Equity,Vaneck Defense Etf,Theme
+JEDI LN Equity,Vaneck Space Innovators Etf,Theme
+DRIV US Equity,Global X Autonomous&Elec-Etf,Theme
+LIT US Equity,Global X Lithium & Battery T,Theme
+REMX US Equity,Vaneck Rar Earth Nd Stg-Usdi,Theme
+VOLT LN Equity,Wt Battery Solutions-Usd Acc,Theme
+BION SW Equity,Bb Biotech Ag-Reg,Theme
+AGNG US Equity,Glb X Aging Population Etf,Theme
+GNOM US Equity,Global X Genomics & Biotechn,Theme
+IBB US Equity,Ishares Biotechnology Etf,Theme
+IDNA US Equity,Ishares Gen-Immunology Hlth,Theme
+BTEC LN Equity,Ishares Nsdq Us Biotech Ucit,Theme
+HEAL LN Equity,Ishr Healthcare Innovation,Theme
+XBI US Equity,Ss Spdr S&P Biotech Etf,Theme
+CQQQ US Equity,Invesco China Technology Etf,Theme
+CTEC NA Equity,Ishares China Tech Usd Acc,Theme
+KWEB US Equity,Kranesh Csi China Internet,Theme
+ASDV LN Equity,Ss Spdr S&P Pa Da Uci Etf-Ui,Style / factor
+FAN US Equity,First Trust Global Wind Ener,Theme
+HYDR US Equity,Global X Hydrogen Etf,Theme
+TAN US Equity,Invesco Solar Etf,Theme
+INRG LN Equity,Ishar Gl Cl En Tr Uci Etf-Us,Theme
+BKCH LN Equity,Glob X Blockchain Ucits Etf,Theme
+BKCH US Equity,Global X Blockchain Etf,Theme
+DTCR US Equity,Global X Data Center & Digit,Theme
+IDGT US Equity,Ishares Us Dgtl Infra & R/E,Theme
+IPAY US Equity,Amplify Digital Payments Etf,Theme
+AWAY US Equity,Amplify Travel Tech Etf,Theme
+BUYZ US Equity,Franklin Disruptive Commerce,Theme
+EBIZ US Equity,Global X E-Commerce Etf,Theme
+FINX US Equity,Global X Fintech Etf,Theme
+MILN US Equity,Global X Millennial Consumer,Theme
+PSP US Equity,Invesco Global Listed Privat,Theme
+PEJ US Equity,Invesco Leisure & Entertainm,Theme
+ARKK US Equity,Ark Innovation Etf,Theme
+IPO US Equity,Renaissance Ipo Etf,Theme
+ECAR LN Equity,Ishares Ev & E Driv Tech,Theme
+MLPA US Equity,Global X Mlp Etf,Theme
+PXJ US Equity,Invesco Oil & Gas Services E,Theme
+IGE US Equity,Ishares North American Natur,Theme
+NANR US Equity,Sta Str Sp S&P Nor An Res-Ui,Theme
+GNR US Equity,State Street Spdr S&P Global,Theme
+WXAG LN Equity,Wt Enhanced Comm Xag Usd Acc,Commodity
+GRID US Equity,First Trst Nasd Cl Edg Sgiif,Theme
+LEGR US Equity,First Trust Indxx Innovative,Theme
+COPX US Equity,Global X Copper Miners Etf,Theme
+COPX LN Equity,Gx Copper Miners Ucits,Theme
+XME US Equity,Ss Spdr S&P Metals Mining,Theme
+GDX LN Equity,Vaneck Gold Miners Ucits Etf,Theme
+RARE LN Equity,Witr Sm And Re Mine Uc Et-Us,Theme
+CITY NA Equity,Ishares Smart City Infr Usda,Theme
+WATL LN Equity,Amdi Msci Water Ucits Dr-Acc,Theme
+FTAG US Equity,First Trust Indxx Global Agr,Theme
+FIW US Equity,First Trust Water Etf,Theme
+AQWA US Equity,Global X Clean Water Etf,Theme
+IH2O SW Equity,Ishares Global Water,Theme
+VEGI US Equity,Ishares Msci Agriculture Pro,Theme
+EVX US Equity,Vaneck Environmental Service,Theme
+MNA US Equity,Nylim Merger Arbtrage Etf-Ui,Style / factor
+PAWZ US Equity,Proshares Pet Care Etf,Theme
+SNSR US Equity,Global X Internet Of Things,Theme
+BOTZ US Equity,Global X Robotics & Artifici,Theme
+ROBO US Equity,Robo Global Robotics And Aut,Theme
+WEED US Equity,Roundhill Cannabis Etf,Theme
+BETZ US Equity,Roundhill Sports Bet & Igam,Theme
+OGIG US Equity,Alps Oshares Global Internet,Theme
+HACK US Equity,Amplify Cybersecurity Etf,Theme
+SKYY US Equity,First Trust Cloud Computing,Theme
+CIBR LN Equity,First Trust Cybersecurity,Theme
+FDN US Equity,First Trust Dj Internet Ind,Theme
+CIBR US Equity,First Trust Nasdaq Cybersecu,Theme
+XDAT US Equity,Franklin Exponential Data,Theme
+CLOU US Equity,Global X Cloud Computing Etf,Theme
+BUG US Equity,Global X Cybersecurity Etf,Theme
+LOCK LN Equity,Ishares Digital Scrty Usd-A,Theme
+XSW US Equity,Ss Spdr S&P Soft & Serv Etf,Theme
+WCLD LN Equity,Wt Cloud Computing Usd Acc,Theme
+BOAT US Equity,Sonicshares Global Shipping,Theme
+PRNT US Equity,The 3D Printing Etf,Theme
+AGED LN Equity,Ishares Ageing Population,Theme
+IUCD LN Equity,Ishares S&P Consumer Dscrtn,Sector
+PKB US Equity,Invesco Building & Construct,Theme
+IFRA US Equity,Ishares Us Infrastructure,Theme
+URA US Equity,Global X Uranium Etf,Theme
+URNU LN Equity,Global X Uranium Ucits Usd-A,Theme
+URNM US Equity,Sprott Uranium Miners Etf,Theme
+YCA LN Equity,Yellow Cake Plc,Theme
+IDWP LN Equity,Ishares Dvl Mkt Property Yld,Sector
+IPRP NA Equity,Ishares Europe Prprty Yield,Sector
+INFR SW Equity,Ishares Glbl Infrastructure,Theme
+IGF US Equity,Ishares Global Infrastructur,Theme
+IDUP LN Equity,Ishares Us Property Yield,Sector
+XLU US Equity,St Sr Utl Sl Se Spdr Etf-Usd,Sector
+SOCL US Equity,Global X Social Media Etf,Theme
+HERO US Equity,Global X Video Games& Esport,Theme
+ESPO US Equity,Vaneck Videogaming Esports,Theme
+AIGA LN Equity,Wt Agriculture,Commodity

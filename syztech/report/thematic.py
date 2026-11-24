@@ -28,11 +28,18 @@ from ..trend.score import relative_verdict, resolve_levels
 
 BENCH = "MXWD Index"
 DUP_CORR = 0.95
-EUROPE_ANCHOR, EUROPE_CUT = "IMAE NA Equity", 0.30
-EUROPE_PARENT = "Europe & Switzerland"
-SUB_NAMES = {"IMAE NA Equity": "Europe – broad market & cyclicals", "SMICHA SW Equity": "Switzerland", "SX7P Index": "European banks",
-             "ISF LN Equity": "United Kingdom", "S600FOP Index": "European food & staples", "SXIP Index": "European insurance",
-             "VHYD LN Equity": "Global high dividend"}
+# 24 Nov 2026 (Florian): only proper themes are clustered and shortlisted; sectors, markets / countries, styles,
+# commodities and crypto are "anchors" – read with the same engine, shown for context, never on the shortlist.
+TYPES_FILE = Path(__file__).parent / "assets" / "thematics_types.csv"
+THEME, THEME_CUT = "Theme", 0.70
+# proposed names of the theme clusters, keyed by one member (to be confirmed)
+TOP_NAMES = {"IGE US Equity": "Natural resources, energy & agriculture", "IH2O SW Equity": "Infrastructure, water & environment",
+             "IBB US Equity": "Biotech, genomics & ageing", "KWEB US Equity": "China technology, gaming & social media",
+             "TAN US Equity": "Clean energy, batteries & miners", "URA US Equity": "Uranium",
+             "FINX US Equity": "Digital consumer, fintech & travel", "SOXX US Equity": "Semiconductors, robotics & connected devices",
+             "CLOU US Equity": "Software, cloud, cyber security & AI", "ARKK US Equity": "Disruptive innovation, IPOs & blockchain",
+             "DTCR US Equity": "Data centres & digital infrastructure", "IDGT US Equity": "Data centres & digital infrastructure",
+             "ITA US Equity": "Aerospace, defence & space"}
 HORIZONS = (63, 126, 252)
 MAX_PER_CLUSTER = 2
 
@@ -55,7 +62,7 @@ def dedupe(order: list[str], C: pd.DataFrame, bars: dict[str, int]) -> tuple[lis
     M = C.loc[order, order].to_numpy()
     for i, a in enumerate(order):
         for j in range(i + 1, len(order)):
-            if M[i, j] >= DUP_CORR:
+            if M[i, j] >= DUP_CORR or (a.split()[0] == order[j].split()[0] and M[i, j] >= 0.80):   # or one fund on two exchanges
                 parent[find(a)] = find(order[j])
     sets: dict[str, list[str]] = {}
     for t in order:
@@ -136,6 +143,7 @@ class Review:
     bench: pd.Series | None = None
     dropped: dict = field(default_factory=dict)     # kept ticker -> duplicates left out
     window: tuple = ()
+    anchors: pd.DataFrame | None = None        # sectors, markets, styles, commodities, crypto: context only
 
 
 def pct_rank(x: pd.Series) -> pd.Series:
@@ -149,24 +157,30 @@ def build_review(prices_dir="data/prices_thematics", universe="data/universe_the
     info["name"] = info.name.map(_title)
     last = {t: prices.series(t).dropna().index[-1] for t in info.index}
     asof = pd.Timestamp(asof) if asof else min(last.values())          # last day every theme has a close
-    # cluster names; Europe split one level down
-    info["cname"], info["parent"] = "", ""
+    # fine groups (cut 0.55, names confirmed) are kept as the sub-group label
+    info["sub"] = ""
     for c, g in info.groupby("cluster"):
         g = g.sort_values("leaf")
-        nm = next((NAMES[t] for t in g.index if t in NAMES), g.name.iloc[0])
-        info.loc[g.index, "cname"] = nm
-    eu = list(info[info.cluster == info.loc[EUROPE_ANCHOR, "cluster"]].sort_values("leaf").index)
-    D = 1 - C.loc[eu, eu].to_numpy()
-    np.fill_diagonal(D, 0)
-    lab, _ = average_linkage(D, EUROPE_CUT)
-    for k in sorted(set(lab)):
-        m = [eu[i] for i in range(len(eu)) if lab[i] == k]
-        nm = next((SUB_NAMES[t] for t in m if t in SUB_NAMES), info.loc[m[0], "name"])
-        info.loc[m, "cname"], info.loc[m, "parent"] = nm, EUROPE_PARENT
-    info["cid"] = info.cname.map({n: i for i, n in enumerate(dict.fromkeys(info.sort_values("leaf").cname), start=1)})
+        info.loc[g.index, "sub"] = next((NAMES[t] for t in g.index if t in NAMES), "")
+    types = pd.read_csv(TYPES_FILE).set_index("ticker").type
     bars = {t: int(prices.series(t).dropna().size) for t in info.index}
     order = list(info.sort_values("leaf").index)
     keep, dropped = dedupe(order, C, bars)
+    info["type"] = [types.get(t, THEME) for t in info.index]
+    # theme clusters: only the kept lines of type Theme, looser cut; a theme alone in its cluster is "stand-alone"
+    th_t = [t for t in order if t in set(keep) and info.type[t] == THEME]
+    D = 1 - C.loc[th_t, th_t].to_numpy()
+    np.fill_diagonal(D, 0)
+    lab, leaves = average_linkage(D, THEME_CUT)
+    cid_of, cname_of, single_of, seen = {}, {}, {}, []
+    for i in leaves:
+        if lab[i] not in seen:
+            seen.append(lab[i])
+    for k, c in enumerate(seen, start=1):
+        m = [th_t[i] for i in leaves if lab[i] == c]
+        nm = next((TOP_NAMES[t] for t in m if t in TOP_NAMES), info.loc[m[0], "name"])
+        for t in m:
+            cid_of[t], cname_of[t], single_of[t] = k, nm, len(m) == 1
     bench = prices.series(BENCH).dropna()
     bench = bench[bench.index <= asof]
     rows, series = [], {}
@@ -176,10 +190,15 @@ def build_review(prices_dir="data/prices_thematics", universe="data/universe_the
         series[t] = s
         r = read(s, bench)
         i = info.loc[t]
-        rows.append(dict(ticker=t, name=i["name"], cid=int(i.cid), cluster=i.cname, parent=i.parent, beta=float(i.beta),
+        is_theme = t in cid_of
+        rows.append(dict(ticker=t, name=i["name"], type=i.type, cid=cid_of.get(t, 0), cluster=cname_of.get(t, i.type),
+                         single=bool(single_of.get(t, False)), sub=i["sub"] if is_theme else "", parent="", beta=float(i.beta),
                          dups=", ".join(x.rsplit(" ", 1)[0] for x in dropped.get(t, [])), **r))
-    th = pd.DataFrame(rows)
+    allrows = pd.DataFrame(rows)
+    th = allrows[allrows.type == THEME].copy()
     th["mom_rank"] = pct_rank(th.mom)
+    anchors = allrows[allrows.type != THEME].copy()
+    anchors["mom_rank"] = pct_rank(anchors.mom)
     crow = []
     for cid, g in th.groupby("cid"):
         comp = composite({t: series[t] for t in g.ticker}) if len(g) > 1 else series[g.ticker.iloc[0]]
@@ -187,12 +206,12 @@ def build_review(prices_dir="data/prices_thematics", universe="data/universe_the
         series[key] = comp
         r = read(comp, bench)
         v = g[g.verdict != INSUFFICIENT]
-        crow.append(dict(key=key, cid=int(cid), cluster=g.cluster.iloc[0], parent=g.parent.iloc[0], n=len(g), beta=float(g.beta.mean()),
+        crow.append(dict(key=key, cid=int(cid), cluster=g.cluster.iloc[0], parent="", single=bool(g.single.iloc[0]), n=len(g), beta=float(g.beta.mean()),
                          n_bull=int((v.verdict == "Bullish").sum()), n_rising=int((v.slope200 == "rising").sum()),
                          n_out=int((g.rel_state == "Outperform").sum()), n_ok=len(v), **r))
     cl = pd.DataFrame(crow)
     cl["mom_rank"] = pct_rank(cl.mom)
-    return Review(asof=asof, themes=th, clusters=cl, series=series, bench=bench, dropped=dropped, window=(d0, d1))
+    return Review(asof=asof, themes=th, clusters=cl, series=series, bench=bench, dropped=dropped, window=(d0, d1), anchors=anchors)
 
 
 def shortlist(rv: Review) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -224,7 +243,7 @@ def momentum_test(rv: Review, prices_dir="data/prices_thematics", step: int = 21
             m = momentum_score(s[s.index <= d], b[b.index <= d])["mom"]
             if m is not None and s.index[-1] >= d:
                 sc[cid] = m
-        if len(sc) < 15:
+        if len(sc) < 9:
             continue
         r = pd.Series(sc).rank(pct=True)
         for h, lab in ((21, "f1"), (63, "f3")):

@@ -224,6 +224,7 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 tr.sub td { background: var(--surface) } tr.sub td:first-child { padding-left: 26px } tr.cl2 td:first-child { font-weight: 800 }
 tr.cl2 .car { display: inline-block; width: 14px; color: var(--muted); transition: transform .15s } tr.cl2.open .car { transform: rotate(90deg) }
 #c-table, #s-table, #w-table { font-size: 12.5px } #c-table th, #c-table td, #s-table th, #s-table td, #w-table th, #w-table td { padding-left: 5px; padding-right: 5px }
+#a-table { font-size: 12.5px } #a-table th, #a-table td { padding-left: 5px; padding-right: 5px } #a-table td.nm { white-space: normal; min-width: 190px } #a-table .pill.sm { min-width: 84px; padding: 2px 5px }
 #s-table td.nm, #w-table td.nm { white-space: normal; min-width: 190px } #s-table td:nth-child(2), #w-table td:nth-child(2) { min-width: 150px; max-width: 200px; font-size: 12px }
 #c-table .pill.sm, #s-table .pill.sm, #w-table .pill.sm { min-width: 84px; padding: 2px 5px } .pill.sm { min-width: 92px }
 #c-table td.nm { white-space: normal; min-width: 190px; max-width: 270px } .brd small { font-size: 11px }
@@ -242,7 +243,7 @@ tr.cl2 .car { display: inline-block; width: 14px; color: var(--muted); transitio
     <div class="counts" id="m-counts"></div>
   </div>
 </header>
-<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#short">Shortlist</a><a href="#watch">Watch list</a><a href="#clusters">Clusters</a><a href="#rot">Rotation</a><a href="#test">Ranking test</a><a href="#method">Method</a></div></nav>
+<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#short">Shortlist</a><a href="#watch">Watch list</a><a href="#clusters">Clusters</a><a href="#rot">Rotation</a><a href="#anchors">Anchors</a><a href="#test">Ranking test</a><a href="#method">Method</a></div></nav>
 <main class="wrap">
   <section id="readings">
     <div class="sh"><span class="k">Key readings</span><h2 id="r-title"></h2><p>Rules-based facts from the trend engine; no published view.</p></div>
@@ -266,6 +267,11 @@ tr.cl2 .car { display: inline-block; width: 14px; color: var(--muted); transitio
   <section id="rot">
     <div class="sh"><span class="k">Rotation</span><h2 id="o-title"></h2><p>Cluster composites against the MSCI ACWI. x: relative strength vs its 200-day average; y: its 3-month change. Dot: today; trail: the last 20 trading days, smoothed. Clusters of two or more themes.</p></div>
     <div class="mapcard" data-map="clusters" style="max-width:980px;margin:0 auto"></div>
+  </section>
+  <section id="anchors">
+    <div class="sh"><span class="k">Anchors</span><h2 id="a-title"></h2><p>Sectors, markets, styles, commodities and crypto from the list: read with the same rules, for context. They are not clustered and never on the shortlist.</p></div>
+    <div class="tools" id="a-types" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div class="tw"><table id="a-table"></table></div>
   </section>
   <section id="test">
     <div class="sh"><span class="k">Ranking test</span><h2 id="t-title"></h2><p id="t-sub"></p></div>
@@ -315,18 +321,20 @@ const ok = T.filter(r => hasV(r.v));
 const nB = ok.filter(r => r.v === "Bullish").length, nBe = ok.filter(r => fam(r.v) === "Bearish").length, nN = ok.length - nB - nBe;
 const nR = ok.filter(r => r.s200 === "rising").length, nO = T.filter(r => r.rs === "Outperform").length;
 $("m-ed").textContent = D.edition;
-$("m-sub").textContent = `${T.length} themes in ${C.length} clusters, against the MSCI ACWI. Data to ${D.asof}, prices in USD.`;
-$("m-counts").innerHTML = `<div class="count bull"><b>${nB}</b><span>Bullish</span></div><div class="count neu"><b>${nN}</b><span>Neutral</span></div><div class="count bear"><b>${nBe}</b><span>Bearish</span></div><div class="counts-note">${T.length} themes after removing ${D.n_dup} duplicate lines from the ${D.n_all} in the list</div>`;
+const CG = C.filter(c => !c.single), CS = C.filter(c => c.single);
+$("m-sub").textContent = `${T.length} themes in ${CG.length} clusters${CS.length ? ` and ${CS.length} stand-alone themes` : ""}, against the MSCI ACWI. Data to ${D.asof}, prices in USD.`;
+$("m-counts").innerHTML = `<div class="count bull"><b>${nB}</b><span>Bullish</span></div><div class="count neu"><b>${nN}</b><span>Neutral</span></div><div class="count bear"><b>${nBe}</b><span>Bearish</span></div><div class="counts-note">Of the ${D.n_all} lines in the list: ${T.length} themes, ${D.anchors.length} anchors (sectors, markets, styles, commodities, crypto), ${D.n_dup} duplicates removed</div>`;
 const S = D.short.map(t => byT[t]), W = D.watch.map(t => byT[t]);
-const cm = C.filter(c => c.size > 1), rankC = C.slice().sort((a, b) => (b.mom ?? -9) - (a.mom ?? -9));
+const rankC = C.slice().sort((a, b) => (a.single - b.single) || (b.mom ?? -9) - (a.mom ?? -9));
 $("r-title").textContent = `${nB} of ${ok.length} themes Bullish, ${nO} Outperform the MSCI ACWI; ${S.length} pass the shortlist rule`;
-const cBull = C.filter(c => c.v === "Bullish" && c.rs === "Outperform"), cBear = C.filter(c => fam(c.v) === "Bearish" && c.rs === "Underperform");
+const cBull = CG.filter(c => c.v === "Bullish" && c.rs === "Outperform"), cBear = CG.filter(c => fam(c.v) === "Bearish" && c.rs === "Underperform");
+const cOut = CG.filter(c => c.rs === "Outperform");
 const names = (a, n = 5) => a.slice(0, n).map(c => esc(c.n)).join("; ") || "none";
 $("r-cards").innerHTML = [
   ["Market and breadth", [`MSCI ACWI: ${esc(D.vlabel[D.acwi.v] || D.acwi.v)}, 200-day ${esc(D.acwi.s200 || ND)}, ${pct(D.acwi.vs200)} vs its 200-day.`,
     `Themes: ${p0(nB / ok.length)} Bullish, ${p0(nN / ok.length)} Neutral, ${p0(nBe / ok.length)} Bearish.`, `${p0(nR / ok.length)} have a rising 200-day; ${p0(nO / T.length)} Outperform the ACWI.`]],
-  ["Clusters", [`Bullish and Outperform (${cBull.length} of ${C.length}): ${names(cBull.sort((a, b) => b.mom - a.mom))}.`, `Bearish and Underperform (${cBear.length}): ${names(cBear.sort((a, b) => a.mom - b.mom))}.`,
-    `Highest momentum rank: ${names(rankC, 3)}.`]],
+  ["Clusters", [`Outperform the ACWI (${cOut.length} of ${CG.length} clusters): ${names(cOut.sort((a, b) => b.mom - a.mom), 6)}.`, `Bullish and Outperform (${cBull.length}): ${names(cBull)}.`,
+    `Bearish and Underperform (${cBear.length}): ${names(cBear.sort((a, b) => a.mom - b.mom), 6)}.`]],
   ["Shortlist", [`${S.length} themes are Bullish with a rising 200-day and Outperform, at most ${D.cap} per cluster; they come from ${new Set(S.map(r => r.cid)).size} clusters.`,
     `Top three by momentum score: ${S.slice(0, 3).map(r => esc(r.n)).join("; ") || "none"}.`, `Watch list: ${W.length} themes Outperform with a rising 200-day but a Neutral verdict.`]]]
   .map(([h, l]) => `<div class="kpc"><h3>${h}</h3><ul>${l.map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("");
@@ -352,25 +360,25 @@ const bar = (c) => { const m = T.filter(r => r.cid === c.cid && hasV(r.v)), n = 
   return `<span class="brd"><span class="bar3" title="Bullish ${b}, Neutral ${n - b - e}, Bearish ${e}"><i style="width:${b / n * 100}%;background:var(--mint)"></i><i style="width:${(n - b - e) / n * 100}%;background:var(--blueb)"></i><i style="width:${e / n * 100}%;background:var(--mulb)"></i></span><small>${b}/${m.length} Bullish · ${c.no}/${c.size} Outp.</small></span>`; };
 function drawC() {
   const qq = q.trim().toLowerCase();
-  const rows = rankC.filter(c => (showSingle || c.size > 1) && (!qq || c.n.toLowerCase().includes(qq) || T.some(r => r.cid === c.cid && (r.n + " " + r.t).toLowerCase().includes(qq))));
+  const rows = rankC.filter(c => (showSingle || !c.single) && (!qq || c.n.toLowerCase().includes(qq) || T.some(r => r.cid === c.cid && (r.n + " " + r.t).toLowerCase().includes(qq))));
   $("c-table").innerHTML = `<thead><tr class="grp"><th colspan="3"></th><th colspan="2"><span style="background:var(--navy)">Absolute</span></th><th colspan="5"><span style="background:var(--orange)">vs MSCI ACWI</span></th><th colspan="2"><span style="background:var(--blueb)">Verdict and breadth</span></th></tr>
     <tr><th>Cluster</th><th class="c">Themes</th><th class="r">Beta</th><th class="c">200-day</th><th class="r">12m</th><th class="c">Rel. trend</th><th class="r">RS 3m</th><th class="r">RS 6m</th><th class="r">RS 12m</th><th class="c">Rank</th><th class="c">Trend</th><th>Themes inside</th></tr></thead><tbody>`
     + rows.map(c => { const op = allOpen || !!qq || open.has(c.cid);
       const mem = T.filter(r => r.cid === c.cid).sort((a, b) => (b.mom ?? -9) - (a.mom ?? -9));
-      return `<tr class="click cl2 ${op ? "open" : ""}" data-c="${c.cid}" tabindex="0"><td class="nm"><span class="car">›</span>${esc(c.n)}${c.parent ? `<span class="par">${esc(c.parent)}</span>` : ""}</td><td class="c">${c.size}</td><td class="r">${c.beta.toFixed(2)}</td>
+      return `<tr class="click cl2 ${op ? "open" : ""}" data-c="${c.cid}" tabindex="0"><td class="nm"><span class="car">›</span>${esc(c.n)}${c.single ? `<span class="par">stand-alone</span>` : ""}</td><td class="c">${c.size}</td><td class="r">${c.beta.toFixed(2)}</td>
         <td class="c">${badge(SLO, c.s200)}</td><td class="r ${cls(c.c12)}">${pct(c.c12)}</td><td class="c">${badge(REL, c.rs)}</td><td class="r ${cls(c.rs3)}">${pct(c.rs3)}</td><td class="r ${cls(c.rs6)}">${pct(c.rs6)}</td><td class="r ${cls(c.rs12)}">${pct(c.rs12)}</td>
         <td class="c">${rk(c.rank)}</td><td class="c">${pill(c.v)}</td><td>${bar(c)}</td></tr>`
         + (op ? mem.map(r => `<tr class="click sub" data-t="${esc(r.t)}" tabindex="0"><td class="nm">${esc(r.n)}<span class="tk">${esc(r.t.replace(/ (Equity|Index|Curncy)$/, ""))}</span>${D.short.includes(r.t) ? ` <span class="par" style="color:var(--orange);border-color:var(--orange)">shortlist</span>` : ""}</td><td></td><td class="r">${r.beta.toFixed(2)}</td>
           <td class="c">${badge(SLO, r.s200)}</td><td class="r ${cls(r.c12)}">${pct(r.c12)}</td><td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs3)}">${pct(r.rs3)}</td><td class="r ${cls(r.rs6)}">${pct(r.rs6)}</td><td class="r ${cls(r.rs12)}">${pct(r.rs12)}</td>
-          <td class="c">${rk(r.rank)}</td><td class="c">${pill(r.v)}</td><td class="dim" style="white-space:normal;font-size:11.5px">${r.dups ? "also: " + esc(r.dups) : ""}</td></tr>`).join("") : ""); }).join("") + "</tbody>";
+          <td class="c">${rk(r.rank)}</td><td class="c">${pill(r.v)}</td><td class="dim" style="white-space:normal;font-size:11.5px">${esc(r.sub && r.sub !== c.n ? r.sub : "")}${r.dups ? (r.sub && r.sub !== c.n ? " · " : "") + "also: " + esc(r.dups) : ""}</td></tr>`).join("") : ""); }).join("") + "</tbody>";
 }
 $("c-table").onclick = e => { const s = e.target.closest("tr.sub"); if (s) { openOne(s.dataset.t, T.filter(r => r.cid === byT[s.dataset.t].cid)); return; }
   const c = e.target.closest("tr.cl2"); if (!c) return; const id = +c.dataset.c; open.has(id) ? open.delete(id) : open.add(id); drawC(); };
 $("q").oninput = e => { q = e.target.value; drawC(); };
 $("t-open").onclick = e => { allOpen = !allOpen; e.currentTarget.setAttribute("aria-pressed", allOpen); drawC(); };
 $("t-single").onclick = e => { showSingle = !showSingle; e.currentTarget.setAttribute("aria-pressed", showSingle); drawC(); };
-$("c-title").textContent = `${cBull.length} of ${C.length} clusters are Bullish and Outperform; ${cBear.length} are Bearish and Underperform`;
-$("c-note").textContent = `Sorted by momentum score. Composite: equal-weight index of the cluster's themes; a stand-alone theme is its own composite. “also”: tickers left out because they are the same exposure. Beta: against the MSCI ACWI, weekly returns ${D.window[0]} to ${D.window[1]}.`;
+$("c-title").textContent = `${cOut.length} of ${CG.length} clusters Outperform the MSCI ACWI; ${cBear.length} are Bearish and Underperform`;
+$("c-note").textContent = `Clusters sorted by momentum score, stand-alone themes last. Last column, for a theme: its sub-group in the finer cluster map. Composite: equal-weight index of the cluster's themes; a stand-alone theme is its own composite. “also”: tickers left out because they are the same exposure. Beta: against the MSCI ACWI, weekly returns ${D.window[0]} to ${D.window[1]}.`;
 drawC();
 
 /* rotation */
@@ -440,6 +448,21 @@ document.querySelectorAll(".mapcard[data-map]").forEach(c => rotation(c, c.datas
 const lead = D.rot.filter(s => { const l = s.xy[s.xy.length - 1]; return l[0] > 0 && l[1] > 0; }).length;
 $("o-title").textContent = `${lead} of ${D.rot.length} clusters sit in the Leading quadrant`;
 
+/* anchors */
+const A = D.anchors; A.forEach(r => byT[r.t] = r);
+const AT = [...new Set(A.map(r => r.type))].sort((a, b) => A.filter(r => r.type === b).length - A.filter(r => r.type === a).length);
+let aType = AT[0];
+function drawA() {
+  $("a-types").innerHTML = AT.map(t => `<button class="chip" data-k="${esc(t)}" aria-pressed="${t === aType}">${esc(t)} ${A.filter(r => r.type === t).length}</button>`).join("");
+  const rows = A.filter(r => r.type === aType).sort((a, b) => (b.mom ?? -9) - (a.mom ?? -9));
+  $("a-table").innerHTML = TH.replace("<th>Cluster</th>", "<th>Also covers</th>") + "<tbody>" + rows.map(r => trow(r, false).replace("</td>", `</td><td class="dim" style="white-space:normal;font-size:11.5px">${esc(r.dups)}</td>`)).join("") + "</tbody>";
+  $("a-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) openOne(tr.dataset.t, rows); };
+}
+$("a-types").onclick = e => { const b = e.target.closest(".chip"); if (b) { aType = b.dataset.k; drawA(); } };
+drawA();
+const aok = A.filter(r => hasV(r.v));
+$("a-title").textContent = `${A.length} anchors: ${aok.filter(r => r.v === "Bullish").length} Bullish, ${A.filter(r => r.rs === "Outperform").length} Outperform the MSCI ACWI`;
+
 /* ranking test */
 const t1 = D.test.f1, t3 = D.test.f3;
 $("t-title").textContent = `Momentum ranking: top third ahead of bottom third by ${pct(t3.spread, 2)} over 3 months, in ${p0(t3.hit)} of periods`;
@@ -456,7 +479,8 @@ $("t-notes").innerHTML = [`The spread has the expected sign but is small and not
 
 /* method */
 $("m-list").innerHTML = [
-  ["Clusters", "Themes are grouped on the correlation of their weekly returns once the MSCI ACWI move is removed (three years, USD). The Europe block is split one level down. One line is kept per set of near-identical series."],
+  ["Themes and anchors", "Only proper themes are clustered and shortlisted. Sectors, markets and countries, styles, commodities and crypto are anchors: same rules, shown for context."],
+  ["Clusters", "Themes are grouped on the correlation of their weekly returns once the MSCI ACWI move is removed (three years, USD). One line is kept per set of near-identical series."],
   ["Trend", "Direction of the 200-day moving average over the last 20 trading days: rising, flat or falling."],
   ["Verdict", "Rising trend + intact support + 50-day above the 200-day = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt."],
   ["Relative trend", "Is the 200-day average of theme ÷ MSCI ACWI rising (Outperform) or falling (Underperform)? RS 3m / 6m / 12m: change in relative strength."],
