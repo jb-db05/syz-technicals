@@ -341,7 +341,7 @@ def test_parabola_then_crash_below_last_swing_low_is_not_bullish():
     assert s.iloc[-1] < sup and r.verdict != "Bullish"
 
 
-# ── relative trend: slope of the 200-day average of price ÷ benchmark, nothing else (rule of 25 Nov 2026) ───────────
+# ── relative trend: slope of the 200-day average of price ÷ benchmark, nothing else (rule of 24 Nov 2026) ───────────
 
 def _flat_bench(s):
     import pandas as pd

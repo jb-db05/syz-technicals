@@ -20,7 +20,7 @@ Version of 22 November 2026 (trend levels: swing rule adopted 22 Nov 2026). The 
    - Trend × relative grid: three columns (Outperform, fill E3F4EF · Neutral, E9ECF1 · Underperform, F6E8EF), widths 1.45, 2.94, 2.94, 2.95 in; title "Trend × relative trend: X stocks Bullish and Outperform, Y Bullish and Underperform".
    - HTML: same wording; the filter offers Outperform / Neutral / Underperform; JSON key `rs` carries the relative trend, `rsmom` the old RS Mom.
    - RS 3m is unchanged.
-5. **Relative trend simplified (25 Nov) – overrides the definition in point 4:**
+5. **Relative trend simplified (24 Nov, later the same day) – overrides the definition in point 4:**
    - Definition: only the slope of the 200-day average of the RS line over 20 trading days. Rising = **Outperform**, falling = **Underperform** (exactly unchanged = Neutral, in practice never). No swing levels, no 50-day.
    - Trend × relative grid: two columns again (Outperform, fill E3F4EF · Underperform, F6E8EF), widths 1.45, 4.4, 4.43 in.
    - HTML filter: Outperform / Underperform.

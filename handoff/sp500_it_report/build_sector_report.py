@@ -1048,7 +1048,7 @@ REL_STATE = {"outperforming": "Outperform", "underperforming": "Underperform", "
 REL_RULE = {"outperforming": "rs_ma200_rising", "underperforming": "rs_ma200_falling", "mixed": "rs_ma200_unchanged"}
 
 def relative_verdict(s: pd.Series, b: pd.Series, params: TrendParams = DEFAULT_PARAMS) -> dict:
-    """Relative trend (rule of 25 Nov 2026): only the slope of the 200-day average of the relative-strength line.
+    """Relative trend (rule of 24 Nov 2026): only the slope of the 200-day average of the relative-strength line.
 
     RS = price ÷ benchmark × 100; slope = its 200-day average today against 20 trading days ago. Rising = Outperform,
     falling = Underperform, exactly unchanged = Neutral (no flat band). Needs more than 220 common closes; otherwise
@@ -1156,7 +1156,7 @@ ORANGE, AMBER, NAVY = "#FF6C0E", "#FFA400", "#202945"
 
 GREY = "#B8BFCC"
 
-RS_RISING, RS_FALLING = "#2F6FDE", "#D8343F"     # relative-strength line: blue when its 200-day average rises, red when it falls (25 Nov 2026)
+RS_RISING, RS_FALLING = "#2F6FDE", "#D8343F"     # relative-strength line: blue when its 200-day average rises, red when it falls (24 Nov 2026)
 
 VERDICT_COLOUR = {"Bullish": MINT, "Neutral+": BLUEBERRY, "Neutral": BLUEBERRY, "Neutral-": BLUEBERRY,
                   "Bearish_LM": MULBERRY, "Bearish": MULBERRY}
