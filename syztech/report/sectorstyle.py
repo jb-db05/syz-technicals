@@ -312,8 +312,129 @@ def key_readings(df: pd.DataFrame):
     return nb_reg, out_reg, cols
 
 
+def _cell_lines(cell, left, right, top="FFFFFF", bottom="FFFFFF", w=19050):
+    """Explicit cell borders (None = no line), so every separation in the map has the same width (1.5 pt)."""
+    from pptx.oxml.ns import qn
+    from lxml import etree
+    tcPr = cell._tc.get_or_add_tcPr()
+    for tag in ("a:lnL", "a:lnR", "a:lnT", "a:lnB"):
+        for old in tcPr.findall(qn(tag)):
+            tcPr.remove(old)
+    for k, (tag, colour) in enumerate((("a:lnL", left), ("a:lnR", right), ("a:lnT", top), ("a:lnB", bottom))):
+        ln = etree.SubElement(tcPr, qn(tag))
+        tcPr.remove(ln); tcPr.insert(k, ln)
+        if colour is None:
+            ln.set("w", "0"); etree.SubElement(ln, qn("a:noFill"))
+        else:
+            ln.set("w", str(w)); ln.set("cap", "flat"); ln.set("cmpd", "sng"); ln.set("algn", "ctr")
+            sf = etree.SubElement(ln, qn("a:solidFill")); etree.SubElement(sf, qn("a:srgbClr")).set("val", colour)
+            etree.SubElement(ln, qn("a:prstDash")).set("val", "solid")
+
+
+def _words(label):
+    """"9 months ago" -> "nine months ago" (titles read better without two numbers side by side)."""
+    n, _, rest = label.partition(" ")
+    return {"3": "three", "6": "six", "9": "nine", "12": "twelve"}.get(n, n) + " " + rest
+
+
+def split_map_page(deck, sect, title, asof, note, subtitle=None):
+    """Sector × region map, each cell in two halves: 200-day direction (left) | relative trend (right).
+    `sect`: rows with group, sector_key, slope200, rel_state. Every separation is the same 1.5 pt white line."""
+    hdr, col_w = ["Sector"], [1.75]
+    for r_ in REGIONS:
+        hdr += [REGION_NAME[r_[0]], f"vs {r_[2]}"]
+        col_w += [0.88, 1.2]
+    col_w = [w_ * W / sum(col_w) for w_ in col_w]
+    cell_of = lambda key, sg: (lambda x: x.iloc[0] if len(x) else None)(sect[(sect.group == sg) & (sect.sector_key == key)])
+    rows, st, gone = [], {}, []
+    for i, (key, sname) in enumerate(SECTOR_KEYS):
+        row = [sname]
+        st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
+        for k, (reg, bench, bname, sg, *_r) in enumerate(REGIONS):
+            r = cell_of(key, sg)
+            if r is None:
+                gone.append((i + 1, 1 + 2 * k))
+                row += ["n/a – series discontinued", ""]
+                st[(i, len(row) - 2)] = dict(_NA); st[(i, len(row) - 1)] = dict(_NA)
+            else:
+                for txt, sty in (_slope_cell(r.slope200), _rel_cell(r.rel_state)):
+                    row.append(txt); st[(i, len(row) - 1)] = sty
+        rows.append(row)
+    s = deck.titled(title, subtitle or "In each region – left: momentum (direction of the 200-day average); right: relative trend "
+                                      "against the benchmark named above it")
+    gt = table(s, X0, 2.5, W, hdr, rows, col_w, row_h=0.41, size=8, styles=st)
+    n_col = len(hdr)
+    for i in range(len(rows) + 1):
+        for c in range(n_col):
+            _cell_lines(gt.cell(i, c), "FFFFFF", "FFFFFF")
+    for k in range(len(REGIONS)):                      # header: region over the momentum half, its benchmark over the relative half
+        a_, b_ = gt.cell(0, 1 + 2 * k), gt.cell(0, 2 + 2 * k)
+        for c in (a_, b_):
+            c.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        b_.text_frame.paragraphs[0].runs[0].font.bold = False
+        _cell_lines(a_, "FFFFFF", None); _cell_lines(b_, None, "FFFFFF")      # one white line per region, none inside it
+    for i, c in gone:                                  # a discontinued series: one grey cell over both halves
+        gt.cell(i, c).merge(gt.cell(i, c + 1))
+    source(s, asof, note)
+    return s
+
+
+def evolution_page(deck, sect, history, asof, note):
+    """How the map has moved: sectors with a rising 200-day, Outperform and Bullish, per region, today against the earlier dates.
+    history: [(label, date, frame)] oldest first; frame has ticker, slope200, rel_state, verdict (same rules, data up to that date)."""
+    tick = {reg: list(sect[sect.group == sg].ticker) for reg, _b, _n, sg, *_r in REGIONS}
+    tick["All"] = list(sect.ticker)
+    now = sect.set_index("ticker")[["slope200", "rel_state", "verdict"]]
+    frames = [(lab, f.set_index("ticker")) for lab, _d, f in history] + [("now", now)]
+    meas = [("Rising 200-day", lambda f: f.slope200 == "rising", MINT), ("Outperform", lambda f: f.rel_state == "Outperform", ORANGE),
+            ("Bullish verdict", lambda f: f.verdict == "Bullish", NAVY)]
+    hdr = ["Region", "Sectors"] + [(lab.split()[0] + "m" if lab != "now" else "now") for _m in meas for lab, _f in frames]
+    n_f = len(frames)
+    col_w = [1.9, 0.75] + [0.62] * (n_f * len(meas))
+    col_w = [w_ * W / sum(col_w) for w_ in col_w]
+    rows, st, tot = [], {}, {}
+    order = [r_[0] for r_ in REGIONS] + ["All"]
+    for i, reg in enumerate(order):
+        row = [REGION_NAME.get(reg, "All four regions"), str(len(tick[reg]))]
+        st[(i, 0)] = {"bold": reg == "All", "align": PP_ALIGN.LEFT}
+        st[(i, 1)] = {"align": PP_ALIGN.CENTER, "color": BLUEB}
+        for m, (mname, fn, colour) in enumerate(meas):
+            vals = []
+            for lab, f in frames:
+                g = f.reindex(tick[reg])
+                vals.append(int(fn(g).sum()))
+            tot[(reg, mname)] = vals
+            for k, v in enumerate(vals):
+                j = 2 + m * n_f + k
+                row.append(str(v))
+                last = k == n_f - 1
+                st[(i, j)] = {"align": PP_ALIGN.CENTER, "bold": last or reg == "All",
+                              "color": (MINT if v > vals[-2] else MULB if v < vals[-2] else NAVY) if last else BLUEB}
+        if reg == "All":
+            for j in range(len(hdr)):
+                st[(i, j)] = {**st.get((i, j), {}), "fill": "FFE9D6"}
+        rows.append(row)
+    a = tot[("All", "Rising 200-day")]; o = tot[("All", "Outperform")]
+    first = _words(history[0][0])
+    s = deck.titled(f"Sector map over time: {a[-1]} of {len(tick['All'])} with a rising 200-day today against {a[0]} {first}; "
+                    f"{o[-1]} Outperform against {o[0]}", "")
+    xs = [X0 + sum(col_w[:j]) for j in range(len(col_w) + 1)]
+    for m, (mname, _fn, colour) in enumerate(meas):
+        a_, b_ = 2 + m * n_f, 1 + (m + 1) * n_f
+        box(s, xs[a_] + 0.02, 2.2, xs[b_ + 1] - xs[a_] - 0.04, 0.24, colour, radius=0.25)
+        text(s, xs[a_], 2.2, xs[b_ + 1] - xs[a_], 0.24, mname, size=9, color="FFFFFF", bold=True, align=PP_ALIGN.CENTER,
+             anchor=MSO_ANCHOR.MIDDLE)
+    gt = table(s, X0, 2.5, W, hdr, rows, col_w, row_h=0.42, size=10, styles=st)
+    for j in range(1, len(hdr)):
+        gt.cell(0, j).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    dates = "; ".join(f"{lab}: data to {d.day} {d:%B %Y}" for lab, d, _f in history)
+    source(s, asof, f"Number of sector indices in each state, same rules applied to the data available on each date ({dates}). "
+                    f"\"now\" in green when higher than three months ago, in purple when lower. " + note)
+    return s
+
+
 def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, template: Path, *, edition: str, asof: str,
-                       dropped: list[str], draft: bool = True) -> Path:
+                       dropped: list[str], draft: bool = True, history: list | None = None) -> Path:
     """df: one row per universe ticker with instrument_table + add_momentum columns and region / sector_key / group."""
     deck = Deck(template)
     by_t = df.set_index("ticker")
@@ -377,59 +498,18 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
         source(s, asof, "x: relative strength vs its own 200-day average. y: 3-month change of relative strength. Dots: weekly positions. "
                         "Colour: trend verdict of the index.")
 
-    # ── global sector map: two clean pages – momentum | relative trend side by side in each cell, then the verdict
+    # ── global sector map: momentum | relative trend side by side in each cell, the verdict, then the evolution
     n_sect = len(sect)
     bench_note_ = ("Benchmarks: US – S&P 500 sectors vs S&P 500; Europe, Japan, EM – MSCI sector indices vs the regional MSCI index (USD). ")
+    map_note = (bench_note_ + "Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. "
+                + rs_note.split(";")[0] + "." + drop_note)
 
     def _cells(key, sg):
         x = sect[(sect.group == sg) & (sect.sector_key == key)]
         return x.iloc[0] if len(x) else None
 
-    # page 1: each region = two half-cells (200-day direction | relative trend), a thin gap between regions
-    hdr, col_w, spacers = ["Sector"], [1.75], []
-    for k, r_ in enumerate(REGIONS):
-        hdr += [REGION_NAME[r_[0]], f"vs {r_[2]}"]
-        col_w += [0.85, 1.2]
-        if k < len(REGIONS) - 1:
-            spacers.append(len(hdr)); hdr.append(""); col_w.append(0.07)
-    col_w = [w_ * W / sum(col_w) for w_ in col_w]
-    rows, st = [], {}
-    for i, (key, sname) in enumerate(SECTOR_KEYS):
-        row = [sname]
-        st[(i, 0)] = {"bold": True, "align": PP_ALIGN.LEFT}
-        for k, (reg, bench, bname, sg, *_r) in enumerate(REGIONS):
-            r = _cells(key, sg)
-            if r is None:
-                row += ["n/a", ""]
-                st[(i, len(row) - 2)] = dict(_NA); st[(i, len(row) - 1)] = dict(_NA)
-            else:
-                for txt, sty in (_slope_cell(r.slope200), _rel_cell(r.rel_state)):
-                    row.append(txt); st[(i, len(row) - 1)] = sty
-            if k < len(REGIONS) - 1:
-                row.append(""); st[(i, len(row) - 1)] = {"fill": "FFFFFF"}
-        rows.append(row)
-    s = deck.titled(f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day, "
-                    f"{int((sect.rel_state == 'Outperform').sum())} Outperform their regional benchmark",
-                    "In each region – left: momentum (direction of the 200-day average); right: relative trend against the benchmark named above it")
-    gt = table(s, X0, 2.5, W, hdr, rows, col_w, row_h=0.41, size=8, styles=st)
-    c0 = 1
-    for k in range(len(REGIONS)):                      # region over the momentum half, its benchmark over the relative half
-        for c in (c0, c0 + 1):
-            gt.cell(0, c).text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-        gt.cell(0, c0 + 1).text_frame.paragraphs[0].runs[0].font.bold = False
-        c0 += 3
-    for c in spacers:
-        gt.cell(0, c).fill.solid(); gt.cell(0, c).fill.fore_color.rgb = rgb("FFFFFF")
-    for i, (key, _n) in enumerate(SECTOR_KEYS, start=1):   # a discontinued series: one grey cell over both halves
-        c0 = 1
-        for reg, bench, bname, sg, *_r in REGIONS:
-            if _cells(key, sg) is None:
-                gt.cell(i, c0).merge(gt.cell(i, c0 + 1))
-                tf = gt.cell(i, c0).text_frame
-                tf.paragraphs[0].runs[0].text = "n/a – series discontinued"
-            c0 += 3
-    source(s, asof, bench_note_ + "Momentum: 20-day change of the 200-day average above +0.20% rising, within ±0.20% flat, below –0.20% falling. "
-                    + rs_note.split(";")[0] + "." + drop_note)
+    split_map_page(deck, sect, f"Global sector map: {int((sect.slope200 == 'rising').sum())} of {n_sect} sector indices with a rising 200-day, "
+                   f"{int((sect.rel_state == 'Outperform').sum())} Outperform their regional benchmark", asof, map_note)
 
     # page 2: verdict
     hdr = ["Sector"] + [REGION_NAME[r_[0]] for r_ in REGIONS]
@@ -451,6 +531,14 @@ def build_sector_style(df: pd.DataFrame, charts: dict, maps: dict, out: Path, te
     table(s, X0, 2.5, W, hdr, rows, [2.28, 2.0, 2.0, 2.0, 2.0], row_h=0.41, size=9, styles=st)
     source(s, asof, bench_note_ + "Verdict: rising 200-day + intact support + 50-day above the 200-day = Bullish; falling 200-day + broken "
                     "support = Bearish; in between Neutral with a tilt." + drop_note)
+
+    if history:
+        evolution_page(deck, sect, history, asof, drop_note.strip())
+        lab, d_, f_ = history[-1]                      # the map as it stood on the most recent comparison date
+        old = sect[["ticker", "group", "sector_key"]].merge(f_, on="ticker", how="inner")
+        split_map_page(deck, old, f"Global sector map {_words(lab)}: {int((old.slope200 == 'rising').sum())} of {len(old)} with a rising 200-day, "
+                       f"{int((old.rel_state == 'Outperform').sum())} Outperform", asof,
+                       f"Same rules applied to the data to {d_.day} {d_:%B %Y}. " + map_note)
 
     # ── style & size ratios
     hdr = ["Ratio", "Ratio trend", "200-day", "vs 200d", "3m", "12m", "Leads (trend rule)"]

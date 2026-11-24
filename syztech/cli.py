@@ -345,14 +345,22 @@ def cmd_sector_style(a) -> int:
             maps[key] = rotation_map(pts, labels, vmap, work / f"rotation_{key}.png", BENCH_NAMES.get(bench, bench))
             points[key] = (pts, bench)
     d = pd.Timestamp(asof)
+    # the sector map at earlier dates: same rules on the data available then (9, 6 and 3 months before the last close)
+    sect_u = uni[uni.group.str.contains("Sectors", na=False) & uni.sector_key.notna()]
+    history = []
+    for m in (9, 6, 3):
+        d0 = d - pd.DateOffset(months=m)
+        h = score_universe(prices, sect_u, d0)
+        cols = [c for c in ("ticker", "slope200", "rel_state", "verdict") if c in h.columns]
+        history.append((f"{m} months ago", d0, h[cols].reindex(columns=["ticker", "slope200", "rel_state", "verdict"])))
     out = Path(a.out)
     build_sector_style(df, charts, maps, out, Path(a.template), edition=a.edition, asof=f"{d.day} {d:%B %Y}", dropped=dropped,
-                       draft=not a.final)
+                       draft=not a.final, history=history)
     print(f"written: {out} ({len(df)} series, {len(charts)} charts, {len(maps)} rotation maps)")
     if a.html_out:
         from .report.sectorstyle_html import build_sector_style_html
         h = build_sector_style_html(df, charts, points, Path(a.html_out), edition=a.edition, asof=f"{d.day} {d:%B %Y}",
-                                    dropped=dropped, draft=not a.final)
+                                    dropped=dropped, draft=not a.final, history=history)
         print(f"written: {h} (HTML, charts alongside)")
     return 0
 
