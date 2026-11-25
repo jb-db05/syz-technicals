@@ -23,12 +23,12 @@ def sheet_name(ticker: str) -> str:
     return "".join("_" if c in INVALID_SHEET_CHARS else c for c in ticker)
 
 
-def bdh_formula(currency: str | None = None, price_return: bool = False) -> str:
+def bdh_formula(currency: str | None = None, price_return: bool = False, weekly: bool = False) -> str:
     """Daily PX_LAST; `currency` (e.g. "USD") converts the series in Bloomberg, otherwise the local currency.
     `price_return`: ordinary cash dividends are not added back (CshAdjNormal=N) – to compare with a price index;
     splits, spin-offs and special dividends stay adjusted."""
     base = [o.replace("CshAdjNormal=Y", "CshAdjNormal=N") for o in BDH_OPTIONS] if price_return else BDH_OPTIONS
-    opts = base + ([f'"Currency={currency}"'] if currency else [])
+    opts = base + (['"Per=W"'] if weekly else []) + ([f'"Currency={currency}"'] if currency else [])   # Per=W: one close a week
     return f'=BDH($D$1,"PX_LAST",Settings!$B$2,Settings!$B$3,{",".join(opts)})'
 
 
@@ -90,7 +90,8 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
         ws["D1"].fill = PatternFill("solid", fgColor=ORANGE)
         cur = getattr(u, "currency", None)
         pr = str(getattr(u, "price_return", "")).strip().upper() in ("Y", "YES", "TRUE", "1")
-        ws["A2"] = bdh_formula(cur if isinstance(cur, str) and cur.strip() else None, price_return=pr)
+        wk = str(getattr(u, "periodicity", "")).strip().upper() == "W"
+        ws["A2"] = bdh_formula(cur if isinstance(cur, str) and cur.strip() else None, price_return=pr, weekly=wk)
         ws.column_dimensions["A"].width, ws.column_dimensions["B"].width = 12, 14
         ws.column_dimensions["D"].width = 20
         ws.freeze_panes = "A2"

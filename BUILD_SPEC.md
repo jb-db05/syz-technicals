@@ -303,3 +303,6 @@ Every command prints a one-screen summary and writes to `output/`. Exit non-zero
 - `README.md` documents the run, the §3.3 decisions, and the `flat_band` / `cross_lookback` parameters.
 
 Phase 2 (ledger) and Phase 3 (regime) start only after Phase 1 is done.
+
+## Addendum (25 Nov 2026) – weekly rule for the master-list screen
+The master-list screen reads weekly closes with the §3 rule set, every window divided by five (`syztech/trend/weekly.py`): 40-week and 10-week averages; direction of the 40-week average over 4 weeks, flat band 0.20%; 20-week high / low band; swing threshold 1.5 × the median over 52 weeks (at least 26) of the one-month move (stdev of weekly log returns over 20 weeks × √4); a broken level stands; 52-week low / high where no swing is confirmed; minimum history 64 weeks. Relative trend: direction over 4 weeks of the 40-week average of price ÷ benchmark. Weekly close = last close of the calendar week; nothing filled. Tests in `tests/test_trend_rules.py` (weekly section). Study: `syztech/research/study_weekly.py`. All other documents keep the daily rule.

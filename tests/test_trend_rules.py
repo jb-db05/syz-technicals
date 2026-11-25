@@ -380,3 +380,54 @@ def test_relative_trend_short_history_gives_no_state():
     up = _legs(1.3, 0.92, 1.3, n=40)
     r = relative_verdict(up, _flat_bench(up))
     assert r["rel_state"] is None and r["rel_missing"]
+
+
+# ── weekly rule: the same rule set on weekly closes, windows ÷ 5 (master-list screen only, 25 Nov 2026) ─────────────
+
+def _weekly(s):
+    from syztech.trend.weekly import to_weekly
+    return to_weekly(s)
+
+
+def test_weekly_params_are_the_daily_windows_divided_by_five():
+    from syztech.trend.rules import DEFAULT_PARAMS
+    from syztech.trend.weekly import WEEKLY_PARAMS as W
+    D = DEFAULT_PARAMS
+    assert (W.ma_long, W.ma_short, W.band_window, W.slope_lookback, W.min_history) == (D.ma_long // 5, D.ma_short // 5, D.band_window // 5, D.slope_lookback // 5, D.min_history // 5)
+    assert W.flat_band == D.flat_band
+
+
+def test_to_weekly_keeps_the_last_close_of_each_week_and_fills_nothing():
+    import numpy as np
+    import pandas as pd
+    idx = pd.bdate_range("2024-01-01", periods=15)                     # three full weeks, Monday to Friday
+    s = pd.Series(np.arange(15.0), index=idx)
+    s.iloc[9] = np.nan                                                 # the second Friday is missing
+    w = _weekly(s)
+    assert list(w.values) == [4.0, 8.0, 14.0] and w.index[1] == idx[8]   # Thursday's close stands for that week
+
+
+def test_weekly_uptrend_is_bullish_and_downtrend_bearish():
+    from syztech.trend.weekly import evaluate_weekly
+    up = _weekly(_legs(1.3, 0.92, 1.3, 0.92, 1.3, 0.95, 1.1, 1.05, 1.1, n=80))
+    r, lv = evaluate_weekly(up)
+    assert (r.verdict, r.rule) == (BULLISH, "rising_support_intact") and lv["support_origin"].startswith("swing low")
+    down = _weekly(_legs(0.8, 1.08, 0.8, 1.08, 0.8, 1.05, 0.9, 0.97, 0.9, n=80))
+    assert evaluate_weekly(down)[0].verdict in (BEARISH, BEARISH_LM)
+
+
+def test_weekly_needs_64_weeks():
+    from syztech.trend.weekly import evaluate_weekly
+    short = _weekly(_legs(1.3, 0.92, 1.3, n=80))                       # 240 days, about 48 weeks
+    r, _ = evaluate_weekly(short)
+    assert r.verdict == INSUFFICIENT and "64" in r.missing
+
+
+def test_relative_weekly_is_the_slope_of_the_40_week_average():
+    import pandas as pd
+    from syztech.trend.weekly import relative_weekly
+    up = _weekly(_legs(1.3, 0.92, 1.3, 0.92, 1.3, 0.95, 1.1, n=80))
+    flat = pd.Series(100.0, index=up.index)
+    assert relative_weekly(up, flat)["rel_state"] == "Outperform"
+    assert relative_weekly(flat, up)["rel_state"] == "Underperform"
+    assert relative_weekly(up.iloc[:40], flat.iloc[:40])["rel_state"] is None
