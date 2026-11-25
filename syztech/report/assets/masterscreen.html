@@ -1,0 +1,418 @@
+<title>Master List Technical Screen</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:opsz,wght@6..12,300;6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
+/* Layout: navy masthead band, sticky section nav, then report sections in one 1180px column; charts sit on white plates in both themes. */
+:root {
+  --bg: #FFFFFF; --surface: #F5F6F9; --ink: #202945; --muted: #5A6A88; --line: #E2E6ED;
+  --orange: #FF6C0E; --amber: #FFA400; --mint: #3BAF90; --mulb: #AC5D85; --blueb: #4B5F80; --sky: #79D6FF;
+  --navy: #202945; --on-navy: #FFFFFF; --mint-soft: #E3F4EF; --mulb-soft: #F6E8EF; --orange-soft: #FFF0E5;
+  --plate: #FFFFFF; --shadow: 0 1px 2px rgba(32,41,69,.06), 0 4px 16px rgba(32,41,69,.05);
+  --font: "Nunito Sans", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131A2C; --surface: #1B2339; --ink: #E7EBF3; --muted: #A3AFC6; --line: #2B3553;
+  --mint: #4CC4A3; --mulb: #C982A7; --blueb: #8EA2C6; --navy: #0E1424; --on-navy: #FFFFFF;
+  --mint-soft: #1C3A36; --mulb-soft: #3A2436; --orange-soft: #3A2718; --plate: #FFFFFF; --shadow: none; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #131A2C; --surface: #1B2339; --ink: #E7EBF3; --muted: #A3AFC6; --line: #2B3553;
+  --mint: #4CC4A3; --mulb: #C982A7; --blueb: #8EA2C6; --navy: #0E1424; --on-navy: #FFFFFF;
+  --mint-soft: #1C3A36; --mulb-soft: #3A2436; --orange-soft: #3A2718; --plate: #FFFFFF; --shadow: none; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1, h2, h3 { text-wrap: balance; margin: 0 }
+.num, td.r, .tab { font-variant-numeric: tabular-nums }
+a { color: inherit }
+button { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
+
+/* masthead */
+.mast { background: var(--navy); color: var(--on-navy); position: relative; overflow: hidden }
+.mast::after { content: ""; position: absolute; inset: auto 0 0 0; height: 4px; background: linear-gradient(90deg, var(--orange), var(--amber)) }
+.mast .wrap { padding-block: 36px 40px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 32px; align-items: end }
+.mast img { width: 58px; height: auto; display: block; margin-bottom: 22px }
+.eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--amber) }
+.mast h1 { font-size: clamp(28px, 4vw, 42px); font-weight: 800; line-height: 1.12; margin: 8px 0 10px }
+.mast .sub { color: #B9C3D8; font-size: 14px }
+.draft { display: inline-block; margin-top: 14px; font-size: 11px; font-weight: 800; letter-spacing: .1em; color: var(--orange); border: 1px solid var(--orange); border-radius: 999px; padding: 3px 10px }
+.counts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.count { background: rgba(255,255,255,.06); border-radius: 14px; padding: 14px 16px }
+.count b { display: block; font-size: 40px; font-weight: 800; line-height: 1 }
+.count span { font-size: 13px; color: #C9D1E2 }
+.count.bull b { color: #5FD3B2 } .count.neu b { color: var(--sky) } .count.bear b { color: #E6A4AD }
+.counts-note { grid-column: 1 / -1; font-size: 12px; color: #9AA6BF }
+
+/* nav */
+nav.sec { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line) }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg) }
+nav.sec .wrap { display: flex; gap: 4px; overflow-x: auto; padding-block: 8px; scrollbar-width: none }
+nav.sec a { text-decoration: none; font-size: 13px; font-weight: 600; color: var(--muted); padding: 6px 12px; border-radius: 999px; white-space: nowrap }
+nav.sec a:hover { color: var(--ink); background: var(--surface) }
+
+section { padding-block: 44px 8px; scroll-margin-top: 56px }
+.sh { display: flex; flex-direction: column; gap: 4px; margin-bottom: 20px }
+.sh .k { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: var(--orange) }
+.sh h2 { font-size: clamp(21px, 2.6vw, 27px); font-weight: 800; line-height: 1.2 }
+.sh p { margin: 0; color: var(--muted); font-size: 14px; max-width: 75ch }
+.note { color: var(--muted); font-size: 12px; margin-top: 10px; max-width: 110ch }
+
+/* sector */
+.sector { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 24px; align-items: start }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.tile { background: var(--surface); border-radius: 12px; padding: 12px 14px; position: relative; overflow: hidden }
+.tile::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--blueb) }
+.tile:nth-child(odd)::before { background: linear-gradient(var(--orange), var(--amber)) }
+.tile .l { font-size: 12px; color: var(--muted) }
+.tile .v { font-size: 22px; font-weight: 800; line-height: 1.25; margin-top: 2px }
+.plate { background: var(--plate); border-radius: 12px; box-shadow: var(--shadow); border: 1px solid var(--line); overflow: hidden; display: block; padding: 0; cursor: zoom-in; width: 100% }
+.plate img { display: block; width: 100%; height: auto }
+.pos { color: var(--mint) } .neg { color: var(--mulb) } .flat { color: var(--blueb) } .dim { color: var(--muted) }
+
+/* breadth */
+.breadth { display: grid; grid-template-columns: minmax(0, 260px) minmax(0, 1fr); gap: 24px; align-items: stretch }
+.stats { display: grid; gap: 10px }
+.stat { background: var(--surface); border-radius: 12px; padding: 12px 16px; display: flex; gap: 14px; align-items: center }
+.stat b { font-size: 26px; font-weight: 800; min-width: 84px }
+.stat span { font-size: 13px; color: var(--muted); line-height: 1.3 }
+.card { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-width: 0 }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 6px }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+svg text { fill: var(--muted); font-family: var(--font) }
+svg .ink { fill: var(--ink) }
+
+/* tables */
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; min-width: 0 }
+table { border-collapse: collapse; width: 100%; font-size: 13px }
+th { background: var(--navy); color: var(--on-navy); font-weight: 700; text-align: left; padding: 8px 10px; white-space: nowrap; font-size: 12px; position: relative }
+th.r, td.r { text-align: right } th.c, td.c { text-align: center }
+td { padding: 6px 10px; border-top: 1px solid var(--line); white-space: nowrap }
+tbody tr:nth-child(even) td { background: var(--surface) }
+tr.total td { background: var(--orange-soft) !important; font-weight: 800 }
+th.sort { cursor: pointer; user-select: none }
+th.sort:hover { background: var(--blueb) }
+th .ar { opacity: .7; font-size: 10px; margin-left: 4px }
+tr.click { cursor: pointer }
+tr.click:hover td { background: var(--orange-soft) }
+.tk { color: var(--muted); font-size: 11px; margin-left: 6px }
+.grp th { background: transparent; padding: 0 2px 6px; border: 0 }
+.grp span { display: block; border-radius: 999px; color: #fff; text-align: center; font-size: 11px; padding: 3px 0; letter-spacing: .04em }
+.pill { display: inline-block; min-width: 96px; text-align: center; border-radius: 6px; padding: 2px 8px; font-weight: 700; font-size: 12px; color: #fff }
+.p-Bullish { background: var(--mint) } .p-Bearish, .p-Bearish_LM { background: var(--mulb) }
+.p-Neutral, .p-Neutral\+, .p-Neutral- { background: var(--blueb) } .pill.sm { min-width: 104px } .p-na { background: var(--line); color: var(--muted) }
+.rsm { font-weight: 800; white-space: nowrap; font-size: 12px } .rsm.neu { color: var(--blueb) }
+.lt { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 800; border: 1.5px solid; white-space: nowrap; margin-right: 3px }
+.lt-m { color: var(--orange); border-color: var(--orange) } .lt-f { color: var(--ink); border-color: var(--ink) }
+.thumb .lt { font-size: 10px; padding: 0 6px }
+.thumb .lt-f { color: #202945; border-color: #202945 }
+
+/* controls */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted) }
+.chip[aria-pressed="true"] { background: var(--navy); border-color: var(--navy); color: var(--on-navy) }
+:root[data-theme="dark"] .chip[aria-pressed="true"] { background: var(--orange); border-color: var(--orange) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip[aria-pressed="true"] { background: var(--orange); border-color: var(--orange) } }
+select, input[type=search] { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 5px 12px }
+input[type=search] { min-width: 0; width: 180px }
+.count-line { font-size: 13px; color: var(--muted); margin-left: auto }
+
+/* RS bars */
+.rsbars { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px }
+.rsbars h3 { font-size: 15px; font-weight: 800; margin-bottom: 8px }
+.bar { display: grid; grid-template-columns: minmax(0, 170px) minmax(0, 1fr) 58px; gap: 10px; align-items: center; font-size: 13px; padding: 3px 0; cursor: pointer; border-radius: 6px }
+.bar:hover { background: var(--surface) }
+.bar .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.bar .tr { height: 14px; background: var(--surface); border-radius: 4px; overflow: hidden }
+.bar .fl { height: 100%; border-radius: 4px }
+.bar .vv { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums }
+
+/* grid */
+.grid2 td { white-space: normal; vertical-align: top; padding: 10px }
+.grid2 td:first-child { width: 130px }
+.grid2 .cell-out { background: var(--mint-soft) !important } .grid2 .cell-under { background: var(--mulb-soft) !important }
+.nchip { display: inline-block; margin: 2px 3px 2px 0; padding: 1px 8px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); font-size: 12px; cursor: pointer }
+.nchip:hover { border-color: var(--orange) }
+
+/* gallery */
+.gal h3 { font-size: 16px; font-weight: 800; margin: 22px 0 10px }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px }
+.thumb { background: var(--plate); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: zoom-in; padding: 0; text-align: left }
+.thumb img { display: block; width: 100%; aspect-ratio: 10.65 / 7.45; object-fit: cover; max-width: 100% }
+.thumb div { padding: 6px 10px; font-size: 12px; font-weight: 700; color: #202945; display: flex; justify-content: space-between; gap: 8px }
+
+/* method */
+.method { display: grid; gap: 10px }
+.mrow { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: center }
+.mrow b { border-radius: 10px; padding: 14px 16px; color: #fff; font-weight: 800 }
+.mrow:nth-child(odd) b { background: linear-gradient(90deg, var(--orange), var(--amber)) }
+.mrow:nth-child(even) b { background: var(--navy) }
+:root[data-theme="dark"] .mrow:nth-child(even) b { background: var(--blueb) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .mrow:nth-child(even) b { background: var(--blueb) } }
+
+footer { margin-top: 48px; border-top: 1px solid var(--line); padding-block: 20px 40px }
+.src { font-size: 12px; color: var(--muted) }
+.disc { font-size: 10px; color: var(--muted); line-height: 1.45; margin-top: 18px }
+.disc h4 { font-size: 10px; letter-spacing: .1em; margin: 0 0 6px }
+.disc p { margin: 0 0 6px }
+
+/* lightbox */
+dialog { border: 0; padding: 0; border-radius: 14px; max-width: min(1200px, 96vw); width: 96vw; background: var(--bg); color: var(--ink) }
+dialog::backdrop { background: rgba(14,20,36,.72) }
+.lbh { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--line) }
+.lbh .t { font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.lbh button { border: 1px solid var(--line); background: var(--bg); border-radius: 8px; padding: 4px 10px; cursor: pointer }
+.lbimg { background: #fff } .lbimg img { display: block; width: 100%; height: auto }
+.lbf { padding: 8px 14px; font-size: 12px; color: var(--muted) }
+
+@media (max-width: 900px) {
+  .mast .wrap, .sector, .breadth, .rsbars { grid-template-columns: minmax(0, 1fr) }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .mrow { grid-template-columns: minmax(0, 1fr) }
+  .bar { grid-template-columns: minmax(0, 120px) minmax(0, 1fr) 52px }
+}
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth } }
+/* ── additions for the sectors & style page */
+.regions4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
+.rc { background: rgba(255,255,255,.06); border-radius: 14px; padding: 12px 14px; cursor: pointer; border: 0; text-align: left; color: inherit }
+.rc:hover { background: rgba(255,255,255,.11) }
+.rc b { display: block; font-size: 15px; font-weight: 800; margin-bottom: 4px }
+.rc .vv { font-size: 13px; font-weight: 800 }
+.rc .sm { display: block; font-size: 12px; color: #B9C3D8; margin-top: 2px }
+.vb-Bullish { color: #5FD3B2 } .vb-Neutral { color: var(--sky) } .vb-Bearish { color: #E6A4AD }
+.readings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px }
+.rd { background: var(--surface); border-radius: 12px; overflow: hidden }
+.rd h3 { margin: 0; padding: 10px 14px; color: #fff; font-size: 14px; font-weight: 800 }
+.rd:nth-child(odd) h3 { background: linear-gradient(90deg, var(--orange), var(--amber)) }
+.rd:nth-child(even) h3 { background: var(--navy) }
+:root[data-theme="dark"] .rd:nth-child(even) h3 { background: var(--blueb) }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .rd:nth-child(even) h3 { background: var(--blueb) } }
+.rd ul { margin: 0; padding: 12px 16px 14px 30px; font-size: 14px; display: grid; gap: 6px }
+.heat { table-layout: fixed; min-width: 760px }
+.heat td.cell { cursor: pointer; text-align: center; color: #fff; font-weight: 700; font-size: 12.5px; border: 2px solid var(--bg); border-radius: 0 }
+.heat td.cell small { display: block; font-weight: 600; opacity: .92; font-size: 11.5px }
+.heat td.split { padding: 0; background: transparent !important } .heat td.split > div { display: flex; gap: 2px } .heat td.split span { flex: 1 1 0; padding: 9px 4px; font-size: 12px; white-space: nowrap }
+.heat th.reg { border-left: 2px solid var(--bg); text-align: center } .heat th.split { padding-left: 0; padding-right: 0 } .heat th.split > div { display: flex; gap: 2px } .heat th.split span { flex: 1 1 0; text-align: center } .heat th.split .vs { font-weight: 600; color: #C9D1E2 }
+#h-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: clamp(11px, 3.05vw, 26px) }
+.heat thead th { height: 38px; padding-top: 0; padding-bottom: 0 } .heat tbody td { height: 38px; padding-top: 0; padding-bottom: 0 }
+.heat td.split > div { height: 36px } .heat td.split span { padding: 0 4px; display: flex; align-items: center; justify-content: center }
+#h-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; color: var(--orange); margin: 2px 0 2px }
+.heat td.cell:hover { outline: 2px solid var(--orange); outline-offset: -2px }
+.heat td.na { background: var(--surface) !important; color: var(--muted); font-weight: 600; cursor: default }
+.f-Bullish { background: var(--mint) !important } .f-Neutral { background: var(--blueb) !important } .f-Bearish { background: var(--mulb) !important }
+.two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px }
+.two .mapcard { width: 100%; max-width: 860px; justify-self: center }
+.mapcard { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 10px; position: relative; min-width: 0 }
+.mapcard svg { display: block; width: 100%; height: auto }
+.tip { position: absolute; pointer-events: none; background: var(--navy); color: var(--on-navy); font-size: 12px; padding: 6px 9px; border-radius: 8px; white-space: nowrap; z-index: 5 }
+.regsec { border-top: 4px solid var(--line); margin-top: 36px }
+.sub3 { font-size: 17px; font-weight: 800; margin: 26px 0 10px }
+.lead { font-weight: 800 }
+@media (max-width: 900px) { .regions4, .readings { grid-template-columns: minmax(0, 1fr) } }
+
+/* master-list screen */
+#h-title { white-space: normal; overflow: visible; font-size: clamp(21px, 2.6vw, 27px) }
+.kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px }
+.kpc { border: 1px solid var(--line); border-radius: 14px; overflow: hidden } .kpc h3 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 9px 14px; background: var(--orange) }
+.kpc:nth-child(2) h3 { background: var(--navy) } .kpc ul { margin: 0; padding: 12px 14px 12px 30px; font-size: 14px } .kpc li { margin-bottom: 5px }
+.bar3 { display: flex; height: 12px; border-radius: 6px; overflow: hidden; min-width: 120px; background: var(--line) } .bar3 i { display: block; height: 100% }
+table.t { font-size: 12.5px } table.t th, table.t td { padding-left: 6px; padding-right: 6px } .pill.sm { min-width: 84px; padding: 2px 5px }
+td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; font-size: 12px; color: var(--muted) }
+.tag { font-size: 10.5px; font-weight: 800; border-radius: 999px; padding: 0 7px; margin-left: 5px; border: 1.5px solid; white-space: nowrap }
+.tag.f { color: var(--orange); border-color: var(--orange) } .tag.s { color: var(--blueb); border-color: var(--blueb) } .tag.l { color: var(--muted); border-color: var(--line); font-weight: 600 }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px }
+.tools input, .tools select { font: inherit; font-size: 13px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--bg); color: var(--ink) }
+.hm td.c2 { text-align: center; font-weight: 800; font-size: 12.5px; border: 2px solid var(--bg); cursor: pointer; color: #fff; height: 38px; padding-top: 0; padding-bottom: 0 }
+.hm td.c2 small { display: block; font-weight: 600; font-size: 10.5px; opacity: .9 } .hm td.na { background: var(--surface); color: var(--muted); cursor: default; font-weight: 600 }
+.hm th { text-align: center } .hm th:first-child { text-align: left }
+.more { margin: 10px 0 0; text-align: center } .more button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 16px; cursor: pointer; font-weight: 700 }
+@media (max-width: 900px) { .kp { grid-template-columns: minmax(0, 1fr) } }
+</style>
+<header class="mast">
+  <div class="wrap">
+    <div>
+      <img src="syz_logo.png" alt="Syz">
+      <div class="eyebrow" id="m-ed"></div>
+      <h1>Master List Technical Screen</h1>
+      <div class="sub" id="m-sub"></div>
+      <span class="draft">DRAFT – FOR INTERNAL REVIEW</span>
+    </div>
+    <div class="counts" id="m-counts"></div>
+  </div>
+</header>
+<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#zones">Zones</a><a href="#map">Zone × sector</a><a href="#focus">Focus List</a><a href="#screen">Screen</a><a href="#method">Method</a></div></nav>
+<main class="wrap">
+  <section id="readings">
+    <div class="sh"><span class="k">Key readings</span><h2 id="r-title"></h2><p>Rules-based facts on weekly closes; no published view.</p></div>
+    <div class="kp" id="r-cards"></div>
+  </section>
+  <section id="zones">
+    <div class="sh"><span class="k">Zones</span><h2 id="z-title"></h2><p>Each stock is measured against the benchmark of its zone, in the benchmark's currency, price return on both sides. Click a zone to filter the screen.</p></div>
+    <div class="tw"><table class="t" id="z-table"></table></div>
+    <p class="note" id="z-note"></p>
+  </section>
+  <section id="map">
+    <div class="sh"><span class="k">Zone × sector</span><h2 id="h-title"></h2><p id="h-sub"></p></div>
+    <div class="tools" id="h-views" role="group" aria-label="Reading shown in the map"><button class="chip" data-v="bull" aria-pressed="true">Bullish share</button><button class="chip" data-v="rising" aria-pressed="false">Rising 40-week</button><button class="chip" data-v="out" aria-pressed="false">Outperform</button></div>
+    <div class="tw"><table class="hm t" id="h-table"></table></div>
+    <p class="note">Share of the stocks in the cell; the small figure is the number of stocks. Cells with fewer than three stocks are greyed. Click a cell to filter the screen.</p>
+  </section>
+  <section id="focus">
+    <div class="sh"><span class="k">Focus List</span><h2 id="f-title"></h2><p>The Focus List names, weakest readings first.</p></div>
+    <div class="tw"><table class="t" id="f-table"></table></div>
+  </section>
+  <section id="screen">
+    <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker.</p></div>
+    <div class="tools" id="s-presets" role="group" aria-label="Preset screens"></div>
+    <div class="tools">
+      <input id="q" type="search" placeholder="Search a stock or ticker" aria-label="Search">
+      <select id="f-zone" aria-label="Zone"></select><select id="f-sector" aria-label="Sector"></select>
+      <select id="f-v" aria-label="Trend"><option value="">Trend: all</option><option>Bullish</option><option>Neutral</option><option>Bearish</option></select>
+      <select id="f-s" aria-label="40-week"><option value="">40-week: all</option><option value="rising">Rising</option><option value="flat">Flat</option><option value="falling">Falling</option></select>
+      <select id="f-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option>Outperform</option><option>Underperform</option></select>
+      <select id="f-list" aria-label="List"><option value="">All stocks</option><option value="foc">Focus List</option><option value="sat">Satellite</option></select>
+      <span id="s-count" class="dim" style="font-size:13px"></span>
+    </div>
+    <div class="tw"><table class="t" id="s-table"></table></div>
+    <div class="more"><button id="s-more" hidden>Show more</button></div>
+    <p class="note" id="s-note"></p>
+  </section>
+  <section id="method">
+    <div class="sh"><span class="k">Method</span><h2>How to read this screen</h2></div>
+    <div class="method" id="m-list"></div>
+  </section>
+  <footer>
+    <div class="src" id="f-src"></div>
+    <div class="disc">
+      <h4>LEGAL DISCLAIMER</h4>
+      <p>This communication has been sent to recipients for information purposes only and cannot be considered to constitute an advertisement, an offer or a personalised recommendation to buy or sell a financial instrument, enter into a foreign exchange transaction or make any other investment.</p>
+      <p>This communication does not constitute investment research within the meaning of regulatory rules applicable in the European Economic Area, or research under the rules of the U.S. Self-Regulatory Organizations.</p>
+      <p>This communication is made solely for professional and institutional clients as defined by the Swiss Financial Services Act, as well as qualified investors according to the Swiss Collective Investment Schemes Act. It is not intended for retail clients or non-qualified investors and consequently cannot be transmitted to any third party.</p>
+      <p>This communication is not directed to any person in any jurisdiction where, by reason of that person’s nationality, residence or otherwise, its dissemination or use is prohibited. It cannot be quoted, reproduced, disclosed, distributed or otherwise referred to, in whole or in part, to any third party without the Bank’s prior written consent.</p>
+      <p>This communication may contain information on past performances of financial products, currencies or foreign exchange markets, all kinds of economic and financial valuations and analyses, as well as opinions of the Bank or of third parties. Any market valuations, exchange rates, terms and calculation methods, yields, forecasts and opinions expressed are subject to change without notice. The information and opinions contained herein have been compiled and provided in good faith, based on information obtained from sources believed to be trustworthy. However, such information has not been independently verified. No guarantee, representation, or warranty of any kind, whether express or implied, is provided by the Bank or by relevant data vendors and other sources with respect to the accuracy, reliability, currentness or exhaustiveness of the information communicated, the methodology employed or the prices and exchange rates contained herein.</p>
+      <p>Past performance is not a reliable indicator of current or future results. Any reference to the past performance of an investment, currency or foreign exchange strategy does not guarantee its future performance. Fluctuations in exchange rates may adversely affect the value, price, income or performance of any investment or foreign exchange position.</p>
+      <p>Nothing in the present communication constitutes investment, legal, accounting or tax advice. This information is purely objective since it does not take into consideration the personal situation (including financial knowledge and experience), the investment objectives and risk profile of any recipient. Moreover, certain financial instruments or foreign exchange transactions mentioned, in particular, but not exclusively, derivatives, options, futures and other leveraged instruments, involve a high risk of loss and may not be suitable. Accordingly, recipients should consult their own advisors on such matters, including but not limited to the possible tax consequences of investing in any financial product or entering into any foreign exchange transaction mentioned herein, and make their own assessment of the suitability of such investment product or transaction.</p>
+      <p>Should a recipient make an investment or enter into a foreign exchange transaction on the basis of the present communication, the recipient alone shall bear the consequences thereof. In no event shall the Bank, its directors, employees, affiliates or agents be held responsible for damages of any kind arising out of the use of all or part of the information provided herein.</p>
+    </div>
+  </footer>
+</main>
+<script>
+const D = /*__DATA__*/null;
+const $ = id => document.getElementById(id), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const MINUS = "–", ND = "–";
+const pct = (v, d = 1) => v == null ? ND : (v >= 0 ? "+" : MINUS) + Math.abs(v * 100).toFixed(d) + "%";
+const p0 = v => (v * 100).toFixed(0) + "%", cls = v => v == null ? "dim" : v >= 0 ? "pos" : "neg";
+const GLY = {"Bullish": "▲", "Neutral+": "◆", "Neutral": "◆", "Neutral-": "◆", "Bearish_LM": "▼", "Bearish": "▼"};
+const hasV = v => v in GLY, fam = v => v === "Bullish" ? "Bullish" : String(v).startsWith("Bearish") ? "Bearish" : hasV(v) ? "Neutral" : "na";
+const pill = v => hasV(v) ? `<span class="pill sm p-${fam(v)}">${GLY[v]} ${esc(D.vlabel[v])}</span>` : `<span class="pill sm p-na">n/a</span>`;
+const SLO = {rising: ["▲", "Rising", "Bullish"], flat: ["◆", "Flat", "Neutral"], falling: ["▼", "Falling", "Bearish"]};
+const REL = {Outperform: ["▲", "Outperform", "Bullish"], Neutral: ["◆", "Neutral", "Neutral"], Underperform: ["▼", "Underperform", "Bearish"]};
+const badge = (m, k) => m[k] ? `<span class="pill sm p-${m[k][2]}">${m[k][0]} ${m[k][1]}</span>` : `<span class="dim">${ND}</span>`;
+const R = D.rows, ok = R.filter(r => hasV(r.v)), share = (a, f) => a.length ? a.filter(f).length / a.length : 0;
+const isB = r => r.v === "Bullish", isBe = r => fam(r.v) === "Bearish", isR = r => r.s === "rising", isO = r => r.rs === "Outperform";
+const nB = ok.filter(isB).length, nBe = ok.filter(isBe).length, nN = ok.length - nB - nBe;
+$("m-ed").textContent = `Week to ${D.asof}`;
+$("m-sub").textContent = `${R.length} stocks of the equity master list, read on weekly closes against the benchmark of their zone.`;
+$("m-counts").innerHTML = `<div class="count bull"><b>${nB}</b><span>Bullish</span></div><div class="count neu"><b>${nN}</b><span>Neutral</span></div><div class="count bear"><b>${nBe}</b><span>Bearish</span></div><div class="counts-note">${ok.length} stocks with a verdict; ${R.length - ok.length} without enough history (64 weeks needed)</div>`;
+const lead = ok.filter(r => isB(r) && isR(r) && isO(r)), lag = ok.filter(r => isBe(r) && r.rs === "Underperform");
+const G = D.groups, byG = g => ok.filter(r => r.g === g);
+const zs = G.map(g => ({ g, a: byG(g) })).filter(x => x.a.length).map(x => ({ ...x, b: share(x.a, isB), be: share(x.a, isBe), r: share(x.a, isR), o: share(x.a, isO) }));
+const best = zs.slice().sort((a, b) => b.b - a.b), SE = D.sectors.filter(s => ok.filter(r => r.se === s).length >= 3);
+const ss = SE.map(s => ({ s, a: ok.filter(r => r.se === s) })).filter(x => x.a.length >= 5).map(x => ({ ...x, b: share(x.a, isB) })).sort((a, b) => b.b - a.b);
+const F = R.filter(r => r.foc), fok = F.filter(r => hasV(r.v));
+$("r-title").textContent = `${p0(nB / ok.length)} of the master list is Bullish, ${p0(nBe / ok.length)} Bearish; ${lead.length} stocks are Bullish, rising and Outperform`;
+$("r-cards").innerHTML = [
+  ["Breadth", [`${nB} Bullish, ${nN} Neutral, ${nBe} Bearish out of ${ok.length} stocks with a verdict.`, `${p0(share(ok, isR))} have a rising 40-week average; ${p0(share(ok, isO))} Outperform their zone benchmark.`,
+    `Leaders (Bullish, rising, Outperform): ${lead.length}. Laggards (Bearish and Underperform): ${lag.length}.`]],
+  ["Zones and sectors", [`Highest Bullish share by zone: ${best.slice(0, 2).map(z => `${esc(z.g)} ${p0(z.b)}`).join(", ")}; lowest: ${best.slice(-2).reverse().map(z => `${esc(z.g)} ${p0(z.b)}`).join(", ")}.`,
+    `Highest by sector: ${ss.slice(0, 3).map(z => `${esc(z.s)} ${p0(z.b)}`).join(", ")}.`, `Lowest by sector: ${ss.slice(-3).reverse().map(z => `${esc(z.s)} ${p0(z.b)}`).join(", ")}.`]],
+  ["Focus List", [`${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish.`, `${fok.filter(isO).length} Outperform their benchmark; ${fok.filter(r => r.rs === "Underperform").length} Underperform.`,
+    `Bearish and Underperform: ${fok.filter(r => isBe(r) && r.rs === "Underperform").map(r => esc(r.n)).join("; ") || "none"}.`]]]
+  .map(([h, l]) => `<div class="kpc"><h3>${h}</h3><ul>${l.map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("");
+
+/* zones */
+const bar = a => { const n = a.length || 1, b = a.filter(isB).length, e = a.filter(isBe).length;
+  return `<span class="bar3" title="Bullish ${b}, Neutral ${n - b - e}, Bearish ${e}"><i style="width:${b / n * 100}%;background:var(--mint)"></i><i style="width:${(n - b - e) / n * 100}%;background:var(--blueb)"></i><i style="width:${e / n * 100}%;background:var(--mulb)"></i></span>`; };
+const bOf = g => { const r = ok.find(x => x.g === g); return r ? D.bench.filter(b => ok.some(x => x.g === g && x.b === b.zb)) : []; };
+$("z-title").textContent = `${esc(best[0].g)} has the highest share of Bullish stocks (${p0(best[0].b)}), ${esc(best[best.length - 1].g)} the lowest (${p0(best[best.length - 1].b)})`;
+$("z-table").innerHTML = `<thead><tr><th>Zone</th><th class="r">Stocks</th><th>Bullish · Neutral · Bearish</th><th class="r">Bullish</th><th class="r">Bearish</th><th class="r">Rising 40-week</th><th class="r">Outperform</th><th>Benchmark</th><th class="c">Benchmark 40-week</th><th class="c">Benchmark trend</th></tr></thead><tbody>`
+  + zs.map(z => { const bs = bOf(z.g); return `<tr class="click" data-g="${esc(z.g)}" tabindex="0"><td><b>${esc(z.g)}</b></td><td class="r">${z.a.length}</td><td>${bar(z.a)}</td><td class="r pos">${p0(z.b)}</td><td class="r neg">${p0(z.be)}</td><td class="r">${p0(z.r)}</td><td class="r">${p0(z.o)}</td>
+      <td class="wrap">${bs.map(b => esc(b.n)).join(" / ")}</td><td class="c">${bs.map(b => badge(SLO, b.s)).join(" ")}</td><td class="c">${bs.map(b => pill(b.v)).join(" ")}</td></tr>`; }).join("")
+  + `<tr class="total"><td>Master list</td><td class="r">${ok.length}</td><td>${bar(ok)}</td><td class="r">${p0(share(ok, isB))}</td><td class="r">${p0(share(ok, isBe))}</td><td class="r">${p0(share(ok, isR))}</td><td class="r">${p0(share(ok, isO))}</td><td></td><td></td><td></td></tr></tbody>`;
+$("z-note").textContent = (D.notes || []).join(" ") + " Emerging Markets: Asian names against the MSCI AC Asia Pacific, the others against the MSCI Emerging Markets.";
+
+/* zone × sector */
+const HV = { bull: ["Bullish share", isB, "Share of stocks with a Bullish verdict, by zone and sector."], rising: ["Rising 40-week", isR, "Share of stocks whose 40-week average is rising, by zone and sector."], out: ["Outperform", isO, "Share of stocks that Outperform their zone benchmark, by zone and sector."] };
+let hv = "bull";
+const shade = v => v >= 0.6 ? "var(--mint)" : v <= 0.4 ? "var(--mulb)" : "var(--blueb)";
+function drawH() { const [lab, f, sub] = HV[hv];
+  document.querySelectorAll("#h-views .chip").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.v === hv)));
+  $("h-sub").textContent = sub + " Green: 60% or more; purple: 40% or less.";
+  const cells = []; SE.forEach(s => zs.forEach(z => { const a = z.a.filter(r => r.se === s); if (a.length >= 3) cells.push([s, z.g, share(a, f)]); }));
+  const top = cells.slice().sort((a, b) => b[2] - a[2])[0], bot = cells.slice().sort((a, b) => a[2] - b[2])[0];
+  $("h-title").textContent = `${lab}: highest in ${top[0]} – ${top[1]} (${p0(top[2])}), lowest in ${bot[0]} – ${bot[1]} (${p0(bot[2])})`;
+  $("h-table").innerHTML = `<thead><tr><th>Sector</th>${zs.map(z => `<th>${esc(z.g)}</th>`).join("")}<th>All zones</th></tr></thead><tbody>`
+    + SE.map(s => `<tr><td><b>${esc(s)}</b></td>` + [...zs.map(z => [z.g, z.a.filter(r => r.se === s)]), ["", ok.filter(r => r.se === s)]].map(([g, a]) => a.length < 3
+        ? `<td class="c2 na">${a.length ? a.length + " stock" + (a.length > 1 ? "s" : "") : ND}</td>`
+        : `<td class="c2" data-g="${esc(g)}" data-s="${esc(s)}" tabindex="0" style="background:${shade(share(a, f))}">${p0(share(a, f))}<small>${a.length}</small></td>`).join("") + "</tr>").join("") + "</tbody>"; }
+$("h-views").onclick = e => { const b = e.target.closest(".chip"); if (b) { hv = b.dataset.v; drawH(); } };
+drawH();
+
+/* theme of a row */
+const tags = r => (r.foc ? `<span class="tag f">Focus</span>` : "") + (r.sat ? `<span class="tag s">Satellite</span>` : "") + (r.lag ? `<span class="tag l" title="Last weekly close is ${r.lag} week before the others">−${r.lag}w</span>` : "");
+const COLS = [["n", "Stock", ""], ["g", "Zone", ""], ["se", "Sector", ""], ["s", "40-week", "c"], ["vs40", "vs 40w", "r"], ["c13", "13w", "r"], ["c52", "52w", "r"], ["fh", "vs 52w high", "r"], ["rs", "Rel. trend", "c"], ["rs13", "RS 13w", "r"], ["v", "Trend", "c"]];
+const VO = {"Bullish": 0, "Neutral+": 1, "Neutral": 2, "Neutral-": 3, "Bearish_LM": 4, "Bearish": 5}, SO = {rising: 0, flat: 1, falling: 2}, RO = {Outperform: 0, Neutral: 1, Underperform: 2};
+const key = (r, k) => k === "v" ? (VO[r.v] ?? 9) : k === "s" ? (SO[r.s] ?? 9) : k === "rs" ? (RO[r.rs] ?? 9) : r[k];
+const trow = r => `<tr><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
+  <td class="c">${badge(SLO, r.s)}</td><td class="r ${cls(r.vs40)}">${pct(r.vs40)}</td><td class="r ${cls(r.c13)}">${pct(r.c13)}</td><td class="r ${cls(r.c52)}">${pct(r.c52)}</td><td class="r ${r.fh != null && r.fh >= -0.05 ? "pos" : ""}">${pct(r.fh)}</td>
+  <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td></tr>`;
+const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>
+  <tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${l}${st && st.key === k ? `<span class="ar">${st.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")}</tr></thead>`;
+
+/* focus list */
+const fs = F.slice().sort((a, b) => (VO[b.v] ?? -1) - (VO[a.v] ?? -1) || (RO[b.rs] ?? -1) - (RO[a.rs] ?? -1) || (a.rs13 ?? 9) - (b.rs13 ?? 9));
+$("f-title").textContent = `${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish`;
+$("f-table").innerHTML = thead() + "<tbody>" + fs.map(trow).join("") + "</tbody>";
+
+/* screen */
+const st = { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" };
+$("f-zone").innerHTML = `<option value="">Zone: all</option>` + G.filter(g => R.some(r => r.g === g)).map(g => `<option>${esc(g)}</option>`).join("");
+$("f-sector").innerHTML = `<option value="">Sector: all</option>` + D.sectors.map(s => `<option>${esc(s)}</option>`).join("");
+const PRE = [["", "All stocks"], ["lead", `Leaders ${lead.length}`], ["improve", "Improving"], ["weak", "Losing ground"], ["lag", `Laggards ${lag.length}`]];
+const preF = { lead: r => isB(r) && isR(r) && isO(r), lag: r => isBe(r) && r.rs === "Underperform", improve: r => fam(r.v) === "Neutral" && isO(r) && (r.rs13 ?? -1) > 0, weak: r => isB(r) && r.rs === "Underperform" && (r.rs13 ?? 1) < 0 };
+const preNote = { "": "", lead: "Leaders: Bullish, rising 40-week average, Outperform.", lag: "Laggards: Bearish and Underperform.", improve: "Improving: Neutral verdict, Outperform, relative strength up over 13 weeks.", weak: "Losing ground: Bullish but Underperform, with relative strength down over 13 weeks." };
+function drawS() {
+  $("s-presets").innerHTML = PRE.map(([k, l]) => `<button class="chip" data-p="${k}" aria-pressed="${st.preset === k}">${l}</button>`).join("");
+  const q = st.q.trim().toLowerCase();
+  let rows = R.filter(r => (!q || (r.n + " " + r.t).toLowerCase().includes(q)) && (!st.g || r.g === st.g) && (!st.se || r.se === st.se) && (!st.v || fam(r.v) === st.v) && (!st.s || r.s === st.s) && (!st.rs || r.rs === st.rs)
+    && (!st.list || r[st.list]) && (!st.preset || (hasV(r.v) && preF[st.preset](r))));
+  if (st.key) { const k = st.key; rows = rows.slice().sort((a, b) => { const x = key(a, k), y = key(b, k); if (x == null) return 1; if (y == null) return -1; return (typeof x === "string" ? x.localeCompare(y) : x - y) * st.dir; }); }
+  else rows = rows.slice().sort((a, b) => (VO[a.v] ?? 9) - (VO[b.v] ?? 9) || (RO[a.rs] ?? 9) - (RO[b.rs] ?? 9) || (b.rs13 ?? -9) - (a.rs13 ?? -9));
+  $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(trow).join("") || `<tr><td colspan="11" class="dim">No stock matches.</td></tr>`) + "</tbody>";
+  $("s-count").textContent = `${rows.length} of ${R.length} stocks`;
+  $("s-more").hidden = rows.length <= st.n; $("s-more").textContent = `Show more (${Math.min(st.n, rows.length)} of ${rows.length})`;
+  $("s-note").textContent = preNote[st.preset] + " Default order: trend verdict, relative trend, relative strength over 13 weeks. vs 52w high in green when within 5%. −1w: last weekly close one week before the others (market calendar). Focus and Satellite: Syz lists, shown for information, not part of the verdict.";
+}
+const bind = (id, k) => $(id).onchange = e => { st[k] = e.target.value; st.n = 100; drawS(); };
+bind("f-zone", "g"); bind("f-sector", "se"); bind("f-v", "v"); bind("f-s", "s"); bind("f-rs", "rs"); bind("f-list", "list");
+$("q").oninput = e => { st.q = e.target.value; st.n = 100; drawS(); };
+$("s-presets").onclick = e => { const b = e.target.closest(".chip"); if (b) { st.preset = b.dataset.p; st.n = 100; drawS(); } };
+$("s-table").onclick = e => { const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
+$("s-more").onclick = () => { st.n += 200; drawS(); };
+const jump = (g, se) => { st.g = g || ""; st.se = se || ""; st.preset = ""; $("f-zone").value = st.g; $("f-sector").value = st.se; st.n = 100; drawS(); $("screen").scrollIntoView({ behavior: "smooth", block: "start" }); };
+$("z-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) jump(tr.dataset.g, ""); };
+$("h-table").onclick = e => { const c = e.target.closest("td.c2[data-s]"); if (c) jump(c.dataset.g, c.dataset.s); };
+$("s-title").textContent = `${lead.length} leaders and ${lag.length} laggards among ${ok.length} stocks`;
+drawS();
+
+$("m-list").innerHTML = [
+  ["Weekly closes", "This screen is read on weekly closes (last close of each week). The other Syz technical documents use daily closes, so a verdict can differ by one step."],
+  ["Trend", "Direction of the 40-week moving average over the last 4 weeks: rising, flat or falling."],
+  ["Verdict", "Rising trend + intact support + 10-week above the 40-week = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt. Support and resistance: last confirmed swing low and high."],
+  ["Relative trend", "Is the 40-week average of stock ÷ zone benchmark rising (Outperform) or falling (Underperform)? RS 13w: change in relative strength over 13 weeks."],
+  ["Benchmarks", "United States and Canada: S&P 500. Europe ex-CH: Stoxx 600. Switzerland: SPI. Japan, Developed Pacific, emerging Asia: MSCI AC Asia Pacific. Other emerging markets: MSCI Emerging Markets. Price return, benchmark currency."]]
+  .map(([a, b]) => `<div class="mrow"><b>${a}</b><span>${b}</span></div>`).join("");
+$("f-src").textContent = `Sources : Syz Research, Bloomberg. Weekly closes to ${D.asof}. Price return; each stock in the currency of its benchmark.`;
+</script>
