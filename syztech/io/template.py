@@ -17,6 +17,12 @@ BDH_OPTIONS = ['"Days=W"', '"Fill=B"', '"Dates=S"', '"CshAdjNormal=Y"', '"CshAdj
 INVALID_SHEET_CHARS = set('[]:*?/\\')
 
 
+def sheet_name(ticker: str) -> str:
+    """Excel forbids / * ? : [ ] \\ in tab names (BRK/A US Equity, BP/ LN Equity): they become "_" in the tab name only.
+    The ticker itself stays in cell D1, which is what the formula pulls and what the reader loads."""
+    return "".join("_" if c in INVALID_SHEET_CHARS else c for c in ticker)
+
+
 def bdh_formula(currency: str | None = None) -> str:
     """Daily PX_LAST; `currency` (e.g. "USD") converts the series in Bloomberg, otherwise the local currency."""
     opts = BDH_OPTIONS + ([f'"Currency={currency}"'] if currency else [])
@@ -50,7 +56,7 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
         c = ins.cell(r0, j, h)
         c.font, c.fill = head_font, head_fill
     for k, u in enumerate(universe.itertuples(index=False), start=r0 + 1):
-        ins.cell(k, 1, u.ticker).hyperlink = f"#'{u.ticker}'!A1"
+        ins.cell(k, 1, u.ticker).hyperlink = f"#'{sheet_name(str(u.ticker))}'!A1"
         ins.cell(k, 1).font = Font(name=FONT, color=ORANGE, underline="single")
         for j, v in enumerate([u.name, u.asset_class, u.group], start=2):
             ins.cell(k, j, None if pd.isna(v) else v).font = body_font
@@ -71,9 +77,10 @@ def build_template(universe: pd.DataFrame, out: str | Path, start: date, end: da
 
     for u in universe.itertuples(index=False):
         t = str(u.ticker)
-        if len(t) > 31 or set(t) & INVALID_SHEET_CHARS:
+        tab = sheet_name(t)
+        if len(tab) > 31:
             raise ValueError(f"{t}: cannot be used as an Excel sheet name")
-        ws = wb.create_sheet(t)
+        ws = wb.create_sheet(tab)
         for ref, v in (("A1", "Date"), ("B1", "PX_LAST"), ("C1", "Ticker"), ("D1", t)):
             ws[ref] = v
             ws[ref].font, ws[ref].fill = head_font, head_fill
