@@ -94,7 +94,8 @@ def build_screen(prices_dir="data/prices_masterlist", universe="data/universe_ma
             name = u.set_index("ticker").bench_name.get(b, b)
             brow.append(dict(ticker=bt, name=alt or name, zone_bench=name, **read_stock(W[bt], None)))
     B = pd.DataFrame(brow)
-    return S, B, dict(asof=asof, notes=notes, n_files=len(prices.reports))
+    return S, B, dict(asof=asof, notes=notes, n_files=len(prices.reports), weekly=W, bench_used=bench_used,
+                      bench_of=dict(zip(u.ticker, u.benchmark)))
 
 
 def _f(x, d=4):
@@ -115,8 +116,32 @@ def build_html(out_dir: Path = OUT) -> Path:
                  lag=int(r.lag) if pd.notna(r.lag) else None) for r in S.itertuples()]
     bench = [dict(t=r.ticker, n=r.name, zb=r.zone_bench, v=r.verdict, s=r.slope if isinstance(r.slope, str) else None, vs40=_f(r.vs40), c13=_f(r.c13), c52=_f(r.c52), fh=_f(r.fh))
              for r in B.itertuples()]
+    # weekly closes for the charts drawn in the page: one common list of Fridays, each series = first week + values
+    W = meta["weekly"]
+    weeks = sorted(set().union(*[set(w.index) for w in W.values() if len(w)]))
+    pos = {d_: i for i, d_ in enumerate(weeks)}
+
+    def pack(w):
+        if w is None or not len(w):
+            return None
+        o, e = pos[w.index[0]], pos[w.index[-1]]
+        arr = [None] * (e - o + 1)
+        for d_, v in w.items():
+            arr[pos[d_] - o] = float(f"{v:.5g}")
+        return [o, arr]
+    for r in rows:
+        r["p"] = pack(W.get(r["t"]))
+        bt = meta["bench_used"].get(meta["bench_of"].get(r["t"]), (None,))[0]
+        r["bk"] = bt
+    lv = S.set_index("ticker")
+    for r in rows:
+        x = lv.loc[r["t"]]
+        r["sup"], r["res"] = _f(x.get("support"), 6), _f(x.get("resistance"), 6)
+        r["so"] = x.get("support_origin") if isinstance(x.get("support_origin"), str) else None
+        r["ro"] = x.get("resistance_origin") if isinstance(x.get("resistance_origin"), str) else None
+    bser = {bt: pack(W[bt]) for bt, _alt in meta["bench_used"].values() if bt}
     d = meta["asof"]
-    data = dict(asof=f"{d.day} {d:%B %Y}", vlabel=VLABEL, rows=rows, bench=bench, notes=meta["notes"], groups=[g for g, _ in GROUPS],
+    data = dict(weeks=[f"{x:%Y-%m-%d}" for x in weeks], bser=bser, asof=f"{d.day} {d:%B %Y}", vlabel=VLABEL, rows=rows, bench=bench, notes=meta["notes"], groups=[g for g, _ in GROUPS],
                 sectors=sorted(set(S.sector)))
     html = (ASSETS / "masterscreen.html").read_text(encoding="utf-8").replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False))
     (out_dir / "index.html").write_text(html, encoding="utf-8")

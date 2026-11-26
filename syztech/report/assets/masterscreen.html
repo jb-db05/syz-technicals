@@ -213,6 +213,10 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 @media (max-width: 900px) { .regions4, .readings { grid-template-columns: minmax(0, 1fr) } }
 
 /* master-list screen */
+#lb .lbimg { background: var(--bg); padding: 6px 10px 2px } #lb svg { display: block; width: 100%; height: auto }
+#lb svg text { fill: var(--muted); font-family: var(--font) } #lb svg text.ink { fill: var(--ink) }
+.lbh .t small { font-weight: 600; color: var(--muted); margin-left: 8px }
+tr.rowc { cursor: pointer } tr.rowc:hover td { background: var(--orange-soft) }
 #h-title { white-space: normal; overflow: visible; font-size: clamp(21px, 2.6vw, 27px) }
 .kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px }
 .kpc { border: 1px solid var(--line); border-radius: 14px; overflow: hidden } .kpc h3 { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: #fff; padding: 9px 14px; background: var(--orange) }
@@ -260,11 +264,11 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <p class="note">Share of the stocks in the cell; the small figure is the number of stocks. Cells with fewer than three stocks are greyed. Click a cell to filter the screen.</p>
   </section>
   <section id="focus">
-    <div class="sh"><span class="k">Focus List</span><h2 id="f-title"></h2><p>The Focus List names, weakest readings first.</p></div>
+    <div class="sh"><span class="k">Focus List</span><h2 id="f-title"></h2><p>The Focus List names, weakest readings first. Click a name for its chart.</p></div>
     <div class="tw"><table class="t" id="f-table"></table></div>
   </section>
   <section id="screen">
-    <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker.</p></div>
+    <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker. Click a stock for its weekly chart; the arrows move through the list as filtered.</p></div>
     <div class="tools" id="s-presets" role="group" aria-label="Preset screens"></div>
     <div class="tools">
       <input id="q" type="search" placeholder="Search a stock or ticker" aria-label="Search">
@@ -298,6 +302,11 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     </div>
   </footer>
 </main>
+<dialog id="lb" aria-label="Chart">
+  <div class="lbh"><span class="t" id="lb-t"></span><span id="lb-b"></span><button id="lb-p" aria-label="Previous chart">‹</button><button id="lb-n" aria-label="Next chart">›</button><button id="lb-x" aria-label="Close">Close</button></div>
+  <div class="lbimg" id="lb-c"></div>
+  <div class="lbf" id="lb-f"></div>
+</dialog>
 <script>
 const D = /*__DATA__*/null;
 const $ = id => document.getElementById(id), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
@@ -365,7 +374,7 @@ const tags = r => (r.foc ? `<span class="tag f">Focus</span>` : "") + (r.sat ? `
 const COLS = [["n", "Stock", ""], ["g", "Zone", ""], ["se", "Sector", ""], ["s", "40-week", "c"], ["vs40", "vs 40w", "r"], ["c13", "13w", "r"], ["c52", "52w", "r"], ["fh", "vs 52w high", "r"], ["rs", "Rel. trend", "c"], ["rs13", "RS 13w", "r"], ["v", "Trend", "c"]];
 const VO = {"Bullish": 0, "Neutral+": 1, "Neutral": 2, "Neutral-": 3, "Bearish_LM": 4, "Bearish": 5}, SO = {rising: 0, flat: 1, falling: 2}, RO = {Outperform: 0, Neutral: 1, Underperform: 2};
 const key = (r, k) => k === "v" ? (VO[r.v] ?? 9) : k === "s" ? (SO[r.s] ?? 9) : k === "rs" ? (RO[r.rs] ?? 9) : r[k];
-const trow = r => `<tr><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
+const trow = r => `<tr class="rowc" data-t="${esc(r.t)}" tabindex="0"><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
   <td class="c">${badge(SLO, r.s)}</td><td class="r ${cls(r.vs40)}">${pct(r.vs40)}</td><td class="r ${cls(r.c13)}">${pct(r.c13)}</td><td class="r ${cls(r.c52)}">${pct(r.c52)}</td><td class="r ${r.fh != null && r.fh >= -0.05 ? "pos" : ""}">${pct(r.fh)}</td>
   <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td></tr>`;
 const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>
@@ -375,6 +384,67 @@ const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="
 const fs = F.slice().sort((a, b) => (VO[b.v] ?? -1) - (VO[a.v] ?? -1) || (RO[b.rs] ?? -1) - (RO[a.rs] ?? -1) || (a.rs13 ?? 9) - (b.rs13 ?? 9));
 $("f-title").textContent = `${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish`;
 $("f-table").innerHTML = thead() + "<tbody>" + fs.map(trow).join("") + "</tbody>";
+$("f-table").onclick = e => { const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, fs); };
+
+/* charts: drawn in the page from the weekly closes (five years, log scale) */
+let curRows = [], lbList = [], lbI = 0;
+const byT = {}; R.forEach(r => byT[r.t] = r);
+const WK = D.weeks, YEARS5 = 262;
+const ser = pk => { const a = new Array(WK.length).fill(null); if (pk) pk[1].forEach((v, i) => a[pk[0] + i] = v); return a; };
+const sma = (a, n) => { const out = new Array(a.length).fill(null); const q = []; let sum = 0;        // average of the last n available closes (weeks without a close are skipped, never filled)
+  a.forEach((v, i) => { if (v == null) return; q.push(v); sum += v; if (q.length > n) sum -= q.shift(); if (q.length === n) out[i] = sum / n; }); return out; };
+function chartSVG(r) {
+  const p = ser(r.p), last = p.reduce((m, v, i) => v != null ? i : m, -1), i0 = Math.max(0, last - YEARS5 + 1);
+  const m40 = sma(p, 40), m10 = sma(p, 10);
+  const b = r.bk ? ser(D.bser[r.bk]) : null, rs = b ? p.map((v, i) => v != null && b[i] != null ? v / b[i] : null) : null, rm = rs ? sma(rs, 40) : null;
+  const W = 1100, L = 56, Rm = 150, T = 14, H1 = 380, G = 46, H2 = rs ? 150 : 0, Bt = 26, H = T + H1 + (rs ? G + H2 : 0) + Bt;
+  const X = i => L + (i - i0) / Math.max(1, last - i0) * (W - L - Rm);
+  const win = a => a.slice(i0, last + 1).filter(v => v != null);
+  const vals = [...win(p), ...win(m40), ...win(m10), ...[r.sup, r.res].filter(v => v != null && v > 0)];
+  let lo = Math.min(...vals), hi = Math.max(...vals); const pad = Math.log(hi / lo) * 0.06 || 0.02; lo *= Math.exp(-pad); hi *= Math.exp(pad);
+  const Y = v => T + (Math.log(hi) - Math.log(v)) / (Math.log(hi) - Math.log(lo)) * H1;
+  const path = (a, yf, from = i0) => { let d = "", pen = false; for (let i = from; i <= last; i++) { const v = a[i]; if (v == null) { continue; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + yf(v).toFixed(1); pen = true; } return d; };
+  const fmt = v => v >= 1000 ? v.toLocaleString("en-US", { maximumFractionDigits: 0 }) : v >= 100 ? v.toFixed(1) : v >= 10 ? v.toFixed(2) : v.toFixed(3);
+  let g = "";
+  const steps = [1, 2, 2.5, 5, 10], mag = Math.pow(10, Math.floor(Math.log10(lo))), ticks = [];
+  for (let m = mag / 10; m <= hi * 10; m *= 10) steps.forEach(s => { const v = s * m; if (v >= lo && v <= hi) ticks.push(v); });
+  const tk = ticks.filter((v, i, a) => a.indexOf(v) === i).sort((x, y) => x - y), keep = tk.length > 7 ? tk.filter((_, i) => i % Math.ceil(tk.length / 6) === 0) : tk;
+  keep.forEach(v => { g += `<line x1="${L}" x2="${W - Rm}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${Y(v) + 4}" font-size="12" text-anchor="end">${fmt(v)}</text>`; });
+  for (let i = i0 + 1; i <= last; i++) if (WK[i].slice(0, 4) !== WK[i - 1].slice(0, 4)) g += `<line x1="${X(i)}" x2="${X(i)}" y1="${T}" y2="${H - Bt}" stroke="var(--line)" stroke-dasharray="2 4"/><text x="${X(i)}" y="${H - 8}" font-size="12" text-anchor="middle">${WK[i].slice(0, 4)}</text>`;
+  const lab = [];
+  [[r.sup, r.so, "swing low"], [r.res, r.ro, "swing high"]].forEach(([v, o, nm]) => { if (v == null || v <= 0 || v < lo || v > hi) return;
+    g += `<line x1="${L}" x2="${W - Rm}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--muted)" stroke-dasharray="5 4" stroke-width="1"/>`; lab.push([Y(v), `${(o || nm).startsWith("52w") ? (o || nm).slice(0, nm === "swing low" ? 7 : 8) : nm} ${fmt(v)}`, "var(--surface)", "var(--ink)"]); });
+  g += `<path d="${path(m40, Y)}" fill="none" stroke="var(--orange)" stroke-width="2.6"/><path d="${path(m10, Y)}" fill="none" stroke="#2F6FDE" stroke-width="1.5"/><path d="${path(p, Y)}" fill="none" stroke="var(--ink)" stroke-width="1.5"/>`;
+  if (m40[last] != null) lab.push([Y(m40[last]), fmt(m40[last]), "var(--orange)", "#fff"]);
+  lab.push([Y(p[last]), fmt(p[last]), "var(--navy)", "#fff"]);
+  lab.sort((a, b2) => a[0] - b2[0]); for (let i = 1; i < lab.length; i++) if (lab[i][0] - lab[i - 1][0] < 22) lab[i][0] = lab[i - 1][0] + 22;
+  lab.forEach(([y, t, bg, fg]) => { const w = t.length * 7.4 + 14; g += `<rect x="${W - Rm + 8}" y="${y - 10}" width="${w}" height="20" rx="4" fill="${bg}" stroke="var(--line)"/><text x="${W - Rm + 15}" y="${y + 4}" font-size="12" font-weight="700" style="fill:${fg}">${esc(t)}</text>`; });
+  g += `<g font-size="12"><rect x="${L}" y="2" width="18" height="3" fill="var(--ink)"/><text class="ink" x="${L + 24}" y="8">Weekly close</text><rect x="${L + 120}" y="2" width="18" height="3" fill="#2F6FDE"/><text class="ink" x="${L + 144}" y="8">10-week MA</text><rect x="${L + 240}" y="1" width="18" height="4" fill="var(--orange)"/><text class="ink" x="${L + 264}" y="8">40-week MA</text></g>`;
+  if (rs) { const y0 = T + H1 + G, base = rs.slice(i0, last + 1).find(v => v != null), rr = rs.map(v => v == null ? null : v / base * 100), rmm = rm.map(v => v == null ? null : v / base * 100);
+    const rv = [...win(rr), ...win(rmm)]; let rl = Math.min(...rv), rh = Math.max(...rv); const pd = (rh - rl) * 0.08 || 1; rl -= pd; rh += pd;
+    const YR = v => y0 + (rh - v) / (rh - rl) * H2;
+    g += `<text class="ink" x="${L}" y="${y0 - 12}" font-size="12.5" font-weight="700">Relative strength vs ${esc(r.b)}, rebased to 100 – blue: its 40-week average rising, red: falling (thin line: the 40-week)</text>`;
+    const raw = (rh - rl) / 3, mg = Math.pow(10, Math.floor(Math.log10(raw))), stp = [1, 2, 2.5, 5, 10].map(k => k * mg).find(k => k >= raw), rt = [];
+    for (let v = Math.ceil(rl / stp) * stp; v <= rh; v += stp) rt.push(v);
+    rt.forEach(v => { g += `<line x1="${L}" x2="${W - Rm}" y1="${YR(v)}" y2="${YR(v)}" stroke="var(--line)"/><text x="${L - 8}" y="${YR(v) + 4}" font-size="12" text-anchor="end">${v.toFixed(0)}</text>`; });
+    let prev = null; const segs = { up: "", down: "", none: "" };
+    for (let i = i0; i <= last; i++) { if (rr[i] == null) continue; if (prev != null) { let k = i - 1, n4 = 0, ref = null; for (let j = i - 1; j >= 0 && n4 < 4; j--) if (rmm[j] != null) { n4++; ref = rmm[j]; }
+        const st = rmm[i] == null || n4 < 4 ? "none" : rmm[i] > ref ? "up" : rmm[i] < ref ? "down" : "none";
+        segs[st] += `M${X(prev).toFixed(1)} ${YR(rr[prev]).toFixed(1)}L${X(i).toFixed(1)} ${YR(rr[i]).toFixed(1)}`; } prev = i; }
+    g += `<path d="${path(rmm, YR)}" fill="none" stroke="var(--ink)" stroke-width="1" opacity=".5"/><path d="${segs.none}" fill="none" stroke="var(--muted)" stroke-width="1.6"/><path d="${segs.up}" fill="none" stroke="#2F6FDE" stroke-width="1.8" stroke-linecap="round"/><path d="${segs.down}" fill="none" stroke="#D8343F" stroke-width="1.8" stroke-linecap="round"/>`; }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(r.n)}: weekly chart">${g}</svg>`;
+}
+function showChart() { const r = lbList[lbI];
+  $("lb-t").innerHTML = `${esc(r.n)}<small>${esc(r.t)} · weekly close, log scale, 5 years, ${esc(r.cur)}</small>`;
+  $("lb-b").innerHTML = pill(r.v);
+  $("lb-c").innerHTML = r.p ? chartSVG(r) : `<p class="note" style="padding:30px">No weekly closes for this stock.</p>`;
+  $("lb-f").textContent = `40-week ${r.s || ND} · vs 40w ${pct(r.vs40)} · 13w ${pct(r.c13)} · 52w ${pct(r.c52)} · Rel. trend ${r.rs || ND} vs ${r.b} · RS 13w ${pct(r.rs13)} · rule: ${r.rule || ND} · ${lbI + 1} of ${lbList.length} · Sources : Syz Research, Bloomberg`; }
+function openChart(t, list) { lbList = (list && list.length ? list : [byT[t]]); lbI = Math.max(0, lbList.findIndex(x => x.t === t)); showChart(); if (!$("lb").open) $("lb").showModal(); }
+$("lb-p").onclick = () => { lbI = (lbI - 1 + lbList.length) % lbList.length; showChart(); };
+$("lb-n").onclick = () => { lbI = (lbI + 1) % lbList.length; showChart(); };
+$("lb-x").onclick = () => $("lb").close();
+$("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").close(); });
+document.addEventListener("keydown", e => { if (!$("lb").open) return; if (e.key === "ArrowRight") $("lb-n").click(); if (e.key === "ArrowLeft") $("lb-p").click(); });
 
 /* screen */
 const st = { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" };
@@ -391,6 +461,7 @@ function drawS() {
   if (st.key) { const k = st.key; rows = rows.slice().sort((a, b) => { const x = key(a, k), y = key(b, k); if (x == null) return 1; if (y == null) return -1; return (typeof x === "string" ? x.localeCompare(y) : x - y) * st.dir; }); }
   else rows = rows.slice().sort((a, b) => (VO[a.v] ?? 9) - (VO[b.v] ?? 9) || (RO[a.rs] ?? 9) - (RO[b.rs] ?? 9) || (b.rs13 ?? -9) - (a.rs13 ?? -9));
   $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(trow).join("") || `<tr><td colspan="11" class="dim">No stock matches.</td></tr>`) + "</tbody>";
+  curRows = rows;
   $("s-count").textContent = `${rows.length} of ${R.length} stocks`;
   $("s-more").hidden = rows.length <= st.n; $("s-more").textContent = `Show more (${Math.min(st.n, rows.length)} of ${rows.length})`;
   $("s-note").textContent = preNote[st.preset] + " Default order: trend verdict, relative trend, relative strength over 13 weeks. vs 52w high in green when within 5%. −1w: last weekly close one week before the others (market calendar). Focus and Satellite: Syz lists, shown for information, not part of the verdict.";
@@ -399,7 +470,7 @@ const bind = (id, k) => $(id).onchange = e => { st[k] = e.target.value; st.n = 1
 bind("f-zone", "g"); bind("f-sector", "se"); bind("f-v", "v"); bind("f-s", "s"); bind("f-rs", "rs"); bind("f-list", "list");
 $("q").oninput = e => { st.q = e.target.value; st.n = 100; drawS(); };
 $("s-presets").onclick = e => { const b = e.target.closest(".chip"); if (b) { st.preset = b.dataset.p; st.n = 100; drawS(); } };
-$("s-table").onclick = e => { const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
+$("s-table").onclick = e => { const tr = e.target.closest("tr.rowc"); if (tr) { openChart(tr.dataset.t, curRows); return; } const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
 $("s-more").onclick = () => { st.n += 200; drawS(); };
 const jump = (g, se) => { st.g = g || ""; st.se = se || ""; st.preset = ""; $("f-zone").value = st.g; $("f-sector").value = st.se; st.n = 100; drawS(); $("screen").scrollIntoView({ behavior: "smooth", block: "start" }); };
 $("z-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) jump(tr.dataset.g, ""); };
