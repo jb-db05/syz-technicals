@@ -277,8 +277,12 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
       <select id="f-s" aria-label="40-week"><option value="">40-week: all</option><option value="rising">Rising</option><option value="flat">Flat</option><option value="falling">Falling</option></select>
       <select id="f-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option>Outperform</option><option>Underperform</option></select>
       <select id="f-list" aria-label="List"><option value="">All stocks</option><option value="foc">Focus List</option><option value="sat">Satellite</option></select>
+      <button class="chip" id="s-reset" type="button">Reset</button>
+      <button class="chip" id="s-copy" type="button">Copy Bloomberg tickers</button>
       <span id="s-count" class="dim" style="font-size:13px"></span>
+      <span id="s-msg" class="pos" style="font-size:13px;font-weight:700" role="status"></span>
     </div>
+    <textarea id="s-area" hidden readonly aria-label="Bloomberg tickers of the list shown" style="width:100%;height:120px;margin-bottom:10px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)"></textarea>
     <div class="tw"><table class="t" id="s-table"></table></div>
     <div class="more"><button id="s-more" hidden>Show more</button></div>
     <p class="note" id="s-note"></p>
@@ -472,6 +476,16 @@ $("q").oninput = e => { st.q = e.target.value; st.n = 100; drawS(); };
 $("s-presets").onclick = e => { const b = e.target.closest(".chip"); if (b) { st.preset = b.dataset.p; st.n = 100; drawS(); } };
 $("s-table").onclick = e => { const tr = e.target.closest("tr.rowc"); if (tr) { openChart(tr.dataset.t, curRows); return; } const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
 $("s-more").onclick = () => { st.n += 200; drawS(); };
+$("s-reset").onclick = () => { Object.assign(st, { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" });
+  ["q", "f-zone", "f-sector", "f-v", "f-s", "f-rs", "f-list"].forEach(id => $(id).value = ""); $("s-area").hidden = true; $("s-msg").textContent = ""; drawS(); };
+$("s-copy").onclick = async () => {                    // the whole filtered list, in the order shown, one Bloomberg ticker per line
+  const txt = curRows.map(r => r.t).join("\n"), n = curRows.length, done = how => { $("s-msg").textContent = `${n} ticker${n === 1 ? "" : "s"} copied${how}`; setTimeout(() => $("s-msg").textContent = "", 4000); };
+  if (!n) { $("s-msg").textContent = "No stock in the list"; return; }
+  try { await navigator.clipboard.writeText(txt); $("s-area").hidden = true; done(""); return; } catch (e) {}
+  const a = $("s-area"); a.value = txt; a.hidden = false; a.focus(); a.select();
+  try { if (document.execCommand("copy")) { a.hidden = true; done(""); return; } } catch (e) {}
+  $("s-msg").textContent = `${n} tickers selected below – press Ctrl+C (Cmd+C on a Mac)`;
+};
 const jump = (g, se) => { st.g = g || ""; st.se = se || ""; st.preset = ""; $("f-zone").value = st.g; $("f-sector").value = st.se; st.n = 100; drawS(); $("screen").scrollIntoView({ behavior: "smooth", block: "start" }); };
 $("z-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) jump(tr.dataset.g, ""); };
 $("h-table").onclick = e => { const c = e.target.closest("td.c2[data-s]"); if (c) jump(c.dataset.g, c.dataset.s); };
