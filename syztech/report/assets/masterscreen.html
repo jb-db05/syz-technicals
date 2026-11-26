@@ -216,6 +216,9 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 #lb .lbimg { background: var(--bg); padding: 6px 10px 2px } #lb svg { display: block; width: 100%; height: auto }
 #lb svg text { fill: var(--muted); font-family: var(--font) } #lb svg text.ink { fill: var(--ink) }
 .lbh .t small { font-weight: 600; color: var(--muted); margin-left: 8px }
+button.flag { all: unset; cursor: pointer; font-size: 18px; line-height: 1; padding: 2px 6px; color: var(--line); border-radius: 6px }
+button.flag:hover { color: var(--amber) } button.flag[aria-pressed="true"] { color: var(--orange) } button.flag:focus-visible { outline: 2px solid var(--orange) }
+#lb-flag { font-weight: 700 } #lb-flag[aria-pressed="true"] { background: var(--orange); border-color: var(--orange); color: #fff }
 tr.rowc { cursor: pointer } tr.rowc:hover td { background: var(--orange-soft) }
 #h-title { white-space: normal; overflow: visible; font-size: clamp(21px, 2.6vw, 27px) }
 .kp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px }
@@ -246,7 +249,7 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <div class="counts" id="m-counts"></div>
   </div>
 </header>
-<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#zones">Zones</a><a href="#map">Zone × sector</a><a href="#focus">Focus List</a><a href="#screen">Screen</a><a href="#method">Method</a></div></nav>
+<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#zones">Zones</a><a href="#map">Zone × sector</a><a href="#focus">Focus List</a><a href="#screen">Screen</a><a href="#mylist">My short list</a><a href="#method">Method</a></div></nav>
 <main class="wrap">
   <section id="readings">
     <div class="sh"><span class="k">Key readings</span><h2 id="r-title"></h2><p>Rules-based facts on weekly closes; no published view.</p></div>
@@ -268,7 +271,7 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <div class="tw"><table class="t" id="f-table"></table></div>
   </section>
   <section id="screen">
-    <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker. Click a stock for its weekly chart; the arrows move through the list as filtered.</p></div>
+    <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker. Click a stock for its weekly chart; the arrows move through the list as filtered. The star at the right of a row adds the company to your short list.</p></div>
     <div class="tools" id="s-presets" role="group" aria-label="Preset screens"></div>
     <div class="tools">
       <input id="q" type="search" placeholder="Search a stock or ticker" aria-label="Search">
@@ -276,7 +279,7 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
       <select id="f-v" aria-label="Trend"><option value="">Trend: all</option><option>Bullish</option><option>Neutral</option><option>Bearish</option></select>
       <select id="f-s" aria-label="40-week"><option value="">40-week: all</option><option value="rising">Rising</option><option value="flat">Flat</option><option value="falling">Falling</option></select>
       <select id="f-rs" aria-label="Relative trend"><option value="">Relative trend: all</option><option>Outperform</option><option>Underperform</option></select>
-      <select id="f-list" aria-label="List"><option value="">All stocks</option><option value="foc">Focus List</option><option value="sat">Satellite</option></select>
+      <select id="f-list" aria-label="List"><option value="">All stocks</option><option value="foc">Focus List</option><option value="sat">Satellite</option><option value="mine">My short list</option></select>
       <button class="chip" id="s-reset" type="button">Reset</button>
       <button class="chip" id="s-copy" type="button">Copy Bloomberg tickers</button>
       <span id="s-count" class="dim" style="font-size:13px"></span>
@@ -286,6 +289,13 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <div class="tw"><table class="t" id="s-table"></table></div>
     <div class="more"><button id="s-more" hidden>Show more</button></div>
     <p class="note" id="s-note"></p>
+  </section>
+  <section id="mylist">
+    <div class="sh"><span class="k">My short list</span><h2 id="l-title"></h2><p>The companies you flagged with the star in the screen. The list is kept in this browser; copy the tickers to take it elsewhere.</p></div>
+    <div class="tools"><button class="chip" id="l-copy" type="button">Copy Bloomberg tickers</button><button class="chip" id="l-clear" type="button">Clear the short list</button>
+      <span id="l-msg" class="pos" style="font-size:13px;font-weight:700" role="status"></span></div>
+    <textarea id="l-area" hidden readonly aria-label="Bloomberg tickers of the short list" style="width:100%;height:120px;margin-bottom:10px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)"></textarea>
+    <div class="tw"><table class="t" id="l-table"></table></div>
   </section>
   <section id="method">
     <div class="sh"><span class="k">Method</span><h2>How to read this screen</h2></div>
@@ -307,7 +317,7 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
   </footer>
 </main>
 <dialog id="lb" aria-label="Chart">
-  <div class="lbh"><span class="t" id="lb-t"></span><span id="lb-b"></span><button id="lb-p" aria-label="Previous chart">‹</button><button id="lb-n" aria-label="Next chart">›</button><button id="lb-x" aria-label="Close">Close</button></div>
+  <div class="lbh"><span class="t" id="lb-t"></span><span id="lb-b"></span><button id="lb-flag" type="button" aria-pressed="false">☆ Short list</button><button id="lb-p" aria-label="Previous chart">‹</button><button id="lb-n" aria-label="Next chart">›</button><button id="lb-x" aria-label="Close">Close</button></div>
   <div class="lbimg" id="lb-c"></div>
   <div class="lbf" id="lb-f"></div>
 </dialog>
@@ -373,22 +383,27 @@ function drawH() { const [lab, f, sub] = HV[hv];
 $("h-views").onclick = e => { const b = e.target.closest(".chip"); if (b) { hv = b.dataset.v; drawH(); } };
 drawH();
 
-/* theme of a row */
+/* my short list: flagged tickers, kept in this browser */
+const LSK = "syz-masterlist-shortlist";
+let FL = new Set(); try { FL = new Set(JSON.parse(localStorage.getItem(LSK) || "[]").filter(t => D.rows.some(r => r.t === t))); } catch (e) {}
+const saveFL = () => { try { localStorage.setItem(LSK, JSON.stringify([...FL])); } catch (e) {} };
+
+/* a row */
 const tags = r => (r.foc ? `<span class="tag f">Focus</span>` : "") + (r.sat ? `<span class="tag s">Satellite</span>` : "") + (r.lag ? `<span class="tag l" title="Last weekly close is ${r.lag} week before the others">−${r.lag}w</span>` : "");
 const COLS = [["n", "Stock", ""], ["g", "Zone", ""], ["se", "Sector", ""], ["s", "40-week", "c"], ["vs40", "vs 40w", "r"], ["c13", "13w", "r"], ["c52", "52w", "r"], ["fh", "vs 52w high", "r"], ["rs", "Rel. trend", "c"], ["rs13", "RS 13w", "r"], ["v", "Trend", "c"]];
 const VO = {"Bullish": 0, "Neutral+": 1, "Neutral": 2, "Neutral-": 3, "Bearish_LM": 4, "Bearish": 5}, SO = {rising: 0, flat: 1, falling: 2}, RO = {Outperform: 0, Neutral: 1, Underperform: 2};
 const key = (r, k) => k === "v" ? (VO[r.v] ?? 9) : k === "s" ? (SO[r.s] ?? 9) : k === "rs" ? (RO[r.rs] ?? 9) : r[k];
 const trow = r => `<tr class="rowc" data-t="${esc(r.t)}" tabindex="0"><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
   <td class="c">${badge(SLO, r.s)}</td><td class="r ${cls(r.vs40)}">${pct(r.vs40)}</td><td class="r ${cls(r.c13)}">${pct(r.c13)}</td><td class="r ${cls(r.c52)}">${pct(r.c52)}</td><td class="r ${r.fh != null && r.fh >= -0.05 ? "pos" : ""}">${pct(r.fh)}</td>
-  <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td></tr>`;
-const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th></tr>
-  <tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${l}${st && st.key === k ? `<span class="ar">${st.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")}</tr></thead>`;
+  <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td><td class="c"><button class="flag" type="button" data-f="${esc(r.t)}" aria-pressed="${FL.has(r.t)}" aria-label="${FL.has(r.t) ? "Remove" : "Add"} ${esc(r.n)} ${FL.has(r.t) ? "from" : "to"} my short list" title="My short list">★</button></td></tr>`;
+const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th><th></th></tr>
+  <tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${l}${st && st.key === k ? `<span class="ar">${st.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")}<th class="c" title="My short list">★</th></tr></thead>`;
 
 /* focus list */
 const fs = F.slice().sort((a, b) => (VO[b.v] ?? -1) - (VO[a.v] ?? -1) || (RO[b.rs] ?? -1) - (RO[a.rs] ?? -1) || (a.rs13 ?? 9) - (b.rs13 ?? 9));
 $("f-title").textContent = `${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish`;
 $("f-table").innerHTML = thead() + "<tbody>" + fs.map(trow).join("") + "</tbody>";
-$("f-table").onclick = e => { const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, fs); };
+$("f-table").onclick = e => { if (flagClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, fs); };
 
 /* charts: drawn in the page from the weekly closes (five years, log scale) */
 let curRows = [], lbList = [], lbI = 0;
@@ -441,14 +456,41 @@ function chartSVG(r) {
 function showChart() { const r = lbList[lbI];
   $("lb-t").innerHTML = `${esc(r.n)}<small>${esc(r.t)} · weekly close, log scale, 5 years, ${esc(r.cur)}</small>`;
   $("lb-b").innerHTML = pill(r.v);
+  $("lb-flag").setAttribute("aria-pressed", FL.has(r.t)); $("lb-flag").textContent = FL.has(r.t) ? "★ On my short list" : "☆ Add to my short list";
   $("lb-c").innerHTML = r.p ? chartSVG(r) : `<p class="note" style="padding:30px">No weekly closes for this stock.</p>`;
   $("lb-f").textContent = `40-week ${r.s || ND} · vs 40w ${pct(r.vs40)} · 13w ${pct(r.c13)} · 52w ${pct(r.c52)} · Rel. trend ${r.rs || ND} vs ${r.b} · RS 13w ${pct(r.rs13)} · rule: ${r.rule || ND} · ${lbI + 1} of ${lbList.length} · Sources : Syz Research, Bloomberg`; }
 function openChart(t, list) { lbList = (list && list.length ? list : [byT[t]]); lbI = Math.max(0, lbList.findIndex(x => x.t === t)); showChart(); if (!$("lb").open) $("lb").showModal(); }
 $("lb-p").onclick = () => { lbI = (lbI - 1 + lbList.length) % lbList.length; showChart(); };
 $("lb-n").onclick = () => { lbI = (lbI + 1) % lbList.length; showChart(); };
 $("lb-x").onclick = () => $("lb").close();
+$("lb-flag").onclick = () => toggleFlag(lbList[lbI].t);
 $("lb").addEventListener("click", e => { if (e.target === $("lb")) $("lb").close(); });
 document.addEventListener("keydown", e => { if (!$("lb").open) return; if (e.key === "ArrowRight") $("lb-n").click(); if (e.key === "ArrowLeft") $("lb-p").click(); });
+
+/* my short list table */
+function toggleFlag(t) { FL.has(t) ? FL.delete(t) : FL.add(t); saveFL();
+  document.querySelectorAll(`button.flag[data-f="${CSS.escape(t)}"]`).forEach(b => b.setAttribute("aria-pressed", FL.has(t)));
+  drawL(); if (st.list === "mine") drawS(); if ($("lb").open) showChart(); }
+function flagClick(e) { const b = e.target.closest("button.flag"); if (!b) return false; e.stopPropagation(); toggleFlag(b.dataset.f); return true; }
+let myRows = [];
+function drawL() {
+  myRows = R.filter(r => FL.has(r.t)).sort((a, b) => (VO[a.v] ?? 9) - (VO[b.v] ?? 9) || (RO[a.rs] ?? 9) - (RO[b.rs] ?? 9) || (b.rs13 ?? -9) - (a.rs13 ?? -9));
+  const n = myRows.length, okm = myRows.filter(r => hasV(r.v));
+  $("l-title").textContent = n ? `${n} compan${n === 1 ? "y" : "ies"} flagged: ${okm.filter(isB).length} Bullish, ${okm.filter(isBe).length} Bearish, ${okm.filter(isO).length} Outperform` : "No company flagged yet";
+  $("l-table").innerHTML = thead() + "<tbody>" + (myRows.map(trow).join("") || `<tr><td colspan="12" class="dim">Click the star at the right of a row in the screen to add a company here.</td></tr>`) + "</tbody>";
+  const c = document.querySelector('nav.sec a[href="#mylist"]'); if (c) c.textContent = `My short list${n ? " (" + n + ")" : ""}`;
+}
+$("l-table").onclick = e => { if (flagClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, myRows); };
+async function copyTickers(rows, msg, area) { const txt = rows.map(r => r.t).join("\n"), n = rows.length, done = () => { $(msg).textContent = `${n} ticker${n === 1 ? "" : "s"} copied`; setTimeout(() => $(msg).textContent = "", 4000); };
+  if (!n) { $(msg).textContent = "No stock in the list"; return; }
+  try { await navigator.clipboard.writeText(txt); $(area).hidden = true; done(); return; } catch (e) {}
+  const a = $(area); a.value = txt; a.hidden = false; a.focus(); a.select();
+  try { if (document.execCommand("copy")) { a.hidden = true; done(); return; } } catch (e) {}
+  $(msg).textContent = `${n} tickers selected below – press Ctrl+C (Cmd+C on a Mac)`; }
+$("l-copy").onclick = () => copyTickers(myRows, "l-msg", "l-area");
+$("l-clear").onclick = () => { if (!FL.size) return; const old = [...FL]; FL.clear(); saveFL(); drawL(); drawS(); $("f-table").querySelectorAll("button.flag").forEach(b => b.setAttribute("aria-pressed", "false"));
+  $("l-msg").innerHTML = `Short list cleared – <button class="chip" id="l-undo" type="button" style="padding:2px 10px">Undo</button>`;
+  $("l-undo").onclick = () => { FL = new Set(old); saveFL(); drawL(); drawS(); $("f-table").querySelectorAll("button.flag").forEach(b => b.setAttribute("aria-pressed", FL.has(b.dataset.f))); $("l-msg").textContent = ""; }; };
 
 /* screen */
 const st = { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" };
@@ -461,10 +503,10 @@ function drawS() {
   $("s-presets").innerHTML = PRE.map(([k, l]) => `<button class="chip" data-p="${k}" aria-pressed="${st.preset === k}">${l}</button>`).join("");
   const q = st.q.trim().toLowerCase();
   let rows = R.filter(r => (!q || (r.n + " " + r.t).toLowerCase().includes(q)) && (!st.g || r.g === st.g) && (!st.se || r.se === st.se) && (!st.v || fam(r.v) === st.v) && (!st.s || r.s === st.s) && (!st.rs || r.rs === st.rs)
-    && (!st.list || r[st.list]) && (!st.preset || (hasV(r.v) && preF[st.preset](r))));
+    && (!st.list || (st.list === "mine" ? FL.has(r.t) : r[st.list])) && (!st.preset || (hasV(r.v) && preF[st.preset](r))));
   if (st.key) { const k = st.key; rows = rows.slice().sort((a, b) => { const x = key(a, k), y = key(b, k); if (x == null) return 1; if (y == null) return -1; return (typeof x === "string" ? x.localeCompare(y) : x - y) * st.dir; }); }
   else rows = rows.slice().sort((a, b) => (VO[a.v] ?? 9) - (VO[b.v] ?? 9) || (RO[a.rs] ?? 9) - (RO[b.rs] ?? 9) || (b.rs13 ?? -9) - (a.rs13 ?? -9));
-  $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(trow).join("") || `<tr><td colspan="11" class="dim">No stock matches.</td></tr>`) + "</tbody>";
+  $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(trow).join("") || `<tr><td colspan="12" class="dim">No stock matches.</td></tr>`) + "</tbody>";
   curRows = rows;
   $("s-count").textContent = `${rows.length} of ${R.length} stocks`;
   $("s-more").hidden = rows.length <= st.n; $("s-more").textContent = `Show more (${Math.min(st.n, rows.length)} of ${rows.length})`;
@@ -474,7 +516,7 @@ const bind = (id, k) => $(id).onchange = e => { st[k] = e.target.value; st.n = 1
 bind("f-zone", "g"); bind("f-sector", "se"); bind("f-v", "v"); bind("f-s", "s"); bind("f-rs", "rs"); bind("f-list", "list");
 $("q").oninput = e => { st.q = e.target.value; st.n = 100; drawS(); };
 $("s-presets").onclick = e => { const b = e.target.closest(".chip"); if (b) { st.preset = b.dataset.p; st.n = 100; drawS(); } };
-$("s-table").onclick = e => { const tr = e.target.closest("tr.rowc"); if (tr) { openChart(tr.dataset.t, curRows); return; } const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
+$("s-table").onclick = e => { if (flagClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) { openChart(tr.dataset.t, curRows); return; } const th = e.target.closest("th.sort"); if (!th) return; const k = th.dataset.k; st.dir = st.key === k ? -st.dir : (["n", "g", "se", "s", "rs", "v"].includes(k) ? 1 : -1); st.key = k; drawS(); };
 $("s-more").onclick = () => { st.n += 200; drawS(); };
 $("s-reset").onclick = () => { Object.assign(st, { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" });
   ["q", "f-zone", "f-sector", "f-v", "f-s", "f-rs", "f-list"].forEach(id => $(id).value = ""); $("s-area").hidden = true; $("s-msg").textContent = ""; drawS(); };
@@ -490,7 +532,7 @@ const jump = (g, se) => { st.g = g || ""; st.se = se || ""; st.preset = ""; $("f
 $("z-table").onclick = e => { const tr = e.target.closest("tr.click"); if (tr) jump(tr.dataset.g, ""); };
 $("h-table").onclick = e => { const c = e.target.closest("td.c2[data-s]"); if (c) jump(c.dataset.g, c.dataset.s); };
 $("s-title").textContent = `${lead.length} leaders and ${lag.length} laggards among ${ok.length} stocks`;
-drawS();
+drawS(); drawL();
 
 $("m-list").innerHTML = [
   ["Weekly closes", "This screen is read on weekly closes (last close of each week). The other Syz technical documents use daily closes, so a verdict can differ by one step."],
