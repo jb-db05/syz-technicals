@@ -24,6 +24,8 @@ from .weekly import VLABEL
 ASSETS = Path(__file__).parent / "assets"
 OUT = Path("output/html_masterlist")
 FALLBACK = {"SPIX Index": ("SPI Index", "SPI (total return)")}      # used when the price index did not load; flagged
+MASTER_LIST = Path("data/masterlist/New_process_Master_List_Top800.xlsx")
+TICKER_FIX = {"ETISALATUH Equity": "ETISALAT UH Equity", "GFNORTEOMM Equity": "GFNORTEO MM Equity"}
 GROUPS = [("US & Canada", ["United States", "Canada"]), ("Europe ex-CH", ["Europe ex-CH"]), ("Switzerland", ["Switzerland"]),
           ("Japan", ["Japan"]), ("Developed Pacific", ["Developed Pacific"]), ("Emerging Markets", ["Emerging Markets"])]
 
@@ -75,12 +77,14 @@ def build_screen(prices_dir="data/prices_masterlist", universe="data/universe_ma
             bench_used[b] = (None, None)
             notes.append(f"{b} returned no data: no relative trend for its zone.")
     asof = max(w.index[-1] for w in W.values() if len(w))
+    ml = pd.read_excel(MASTER_LIST)                       # MSCI ACWI weight of each stock, from the master list itself
+    acwi = dict(zip([TICKER_FIX.get(str(t).strip(), str(t).strip()) for t in ml["Ticker"]], pd.to_numeric(ml["ACWI weight %"], errors="coerce")))
     rows = []
     for r in u[u.asset_class == "equity"].itertuples():
         w = W.get(r.ticker)
         base = dict(ticker=r.ticker, name=r.name, zone=r.zone, country=r.country, sector=r.sector or "Not classified", industry=r.industry,
                     satellite=str(r.satellite).strip().lower() == "yes", focus=str(r.focus).strip().lower() == "yes",
-                    bench=r.bench_name, currency=r.currency)
+                    bench=r.bench_name, currency=r.currency, acwi=acwi.get(r.ticker))
         if w is None or not len(w):
             rows.append({**base, "verdict": INSUFFICIENT, "rule": "no_price_series", "missing": "no weekly closes in the export", "weeks": 0})
             continue
@@ -109,7 +113,7 @@ def build_html(out_dir: Path = OUT) -> Path:
     shutil.copy(ASSETS / "syz_logo.png", out_dir / "syz_logo.png")
     g_of = {z: g for g, zs in GROUPS for z in zs}
     rows = [dict(t=r.ticker, n=r.name, z=r.zone, g=g_of.get(r.zone, r.zone), co=r.country, se=r.sector, ind=r.industry, sat=bool(r.satellite), foc=bool(r.focus),
-                 b=r.bench, cur=r.currency, v=r.verdict, rule=r.rule, s=getattr(r, "slope", None) if isinstance(getattr(r, "slope", None), str) else None,
+                 b=r.bench, cur=r.currency, aw=_f(r.acwi, 4), v=r.verdict, rule=r.rule, s=getattr(r, "slope", None) if isinstance(getattr(r, "slope", None), str) else None,
                  rs=r.rel_state if isinstance(getattr(r, "rel_state", None), str) else None,
                  vs40=_f(getattr(r, "vs40", None)), c4=_f(getattr(r, "c4", None)), c13=_f(getattr(r, "c13", None)), c52=_f(getattr(r, "c52", None)),
                  fh=_f(getattr(r, "fh", None)), rs13=_f(getattr(r, "rs13", None)), rs26=_f(getattr(r, "rs26", None)), wk=int(r.weeks),

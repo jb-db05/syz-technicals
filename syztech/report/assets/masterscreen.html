@@ -213,6 +213,25 @@ dialog::backdrop { background: rgba(14,20,36,.72) }
 @media (max-width: 900px) { .regions4, .readings { grid-template-columns: minmax(0, 1fr) } }
 
 /* master-list screen */
+.modebar { background: var(--surface); border-bottom: 1px solid var(--line) } .modebar .wrap { display: flex; gap: 10px; align-items: center; padding-block: 12px; flex-wrap: wrap }
+.modebar span { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; color: var(--muted); margin-right: 4px }
+.modebtn { all: unset; box-sizing: border-box; cursor: pointer; padding: 10px 22px; border-radius: 999px; font-weight: 800; font-size: 15px; border: 2px solid var(--line); background: var(--bg); color: var(--ink) }
+.modebtn small { font-weight: 600; color: var(--muted); margin-left: 6px } .modebtn:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px }
+.modebtn[aria-pressed="true"] { background: linear-gradient(90deg, var(--orange), var(--amber)); border-color: transparent; color: #fff } .modebtn[aria-pressed="true"] small { color: #fff; opacity: .9 }
+body[data-mode="master"] [data-mode="focus"], body[data-mode="focus"] [data-mode="master"] { display: none !important }
+button.act { all: unset; cursor: pointer; font-size: 11.5px; font-weight: 800; border-radius: 6px; padding: 3px 9px; border: 1.5px solid var(--line); color: var(--muted); white-space: nowrap }
+button.act:hover { border-color: var(--ink); color: var(--ink) } button.act:focus-visible { outline: 2px solid var(--orange) }
+button.act.sell[aria-pressed="true"] { background: var(--mulb); border-color: var(--mulb); color: #fff } button.act.inc[aria-pressed="true"], button.act.buy[aria-pressed="true"] { background: var(--mint); border-color: var(--mint); color: #fff }
+.atag { display: inline-block; min-width: 74px; text-align: center; border-radius: 6px; padding: 2px 8px; font-weight: 800; font-size: 12px; color: #fff }
+.atag.sell { background: var(--mulb) } .atag.buy, .atag.inc { background: var(--mint) } .atag.prop { background: var(--orange) }
+.bk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px } .bkc { border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 8px; min-width: 0 }
+.bkc h3 { font-size: 15px; margin-bottom: 2px } .bkc p { margin: 0 0 6px; font-size: 12.5px; color: var(--muted) } .bkc svg { display: block; width: 100%; height: auto } .bkc svg text { fill: var(--muted); font-family: var(--font) } .bkc svg text.ink { fill: var(--ink) }
+.lgd { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 4px 0 10px } .lgd i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px }
+.opt { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--surface) } .opt[hidden] { display: none }
+.opt .tools select, .opt .tools input { background: var(--bg) } .opt ul { margin: 6px 0 0; padding-left: 18px; font-size: 14px } .opt li { margin-bottom: 5px }
+.mx td.c2 { text-align: center; font-weight: 800; border: 2px solid var(--bg); height: 34px; padding-top: 0; padding-bottom: 0 } .mx td.c2 small { font-weight: 700; color: var(--orange); margin-left: 4px }
+.mx td.z { color: var(--line) } .mx th { text-align: center } .mx th:first-child { text-align: left }
+@media (max-width: 900px) { .bk { grid-template-columns: minmax(0, 1fr) } }
 #lb .lbimg { background: var(--bg); padding: 6px 10px 2px } #lb svg { display: block; width: 100%; height: auto }
 #lb svg text { fill: var(--muted); font-family: var(--font) } #lb svg text.ink { fill: var(--ink) }
 .lbh .t small { font-weight: 600; color: var(--muted); margin-left: 8px }
@@ -250,28 +269,30 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <div class="counts" id="m-counts"></div>
   </div>
 </header>
-<nav class="sec" aria-label="Sections"><div class="wrap"><a href="#readings">Key readings</a><a href="#zones">Zones</a><a href="#map">Zone × sector</a><a href="#focus">Focus List</a><a href="#screen">Screen</a><a href="#mylist">My short list</a><a href="#method">Method</a></div></nav>
+<div class="modebar"><div class="wrap" role="group" aria-label="Workspace"><span>Work on</span>
+  <button class="modebtn" type="button" data-m="master" aria-pressed="true">Master list<small id="mb-master"></small></button>
+  <button class="modebtn" type="button" data-m="focus" aria-pressed="false">Focus List<small id="mb-focus"></small></button></div></div>
+<nav class="sec" aria-label="Sections"><div class="wrap">
+  <a data-mode="master" href="#readings">Key readings</a><a data-mode="master" href="#zones">Zones</a><a data-mode="master" href="#map">Zone × sector</a><a data-mode="master" href="#screen">Screen</a><a data-mode="master" href="#mylist">My short list</a>
+  <a data-mode="focus" href="#focus">Focus List</a><a data-mode="focus" href="#actions">Sells and buys</a><a data-mode="focus" href="#optim">Optimiser</a><a data-mode="focus" href="#breakdown">Breakdown</a>
+  <a href="#method">Method</a></div></nav>
 <main class="wrap">
-  <section id="readings">
+  <section id="readings" data-mode="master">
     <div class="sh"><span class="k">Key readings</span><h2 id="r-title"></h2><p>Rules-based facts on weekly closes; no published view.</p></div>
     <div class="kp" id="r-cards"></div>
   </section>
-  <section id="zones">
+  <section id="zones" data-mode="master">
     <div class="sh"><span class="k">Zones</span><h2 id="z-title"></h2><p>Each stock is measured against the benchmark of its zone, in the benchmark's currency, price return on both sides. Click a zone to filter the screen.</p></div>
     <div class="tw"><table class="t" id="z-table"></table></div>
     <p class="note" id="z-note"></p>
   </section>
-  <section id="map">
+  <section id="map" data-mode="master">
     <div class="sh"><span class="k">Zone × sector</span><h2 id="h-title"></h2><p id="h-sub"></p></div>
     <div class="tools" id="h-views" role="group" aria-label="Reading shown in the map"><button class="chip" data-v="bull" aria-pressed="true">Bullish share</button><button class="chip" data-v="rising" aria-pressed="false">Rising 40-week</button><button class="chip" data-v="out" aria-pressed="false">Outperform</button></div>
     <div class="tw"><table class="hm t" id="h-table"></table></div>
     <p class="note">Share of the stocks in the cell; the small figure is the number of stocks. Cells with fewer than three stocks are greyed. Click a cell to filter the screen.</p>
   </section>
-  <section id="focus">
-    <div class="sh"><span class="k">Focus List</span><h2 id="f-title"></h2><p>The Focus List names, weakest readings first. Click a name for its chart.</p></div>
-    <div class="tw"><table class="t" id="f-table"></table></div>
-  </section>
-  <section id="screen">
+  <section id="screen" data-mode="master">
     <div class="sh"><span class="k">Screen</span><h2 id="s-title"></h2><p>Filter, sort by any column, search a name or a ticker. Click a stock for its weekly chart; the arrows move through the list as filtered. ★ or ★★ at the right of a row adds the company to your short list.</p></div>
     <div class="tools" id="s-presets" role="group" aria-label="Preset screens"></div>
     <div class="tools">
@@ -291,12 +312,42 @@ td.nm { white-space: normal; min-width: 170px } td.wrap { white-space: normal; f
     <div class="more"><button id="s-more" hidden>Show more</button></div>
     <p class="note" id="s-note"></p>
   </section>
-  <section id="mylist">
-    <div class="sh"><span class="k">My short list</span><h2 id="l-title"></h2><p>The companies you flagged in the screen, two stars first, then one star. Click a lit star again to remove a company. The list is kept in this browser; copy the tickers to take it elsewhere.</p></div>
-    <div class="tools"><button class="chip" id="l-copy" type="button">Copy Bloomberg tickers</button><button class="chip" id="l-clear" type="button">Clear the short list</button>
+  <section id="mylist" data-mode="master">
+    <div class="sh"><span class="k">My short list</span><h2 id="l-title"></h2><p>The companies you flagged in the screen, two stars first, then one star. Click a lit star again to remove a company. Buy sends a company to the Focus List workspace as a proposed purchase. The list is kept in this browser.</p></div>
+    <h3 id="x-title" style="font-size:16px;margin:0 0 8px"></h3>
+    <div class="tw" style="margin-bottom:18px"><table class="t mx" id="x-table"></table></div>
+    <div class="tools"><button class="chip" id="l-copy" type="button">Copy Bloomberg tickers</button><button class="chip" id="l-dl" type="button">Download the short list</button><button class="chip" id="l-clear" type="button">Clear the short list</button>
       <span id="l-msg" class="pos" style="font-size:13px;font-weight:700" role="status"></span></div>
     <textarea id="l-area" hidden readonly aria-label="Bloomberg tickers of the short list" style="width:100%;height:120px;margin-bottom:10px;font:12px/1.4 ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--surface);color:var(--ink)"></textarea>
     <div class="tw"><table class="t" id="l-table"></table></div>
+  </section>
+  <section id="focus" data-mode="focus">
+    <div class="sh"><span class="k">Focus List</span><h2 id="f-title"></h2><p>The Focus List names, weakest readings first. Click Sell or Increase at the right of a row; click a name for its chart.</p></div>
+    <div class="tw"><table class="t" id="f-table"></table></div>
+  </section>
+  <section id="actions" data-mode="focus">
+    <div class="sh"><span class="k">Sells and buys</span><h2 id="a-title"></h2><p>Sells and increases come from the Focus List table above; buys come from My short list in the Master list workspace. Click ✕ to cancel a line.</p></div>
+    <div class="tw"><table class="t" id="a-table"></table></div>
+    <p class="note">The Focus List is read as equally weighted. An increase is recorded here but does not change a weight in the breakdown.</p>
+  </section>
+  <section id="optim" data-mode="focus">
+    <div class="sh"><span class="k">Optimiser</span><h2 id="o-title">Proposals from the short list</h2><p>Optional. It takes the Focus List after your sells and buys, and proposes additions from My short list.</p></div>
+    <div class="tools"><button class="chip" id="o-toggle" type="button" aria-pressed="false">Activate the optimiser</button></div>
+    <div class="opt" id="o-panel" hidden>
+      <div class="tools"><label style="font-size:13px">Number of additions <input id="o-n" type="number" min="1" max="20" value="3" style="width:70px"></label>
+        <select id="o-mode" aria-label="Emphasis"><option value="bal">Balanced</option><option value="fit">Closer to the MSCI ACWI first</option><option value="conv">Short-list concentration first</option></select>
+        <label style="font-size:13px"><input id="o-two" type="checkbox"> two-star names only</label></div>
+      <div class="tw" style="background:var(--bg)"><table class="t" id="o-table"></table></div>
+      <p class="note" id="o-note"></p>
+      <h3 style="font-size:16px;margin:16px 0 0">Comments on the Focus List</h3>
+      <ul id="o-comments"></ul>
+    </div>
+  </section>
+  <section id="breakdown" data-mode="focus">
+    <div class="sh"><span class="k">Breakdown</span><h2 id="b-title"></h2><p id="b-sub"></p></div>
+    <div class="lgd"><span><i style="background:#B8BFCC"></i>MSCI ACWI</span><span><i style="background:var(--blueb)"></i>Focus List before</span><span><i style="background:var(--orange)"></i>Focus List after sells and buys</span></div>
+    <div class="bk"><div class="bkc"><h3>By region</h3><p id="b-reg-sub"></p><div id="b-reg"></div></div><div class="bkc"><h3>By sector</h3><p id="b-sec-sub"></p><div id="b-sec"></div></div></div>
+    <p class="note" id="b-note"></p>
   </section>
   <section id="method">
     <div class="sh"><span class="k">Method</span><h2>How to read this screen</h2></div>
@@ -352,8 +403,8 @@ $("r-cards").innerHTML = [
     `Leaders (Bullish, rising, Outperform): ${lead.length}. Laggards (Bearish and Underperform): ${lag.length}.`]],
   ["Zones and sectors", [`Highest Bullish share by zone: ${best.slice(0, 2).map(z => `${esc(z.g)} ${p0(z.b)}`).join(", ")}; lowest: ${best.slice(-2).reverse().map(z => `${esc(z.g)} ${p0(z.b)}`).join(", ")}.`,
     `Highest by sector: ${ss.slice(0, 3).map(z => `${esc(z.s)} ${p0(z.b)}`).join(", ")}.`, `Lowest by sector: ${ss.slice(-3).reverse().map(z => `${esc(z.s)} ${p0(z.b)}`).join(", ")}.`]],
-  ["Focus List", [`${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish.`, `${fok.filter(isO).length} Outperform their benchmark; ${fok.filter(r => r.rs === "Underperform").length} Underperform.`,
-    `Bearish and Underperform: ${fok.filter(r => isBe(r) && r.rs === "Underperform").map(r => esc(r.n)).join("; ") || "none"}.`]]]
+  ["Screens", [`Leaders: ${lead.length} stocks are Bullish with a rising 40-week average and Outperform.`, `Improving: ${ok.filter(r => fam(r.v) === "Neutral" && isO(r) && (r.rs13 ?? -1) > 0).length} have a Neutral verdict, Outperform and gained relative strength over 13 weeks.`,
+    `Losing ground: ${ok.filter(r => isB(r) && r.rs === "Underperform" && (r.rs13 ?? 1) < 0).length} are Bullish but Underperform with falling relative strength.`]]]
   .map(([h, l]) => `<div class="kpc"><h3>${h}</h3><ul>${l.map(x => `<li>${x}</li>`).join("")}</ul></div>`).join("");
 
 /* zones */
@@ -390,6 +441,11 @@ let FL = new Map();                                 // ticker -> 1 (one star) or
 try { const raw = JSON.parse(localStorage.getItem(LSK) || "[]"), known = new Set(D.rows.map(r => r.t));
   (Array.isArray(raw) ? raw.map(t => [t, 1]) : Object.entries(raw)).forEach(([t, n]) => { if (known.has(t) && (n === 1 || n === 2)) FL.set(t, n); }); } catch (e) {}
 const saveFL = () => { try { localStorage.setItem(LSK, JSON.stringify(Object.fromEntries(FL))); } catch (e) {} };
+const AKEY = "syz-masterlist-actions";               // sells and increases (Focus List), buys (from My short list)
+const ACT = { sell: new Set(), inc: new Set(), buy: new Set() };
+try { const a = JSON.parse(localStorage.getItem(AKEY) || "{}"), known = new Set(D.rows.map(r => r.t)); ["sell", "inc", "buy"].forEach(k => (a[k] || []).forEach(t => { if (known.has(t)) ACT[k].add(t); })); } catch (e) {}
+const saveACT = () => { try { localStorage.setItem(AKEY, JSON.stringify({ sell: [...ACT.sell], inc: [...ACT.inc], buy: [...ACT.buy] })); } catch (e) {} };
+const actBtn = (r, k, lab) => `<button class="act ${k}" type="button" data-a="${k}" data-t="${esc(r.t)}" aria-pressed="${ACT[k].has(r.t)}" aria-label="${lab} ${esc(r.n)}">${lab}</button>`;
 const stars = r => { const n = FL.get(r.t) || 0, b = k => `<button class="flag" type="button" data-f="${esc(r.t)}" data-n="${k}" aria-pressed="${n === k}" aria-label="${k === 1 ? "One star" : "Two stars"} for ${esc(r.n)}${n === k ? " (click to remove)" : ""}" title="${k === 1 ? "One star" : "Two stars"}">${k === 1 ? "★" : "★★"}</button>`;
   return `<span class="fl">${b(1)}${b(2)}</span>`; };
 
@@ -398,17 +454,19 @@ const tags = r => (r.foc ? `<span class="tag f">Focus</span>` : "") + (r.sat ? `
 const COLS = [["n", "Stock", ""], ["g", "Zone", ""], ["se", "Sector", ""], ["s", "40-week", "c"], ["vs40", "vs 40w", "r"], ["c13", "13w", "r"], ["c52", "52w", "r"], ["fh", "vs 52w high", "r"], ["rs", "Rel. trend", "c"], ["rs13", "RS 13w", "r"], ["v", "Trend", "c"]];
 const VO = {"Bullish": 0, "Neutral+": 1, "Neutral": 2, "Neutral-": 3, "Bearish_LM": 4, "Bearish": 5}, SO = {rising: 0, flat: 1, falling: 2}, RO = {Outperform: 0, Neutral: 1, Underperform: 2};
 const key = (r, k) => k === "v" ? (VO[r.v] ?? 9) : k === "s" ? (SO[r.s] ?? 9) : k === "rs" ? (RO[r.rs] ?? 9) : r[k];
-const trow = r => `<tr class="rowc" data-t="${esc(r.t)}" tabindex="0"><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
+const trow = (r, kind) => `<tr class="rowc" data-t="${esc(r.t)}" tabindex="0"><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${tags(r)}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
   <td class="c">${badge(SLO, r.s)}</td><td class="r ${cls(r.vs40)}">${pct(r.vs40)}</td><td class="r ${cls(r.c13)}">${pct(r.c13)}</td><td class="r ${cls(r.c52)}">${pct(r.c52)}</td><td class="r ${r.fh != null && r.fh >= -0.05 ? "pos" : ""}">${pct(r.fh)}</td>
-  <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td><td class="c">${stars(r)}</td></tr>`;
-const thead = (st) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th><th></th></tr>
-  <tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${l}${st && st.key === k ? `<span class="ar">${st.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")}<th class="c" title="My short list: one star or two">★ / ★★</th></tr></thead>`;
+  <td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td>${kind === "f" ? `<td class="c">${actBtn(r, "sell", "Sell")}</td><td class="c">${actBtn(r, "inc", "Increase")}</td>` : `<td class="c">${stars(r)}</td>` + (kind === "l" ? `<td class="c">${r.foc ? `<span class="dim" style="font-size:11.5px">in Focus List</span>` : actBtn(r, "buy", "Buy")}</td>` : "")}</tr>`;
+const thead = (st, kind) => `<thead><tr class="grp"><th colspan="3"></th><th colspan="5"><span style="background:var(--navy)">Absolute momentum</span></th><th colspan="2"><span style="background:var(--orange)">vs zone benchmark</span></th><th><span style="background:var(--blueb)">Verdict</span></th><th colspan="${kind === "s" || !kind ? 1 : 2}">${kind === "f" || kind === "l" ? `<span style="background:var(--orange)">Decision</span>` : ""}</th></tr>
+  <tr>${COLS.map(([k, l, c]) => `<th class="sort ${c}" data-k="${k}" tabindex="0">${l}${st && st.key === k ? `<span class="ar">${st.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`).join("")}${kind === "f" ? `<th class="c">Sell</th><th class="c">Increase</th>` : `<th class="c" title="My short list: one star or two">★ / ★★</th>` + (kind === "l" ? `<th class="c">Buy</th>` : "")}</tr></thead>`;
 
 /* focus list */
 const fs = F.slice().sort((a, b) => (VO[b.v] ?? -1) - (VO[a.v] ?? -1) || (RO[b.rs] ?? -1) - (RO[a.rs] ?? -1) || (a.rs13 ?? 9) - (b.rs13 ?? 9));
-$("f-title").textContent = `${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish`;
-$("f-table").innerHTML = thead() + "<tbody>" + fs.map(trow).join("") + "</tbody>";
-$("f-table").onclick = e => { if (flagClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, fs); };
+function drawF() {
+  $("f-title").textContent = `${fok.filter(isB).length} of ${fok.length} Focus List names are Bullish; ${fok.filter(isBe).length} are Bearish, ${fok.filter(r => isBe(r) && r.rs === "Underperform").length} of them also Underperform`;
+  $("f-table").innerHTML = thead(null, "f") + "<tbody>" + fs.map(r => trow(r, "f")).join("") + "</tbody>";
+}
+$("f-table").onclick = e => { if (actClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, fs); };
 
 /* charts: drawn in the page from the weekly closes (five years, log scale) */
 let curRows = [], lbList = [], lbI = 0;
@@ -485,10 +543,11 @@ function drawL() {
   const n = myRows.length, okm = myRows.filter(r => hasV(r.v));
   const n2 = myRows.filter(r => FL.get(r.t) === 2).length;
   $("l-title").textContent = n ? `${n} compan${n === 1 ? "y" : "ies"} flagged – ${n2} with two stars, ${n - n2} with one: ${okm.filter(isB).length} Bullish, ${okm.filter(isBe).length} Bearish, ${okm.filter(isO).length} Outperform` : "No company flagged yet";
-  $("l-table").innerHTML = thead() + "<tbody>" + (myRows.map(trow).join("") || `<tr><td colspan="12" class="dim">Click ★ or ★★ at the right of a row in the screen to add a company here.</td></tr>`) + "</tbody>";
+  $("l-table").innerHTML = thead(null, "l") + "<tbody>" + (myRows.map(r => trow(r, "l")).join("") || `<tr><td colspan="13" class="dim">Click ★ or ★★ at the right of a row in the screen to add a company here.</td></tr>`) + "</tbody>";
+  drawX(); if (typeof drawFocusWork === "function") drawFocusWork();
   const c = document.querySelector('nav.sec a[href="#mylist"]'); if (c) c.textContent = `My short list${n ? " (" + n + ")" : ""}`;
 }
-$("l-table").onclick = e => { if (flagClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, myRows); };
+$("l-table").onclick = e => { if (flagClick(e) || actClick(e)) return; const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, myRows); };
 async function copyTickers(rows, msg, area) { const txt = rows.map(r => r.t).join("\n"), n = rows.length, done = () => { $(msg).textContent = `${n} ticker${n === 1 ? "" : "s"} copied`; setTimeout(() => $(msg).textContent = "", 4000); };
   if (!n) { $(msg).textContent = "No stock in the list"; return; }
   try { await navigator.clipboard.writeText(txt); $(area).hidden = true; done(); return; } catch (e) {}
@@ -496,9 +555,134 @@ async function copyTickers(rows, msg, area) { const txt = rows.map(r => r.t).joi
   try { if (document.execCommand("copy")) { a.hidden = true; done(); return; } } catch (e) {}
   $(msg).textContent = `${n} tickers selected below – press Ctrl+C (Cmd+C on a Mac)`; }
 $("l-copy").onclick = () => copyTickers(myRows, "l-msg", "l-area");
+/* short list as a file: Bloomberg ticker first, then what the screen says today */
+function downloadList(rows, starsOf) { if (!rows.length) { $("l-msg").textContent = "No company in the short list"; return; }
+  const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`, pc = v => v == null ? "" : (v * 100).toFixed(1);
+  const csv = [["Bloomberg ticker", "Name", "Stars", "Decision", "Zone", "Sector", "Trend", "40-week", "Relative trend", "vs 40w %", "13w %", "52w %", "RS 13w %", "Focus List", "Week to"].join(",")]
+    .concat(rows.map(r => [q(r.t), q(r.n), starsOf.get(r.t) || "", ACT.buy.has(r.t) ? "Buy" : "", q(r.z), q(r.se), q(D.vlabel[r.v] || ""), r.s || "", r.rs || "", pc(r.vs40), pc(r.c13), pc(r.c52), pc(r.rs13), r.foc ? "Yes" : "No", q(D.asof)].join(","))).join("\r\n");
+  const name = `Syz_short_list_${D.asof.replace(/ /g, "_")}.csv`;
+  try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); } catch (e) {}
+  const ar = $("l-area"); ar.value = rows.map(r => r.t).join("\n"); ar.hidden = false;      // always shown too, in case the browser blocks the download
+  $("l-msg").textContent = `${rows.length} companies – file ${name}; the tickers are also in the box below`; }
+$("l-dl").onclick = () => downloadList(myRows, FL);
 $("l-clear").onclick = () => { if (!FL.size) return; const old = new Map(FL); FL.clear(); saveFL(); drawL(); drawS(); $("f-table").querySelectorAll("button.flag").forEach(b => b.setAttribute("aria-pressed", "false"));
-  $("l-msg").innerHTML = `Short list cleared – <button class="chip" id="l-undo" type="button" style="padding:2px 10px">Undo</button>`;
+  const oldRows = R.filter(r => old.has(r.t)).sort((a, b) => old.get(b.t) - old.get(a.t));
+  $("l-msg").innerHTML = `Short list cleared – <button class="chip" id="l-undo" type="button" style="padding:2px 10px">Undo</button> <button class="chip" id="l-dl2" type="button" style="padding:2px 10px">Download the cleared list</button>`;
+  $("l-dl2").onclick = () => downloadList(oldRows, old);
   $("l-undo").onclick = () => { FL = new Map(old); saveFL(); drawL(); drawS(); $("f-table").querySelectorAll("button.flag").forEach(b => b.setAttribute("aria-pressed", FL.get(b.dataset.f) === +b.dataset.n)); $("l-msg").textContent = ""; }; };
+
+/* decisions: Sell / Increase on the Focus List, Buy from My short list */
+function actClick(e) { const b = e.target.closest("button.act"); if (!b) return false; e.stopPropagation();
+  const k = b.dataset.a, t = b.dataset.t; if (!k) return true;
+  if (ACT[k].has(t)) ACT[k].delete(t); else { ACT[k].add(t); if (k === "sell") ACT.inc.delete(t); if (k === "inc") ACT.sell.delete(t); }
+  saveACT(); document.querySelectorAll(`button.act[data-t="${CSS.escape(t)}"]`).forEach(x => x.setAttribute("aria-pressed", ACT[x.dataset.a].has(t)));
+  drawFocusWork(); return true; }
+/* short list by sector and region */
+const ZONES = [...new Set(R.map(r => r.z))].sort((a, b) => R.filter(r => r.z === b).length - R.filter(r => r.z === a).length), SECT = D.sectors.filter(s => s !== "Not classified");
+function drawX() { const L = R.filter(r => FL.has(r.t)), n = L.length;
+  if (!n) { $("x-title").textContent = ""; $("x-table").parentElement.hidden = true; return; }
+  $("x-table").parentElement.hidden = false;
+  const cnt = (f) => L.filter(f).length, two = f => L.filter(r => f(r) && FL.get(r.t) === 2).length;
+  const topS = SECT.map(x => [x, cnt(r => r.se === x)]).sort((a, b) => b[1] - a[1])[0], topZ = ZONES.map(x => [x, cnt(r => r.z === x)]).sort((a, b) => b[1] - a[1])[0];
+  $("x-title").textContent = `Where the short list sits: ${topS[1]} of ${n} in ${topS[0]}, ${topZ[1]} in ${topZ[0]}`;
+  const cell = (f, tot) => { const c = cnt(f), t2 = two(f); return `<td class="c2 ${c ? "" : "z"}" style="${c ? `background:color-mix(in srgb, var(--orange) ${Math.min(70, 12 + c / n * 160)}%, transparent)` : ""}${tot ? ";font-weight:800" : ""}">${c || "·"}${t2 ? `<small title="of which two stars">★★${t2}</small>` : ""}</td>`; };
+  $("x-table").innerHTML = `<thead><tr><th>Sector</th>${ZONES.map(z => `<th>${esc(z)}</th>`).join("")}<th>All regions</th></tr></thead><tbody>`
+    + SECT.filter(x => cnt(r => r.se === x)).map(x => `<tr><td><b>${esc(x)}</b></td>${ZONES.map(z => cell(r => r.se === x && r.z === z)).join("")}${cell(r => r.se === x, true)}</tr>`).join("")
+    + `<tr class="total"><td>All sectors</td>${ZONES.map(z => cell(r => r.z === z, true)).join("")}${cell(() => true, true)}</tr></tbody>`; }
+
+/* Focus List workspace: decisions table, breakdown against the MSCI ACWI, optimiser */
+const awTot = R.reduce((a, r) => a + (r.aw || 0), 0), awCover = awTot;                 // ACWI weights of the master-list stocks, rescaled to 100%
+const bench = (key, cats) => Object.fromEntries(cats.map(c => [c, R.filter(r => r[key] === c).reduce((a, r) => a + (r.aw || 0), 0) / awTot]));
+const BZ = bench("z", ZONES), BS = bench("se", SECT);
+const wts = (list, key, cats) => Object.fromEntries(cats.map(c => [c, list.length ? list.filter(r => r[key] === c).length / list.length : 0]));
+const dev = (list) => { const wz = wts(list, "z", ZONES), wsx = wts(list, "se", SECT); return { z: ZONES.reduce((a, c) => a + Math.abs(wz[c] - BZ[c]), 0) / 2, s: SECT.reduce((a, c) => a + Math.abs(wsx[c] - BS[c]), 0) / 2 }; };
+const pp = (v, d = 1) => (v >= 0 ? "+" : MINUS) + Math.abs(v * 100).toFixed(d) + " pt", pu = (v, d = 1) => (v * 100).toFixed(d) + "%";
+const afterList = () => F.filter(r => !ACT.sell.has(r.t)).concat(R.filter(r => ACT.buy.has(r.t) && !r.foc));
+function barsSVG(cats, B, before, after) {
+  const rows = cats.map(c => [c, B[c], before[c], after[c]]).sort((a, b) => b[1] - a[1]);
+  const W = 560, L = 150, Rm = 150, rh = 46, T = 6, mx = Math.max(...rows.flatMap(r => r.slice(1))) * 1.05 || 1, X = v => L + v / mx * (W - L - Rm), H = T + rows.length * rh + 4;
+  const cols = ["#B8BFCC", "var(--blueb)", "var(--orange)"];
+  let g = "";
+  rows.forEach((r, i) => { const y = T + i * rh;
+    g += `<text class="ink" x="${L - 8}" y="${y + 24}" font-size="12.5" font-weight="700" text-anchor="end">${esc(r[0])}</text>`;
+    [1, 2, 3].forEach(k => { g += `<rect x="${L}" y="${y + 4 + (k - 1) * 12}" width="${Math.max(1, X(r[k]) - L).toFixed(1)}" height="10" rx="2" fill="${cols[k - 1]}"/>`; });
+    const a0 = r[2] - r[1], a1 = r[3] - r[1];
+    g += `<text x="${W - Rm + 8}" y="${y + 17}" font-size="11.5">${pu(r[1])} · ${pu(r[2])} · <tspan class="ink" font-weight="700">${pu(r[3])}</tspan></text>`
+       + `<text x="${W - Rm + 8}" y="${y + 33}" font-size="11.5">active ${pp(a0)} → <tspan font-weight="800" style="fill:${Math.abs(a1) < Math.abs(a0) - 1e-9 ? "var(--mint)" : Math.abs(a1) > Math.abs(a0) + 1e-9 ? "var(--mulb)" : "var(--muted)"}">${pp(a1)}</tspan></text>`; });
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weights: MSCI ACWI, Focus List before and after">${g}</svg>`; }
+function propose(base, k, mode, twoOnly) {            // greedy: one addition at a time, each scored against the list as it then stands
+  const SL = R.filter(r => FL.has(r.t)), cand = SL.filter(r => !r.foc && !ACT.buy.has(r.t) && (!twoOnly || FL.get(r.t) === 2));
+  const Wt = { bal: [0.5, 0.35, 0.15], fit: [0.75, 0.15, 0.10], conv: [0.25, 0.60, 0.15] }[mode], out = []; let cur = base.slice();
+  const shS = x => SL.filter(r => r.se === x).length / (SL.length || 1), shZ = x => SL.filter(r => r.z === x).length / (SL.length || 1);
+  const mxC = Math.max(1e-9, ...cand.map(c => (shS(c.se) + shZ(c.z)) / 2));
+  for (let i = 0; i < k; i++) { const pool = cand.filter(c => !out.some(o => o.r.t === c.t)); if (!pool.length) break;
+    const d0 = dev(cur), sc = pool.map(c => { const d1 = dev(cur.concat([c])); return { r: c, gain: (d0.z - d1.z) + (d0.s - d1.s), conc: (shS(c.se) + shZ(c.z)) / 2 / mxC, star: FL.get(c.t) === 2 ? 1 : 0, d1 }; });
+    const mg = Math.max(1e-9, ...sc.map(x => Math.abs(x.gain)));
+    sc.forEach(x => x.score = Wt[0] * x.gain / mg + Wt[1] * x.conc + Wt[2] * x.star);
+    sc.sort((a, b) => b.score - a.score || (VO[a.r.v] ?? 9) - (VO[b.r.v] ?? 9));
+    const best = sc[0]; best.d0 = d0; best.nS = SL.filter(r => r.se === best.r.se).length; best.nZ = SL.filter(r => r.z === best.r.z).length; best.nSL = SL.length;
+    best.wS0 = wts(cur, "se", SECT)[best.r.se]; best.wZ0 = wts(cur, "z", ZONES)[best.r.z]; cur = cur.concat([best.r]);
+    best.wS1 = wts(cur, "se", SECT)[best.r.se]; best.wZ1 = wts(cur, "z", ZONES)[best.r.z]; out.push(best); }
+  return { picks: out, final: cur, nCand: cand.length }; }
+let optOn = false; try { optOn = localStorage.getItem("syz-masterlist-opt") === "1"; } catch (e) {}
+function drawFocusWork() {
+  drawF();
+  const sells = F.filter(r => ACT.sell.has(r.t)), incs = F.filter(r => ACT.inc.has(r.t)), buys = R.filter(r => ACT.buy.has(r.t) && !r.foc), aft = afterList();
+  $("mb-focus").textContent = `${F.length} names${sells.length || buys.length ? ` → ${aft.length}` : ""}`;
+  $("a-title").textContent = sells.length + buys.length + incs.length ? `${sells.length} sell${sells.length === 1 ? "" : "s"}, ${buys.length} buy${buys.length === 1 ? "" : "s"}, ${incs.length} increase${incs.length === 1 ? "" : "s"}: the Focus List goes from ${F.length} to ${aft.length} names` : "No decision yet";
+  const arow = (r, k, lab) => `<tr class="rowc" data-t="${esc(r.t)}" tabindex="0"><td><span class="atag ${k}">${lab}</span></td><td class="nm"><b>${esc(r.n)}</b><span class="tk">${esc(r.t.replace(/ Equity$/, ""))}</span>${k === "buy" && FL.get(r.t) ? ` <span class="dim">${"★".repeat(FL.get(r.t))}</span>` : ""}</td><td class="wrap">${esc(r.z)}</td><td class="wrap">${esc(r.se)}</td>
+    <td class="c">${badge(SLO, r.s)}</td><td class="r ${cls(r.c13)}">${pct(r.c13)}</td><td class="c">${badge(REL, r.rs)}</td><td class="r ${cls(r.rs13)}">${pct(r.rs13)}</td><td class="c">${pill(r.v)}</td><td class="c"><button class="act" type="button" data-x="${k}" data-t="${esc(r.t)}" aria-label="Cancel ${lab} ${esc(r.n)}">✕</button></td></tr>`;
+  const all = [...sells.map(r => [r, "sell", "Sell"]), ...incs.map(r => [r, "inc", "Increase"]), ...buys.map(r => [r, "buy", "Buy"])];
+  $("a-table").innerHTML = `<thead><tr><th>Decision</th><th>Stock</th><th>Zone</th><th>Sector</th><th class="c">40-week</th><th class="r">13w</th><th class="c">Rel. trend</th><th class="r">RS 13w</th><th class="c">Trend</th><th></th></tr></thead><tbody>`
+    + (all.map(a => arow(...a)).join("") || `<tr><td colspan="10" class="dim">Mark a Sell or an Increase in the Focus List table, or a Buy in My short list (Master list workspace).</td></tr>`) + "</tbody>";
+  // breakdown
+  const d0 = dev(F), d1 = dev(aft);
+  $("b-title").textContent = sells.length + buys.length ? `Distance from the MSCI ACWI: regions ${pu(d0.z)} → ${pu(d1.z)}, sectors ${pu(d0.s)} → ${pu(d1.s)} after the sells and buys` : `Distance from the MSCI ACWI: regions ${pu(d0.z)}, sectors ${pu(d0.s)}`;
+  $("b-sub").textContent = `Focus List equally weighted (${F.length} names before, ${aft.length} after) against the MSCI ACWI. Distance = half the sum of the absolute weight differences (0% = same breakdown as the index).`;
+  $("b-reg").innerHTML = barsSVG(ZONES, BZ, wts(F, "z", ZONES), wts(aft, "z", ZONES)); $("b-sec").innerHTML = barsSVG(SECT, BS, wts(F, "se", SECT), wts(aft, "se", SECT));
+  $("b-reg-sub").textContent = "Weights: MSCI ACWI · before · after. Active = Focus List minus index."; $("b-sec-sub").textContent = $("b-reg-sub").textContent;
+  $("b-note").textContent = `MSCI ACWI breakdown: index weights of the ${R.filter(r => r.aw).length} master-list stocks that carry one, which add up to ${awCover.toFixed(1)}% of the index, rescaled to 100%. It is an approximation of the official region and sector weights. Regions are the zones of the master list. Active weight in green when the decision brings it closer to the index, in purple when further.`;
+  // optimiser
+  $("o-toggle").setAttribute("aria-pressed", optOn); $("o-toggle").textContent = optOn ? "Optimiser on – click to hide" : "Activate the optimiser"; $("o-panel").hidden = !optOn;
+  if (!optOn) return;
+  const k = Math.max(1, Math.min(20, +$("o-n").value || 1)), P = propose(aft, k, $("o-mode").value, $("o-two").checked), dP = dev(P.final);
+  $("o-title").textContent = P.picks.length ? `${P.picks.length} proposal${P.picks.length === 1 ? "" : "s"} from the short list: distance from the MSCI ACWI ${pu(d1.z + d1.s)} → ${pu(dP.z + dP.s)} (regions + sectors)` : "No proposal: the short list has no candidate outside the Focus List";
+  $("o-table").innerHTML = `<thead><tr><th>#</th><th>Proposed addition</th><th>Zone</th><th>Sector</th><th class="c">Rel. trend</th><th class="c">Trend</th><th>Why</th><th></th></tr></thead><tbody>`
+    + (P.picks.map((x, i) => `<tr class="rowc" data-t="${esc(x.r.t)}" tabindex="0"><td><span class="atag prop">${i + 1}</span></td><td class="nm"><b>${esc(x.r.n)}</b><span class="tk">${esc(x.r.t.replace(/ Equity$/, ""))}</span> <span class="dim">${"★".repeat(FL.get(x.r.t) || 0)}</span></td><td class="wrap">${esc(x.r.z)}</td><td class="wrap">${esc(x.r.se)}</td>
+      <td class="c">${badge(REL, x.r.rs)}</td><td class="c">${pill(x.r.v)}</td>
+      <td class="wrap" style="min-width:300px">${esc(x.r.se)}: ${pu(x.wS0)} → ${pu(x.wS1)} of the list (index ${pu(BS[x.r.se] ?? 0)}). ${esc(x.r.z)}: ${pu(x.wZ0)} → ${pu(x.wZ1)} (index ${pu(BZ[x.r.z] ?? 0)}). Distance ${x.gain >= 0 ? "down" : "up"} ${pu(Math.abs(x.gain))}. Short list: ${x.nS} of ${x.nSL} names in this sector, ${x.nZ} in this zone.</td>
+      <td class="c">${actBtn(x.r, "buy", "Buy")}</td></tr>`).join("") || `<tr><td colspan="8" class="dim">Flag companies with ★ or ★★ in the Master list workspace: the optimiser chooses among them.</td></tr>`) + "</tbody>";
+  $("o-note").textContent = `Each addition is chosen in turn among the ${P.nCand} short-list names outside the Focus List${$("o-two").checked ? " with two stars" : ""}. Score = how much it reduces the distance from the MSCI ACWI (regions + sectors), how concentrated the short list is in its sector and zone, and two stars against one. Weights by emphasis: Balanced 50 / 35 / 15, index first 75 / 15 / 10, concentration first 25 / 60 / 15. Click Buy to accept a proposal.`;
+  // comments: facts only
+  const wzA = wts(aft, "z", ZONES), wsA = wts(aft, "se", SECT), act = (w, B, cats) => cats.map(c => [c, w[c] - B[c]]).sort((a, b) => b[1] - a[1]);
+  const az = act(wzA, BZ, ZONES), as = act(wsA, BS, SECT), fo = aft.filter(r => hasV(r.v)), C = [];
+  const lst = a => a.map(r => esc(r.n)).join("; ");
+  C.push(`After the decisions the list holds ${aft.length} names: ${fo.filter(isB).length} Bullish, ${fo.filter(r => fam(r.v) === "Neutral").length} Neutral, ${fo.filter(isBe).length} Bearish; ${fo.filter(isO).length} Outperform their zone benchmark.`);
+  C.push(`Largest overweights against the MSCI ACWI: ${as.slice(0, 2).map(x => `${esc(x[0])} ${pp(x[1])}`).join(", ")} by sector; ${az.slice(0, 2).map(x => `${esc(x[0])} ${pp(x[1])}`).join(", ")} by region.`);
+  C.push(`Largest underweights: ${as.slice(-2).reverse().map(x => `${esc(x[0])} ${pp(x[1])}`).join(", ")} by sector; ${az.slice(-2).reverse().map(x => `${esc(x[0])} ${pp(x[1])}`).join(", ")} by region.`);
+  const noS = SECT.filter(c => !aft.some(r => r.se === c)), noZ = ZONES.filter(c => !aft.some(r => r.z === c));
+  if (noS.length || noZ.length) C.push(`No holding in: ${[...noS, ...noZ].map(esc).join(", ")}.`);
+  const weak = aft.filter(r => r.foc && isBe(r) && r.rs === "Underperform"); if (weak.length) C.push(`Bearish and Underperform, not marked Sell: ${lst(weak)}.`);
+  const sb = sells.filter(r => isB(r) && isO(r)); if (sb.length) C.push(`Marked Sell while Bullish and Outperform: ${lst(sb)}.`);
+  const bw = buys.filter(r => !isB(r)); if (bw.length) C.push(`Marked Buy without a Bullish verdict: ${lst(bw)}.`);
+  const SLn = R.filter(r => FL.has(r.t)); if (SLn.length) { const tS = SECT.map(x => [x, SLn.filter(r => r.se === x).length]).sort((a, b) => b[1] - a[1])[0], tZ = ZONES.map(x => [x, SLn.filter(r => r.z === x).length]).sort((a, b) => b[1] - a[1])[0];
+    C.push(`Short list (${SLn.length} names): ${tS[1]} in ${esc(tS[0])} (list ${pp(wsA[tS[0]] - BS[tS[0]])} against the index), ${tZ[1]} in ${esc(tZ[0])} (list ${pp(wzA[tZ[0]] - BZ[tZ[0]])}).`); }
+  C.push(`Distance from the MSCI ACWI, regions and sectors: ${pu(d0.z)} and ${pu(d0.s)} before; ${pu(d1.z)} and ${pu(d1.s)} after the decisions${P.picks.length ? `; ${pu(dP.z)} and ${pu(dP.s)} with the ${P.picks.length} proposal${P.picks.length === 1 ? "" : "s"}` : ""}.`);
+  $("o-comments").innerHTML = C.map(x => `<li>${x}</li>`).join("");
+}
+$("a-table").onclick = e => { const x = e.target.closest("button.act[data-x]"); if (x) { ACT[x.dataset.x].delete(x.dataset.t); saveACT(); drawL(); document.querySelectorAll(`button.act[data-a][data-t="${CSS.escape(x.dataset.t)}"]`).forEach(b => b.setAttribute("aria-pressed", ACT[b.dataset.a].has(x.dataset.t))); return; }
+  const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t, [...F.filter(r => ACT.sell.has(r.t) || ACT.inc.has(r.t)), ...R.filter(r => ACT.buy.has(r.t) && !r.foc)]); };
+$("o-table").onclick = e => { if (actClick(e)) { drawL(); return; } const tr = e.target.closest("tr.rowc"); if (tr) openChart(tr.dataset.t); };
+$("o-toggle").onclick = () => { optOn = !optOn; try { localStorage.setItem("syz-masterlist-opt", optOn ? "1" : "0"); } catch (e) {} drawFocusWork(); };
+$("o-n").oninput = drawFocusWork;                    // on input, not on change: a redraw when the field loses focus would swallow the click on a Buy button
+["o-mode", "o-two"].forEach(id => $(id).onchange = drawFocusWork);
+
+/* workspace: Master list or Focus List */
+function setMode(m) { document.body.dataset.mode = m; document.querySelectorAll(".modebtn").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.m === m))); try { localStorage.setItem("syz-masterlist-mode", m); } catch (e) {} }
+document.querySelector(".modebar").onclick = e => { const b = e.target.closest(".modebtn"); if (b) { setMode(b.dataset.m); scrollTo({ top: 0 }); } };
+$("mb-master").textContent = `${R.length} stocks`;
+let m0 = "master"; try { if (localStorage.getItem("syz-masterlist-mode") === "focus") m0 = "focus"; } catch (e) {}
+setMode(m0);
 
 /* screen */
 const st = { q: "", g: "", se: "", v: "", s: "", rs: "", list: "", key: "", dir: 1, n: 100, preset: "" };
@@ -514,7 +698,7 @@ function drawS() {
     && (!st.list || (st.list === "mine" ? FL.has(r.t) : st.list === "mine2" ? FL.get(r.t) === 2 : r[st.list])) && (!st.preset || (hasV(r.v) && preF[st.preset](r))));
   if (st.key) { const k = st.key; rows = rows.slice().sort((a, b) => { const x = key(a, k), y = key(b, k); if (x == null) return 1; if (y == null) return -1; return (typeof x === "string" ? x.localeCompare(y) : x - y) * st.dir; }); }
   else rows = rows.slice().sort((a, b) => (VO[a.v] ?? 9) - (VO[b.v] ?? 9) || (RO[a.rs] ?? 9) - (RO[b.rs] ?? 9) || (b.rs13 ?? -9) - (a.rs13 ?? -9));
-  $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(trow).join("") || `<tr><td colspan="12" class="dim">No stock matches.</td></tr>`) + "</tbody>";
+  $("s-table").innerHTML = thead(st) + "<tbody>" + (rows.slice(0, st.n).map(r => trow(r)).join("") || `<tr><td colspan="12" class="dim">No stock matches.</td></tr>`) + "</tbody>";
   curRows = rows;
   $("s-count").textContent = `${rows.length} of ${R.length} stocks`;
   $("s-more").hidden = rows.length <= st.n; $("s-more").textContent = `Show more (${Math.min(st.n, rows.length)} of ${rows.length})`;
@@ -547,6 +731,7 @@ $("m-list").innerHTML = [
   ["Trend", "Direction of the 40-week moving average over the last 4 weeks: rising, flat or falling."],
   ["Verdict", "Rising trend + intact support + 10-week above the 40-week = Bullish. Falling trend + broken support = Bearish. In between: Neutral, with a tilt. Support and resistance: last confirmed swing low and high."],
   ["Relative trend", "Is the 40-week average of stock ÷ zone benchmark rising (Outperform) or falling (Underperform)? RS 13w: change in relative strength over 13 weeks."],
+  ["Workspaces", "Master list: screen the 798 stocks and flag ideas with one or two stars. Focus List: mark sells and increases, see the buys taken from the short list, and compare the list, equally weighted, with the MSCI ACWI by region and sector."],
   ["Benchmarks", "United States and Canada: S&P 500. Europe ex-CH: Stoxx 600. Switzerland: SPI. Japan, Developed Pacific, emerging Asia: MSCI AC Asia Pacific. Other emerging markets: MSCI Emerging Markets. Price return, benchmark currency."]]
   .map(([a, b]) => `<div class="mrow"><b>${a}</b><span>${b}</span></div>`).join("");
 $("f-src").textContent = `Sources : Syz Research, Bloomberg. Weekly closes to ${D.asof}. Price return; each stock in the currency of its benchmark.`;
