@@ -556,14 +556,23 @@ async function copyTickers(rows, msg, area) { const txt = rows.map(r => r.t).joi
   $(msg).textContent = `${n} tickers selected below – press Ctrl+C (Cmd+C on a Mac)`; }
 $("l-copy").onclick = () => copyTickers(myRows, "l-msg", "l-area");
 /* short list as a file: Bloomberg ticker first, then what the screen says today */
-function downloadList(rows, starsOf) { if (!rows.length) { $("l-msg").textContent = "No company in the short list"; return; }
+/*__SAVE_BEGIN__*/
+async function saveFile(name, text) {                // published page: the viewer confirms the file through Claude's download capability
+  const dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null;
+  if (!dl) return "unavailable";
+  try { await dl.save({ filename: name, data: text }); return "saved"; } catch (e) { return e && e.code === "declined" ? "declined" : "unavailable"; }
+}
+/*__SAVE_END__*/
+async function downloadList(rows, starsOf) { if (!rows.length) { $("l-msg").textContent = "No company in the short list"; return; }
   const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`, pc = v => v == null ? "" : (v * 100).toFixed(1);
   const csv = [["Bloomberg ticker", "Name", "Stars", "Decision", "Zone", "Sector", "Trend", "40-week", "Relative trend", "vs 40w %", "13w %", "52w %", "RS 13w %", "Focus List", "Week to"].join(",")]
     .concat(rows.map(r => [q(r.t), q(r.n), starsOf.get(r.t) || "", ACT.buy.has(r.t) ? "Buy" : "", q(r.z), q(r.se), q(D.vlabel[r.v] || ""), r.s || "", r.rs || "", pc(r.vs40), pc(r.c13), pc(r.c52), pc(r.rs13), r.foc ? "Yes" : "No", q(D.asof)].join(","))).join("\r\n");
   const name = `Syz_short_list_${D.asof.replace(/ /g, "_")}.csv`;
-  try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); } catch (e) {}
-  const ar = $("l-area"); ar.value = rows.map(r => r.t).join("\n"); ar.hidden = false;      // always shown too, in case the browser blocks the download
-  $("l-msg").textContent = `${rows.length} companies – file ${name}; the tickers are also in the box below`; }
+  const res = await saveFile(name, "\ufeff" + csv);
+  if (res === "saved") { $("l-area").hidden = true; $("l-msg").textContent = `${rows.length} companies saved as ${name}`; return; }
+  if (res === "declined") { $("l-msg").textContent = "Download cancelled"; return; }
+  const ar = $("l-area"); ar.value = rows.map(r => r.t).join("\n"); ar.hidden = false; ar.focus(); ar.select();      // no file possible here: the tickers, ready to copy
+  $("l-msg").textContent = `A file cannot be saved from this view – the ${rows.length} tickers are in the box below`; }
 $("l-dl").onclick = () => downloadList(myRows, FL);
 $("l-clear").onclick = () => { if (!FL.size) return; const old = new Map(FL); FL.clear(); saveFL(); drawL(); drawS(); $("f-table").querySelectorAll("button.flag").forEach(b => b.setAttribute("aria-pressed", "false"));
   const oldRows = R.filter(r => old.has(r.t)).sort((a, b) => old.get(b.t) - old.get(a.t));

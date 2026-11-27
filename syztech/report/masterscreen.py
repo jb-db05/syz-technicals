@@ -154,5 +154,30 @@ def build_html(out_dir: Path = OUT) -> Path:
     return out_dir / "index.html"
 
 
+SAVE_STANDALONE = '''async function saveFile(name, text) {                // standalone file: an ordinary browser download
+  try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" })); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000); return "saved"; } catch (e) { return "unavailable"; }
+}'''
+
+
+def build_standalone(page: Path, out: Path) -> Path:
+    """One self-contained HTML file from the published page: logo embedded, full document, browser download for the
+    short list (the published page saves through Claude's download capability instead)."""
+    import base64
+    h = page.read_text(encoding="utf-8")
+    logo = base64.b64encode((page.parent / "syz_logo.png").read_bytes()).decode()
+    h = h.replace('src="syz_logo.png"', f'src="data:image/png;base64,{logo}"')
+    i, j = h.index("/*__SAVE_BEGIN__*/"), h.index("/*__SAVE_END__*/") + len("/*__SAVE_END__*/")
+    h = h[:i] + SAVE_STANDALONE + h[j:]
+    h = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+         + h.replace("</style>", "</style>\n</head>\n<body>", 1) + "\n</body>\n</html>\n")
+    out.write_text(h, encoding="utf-8")
+    return out
+
+
 if __name__ == "__main__":
-    build_html()
+    page = build_html()
+    d = page.read_text(encoding="utf-8")
+    import re
+    wk = re.search(r'"asof": "([^"]+)"', d).group(1).replace(" ", "_")
+    print("standalone:", build_standalone(page, Path("output") / f"Syz_Master_List_Technical_Screen_{wk}.html"))
